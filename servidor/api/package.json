@@ -1,0 +1,19 @@
+{
+  "name": "@dmujeres-tracking/api",
+  "version": "0.1.0",
+  "private": true,
+  "description": "API del panel de DMujeres Tracking",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "start": "node24 src/servidor.js",
+    "smoke": "node24 smoke.mjs",
+    "check": "for archivo in src/*.js smoke.mjs; do node24 --check \"$archivo\" || exit 1; done && echo \"check-ok\"",
+    "test": "node24 --test test/*.test.mjs"
+  },
+  "dependencies": {
+    "pg": "^8.23.0"
+  }
+}

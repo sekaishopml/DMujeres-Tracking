@@ -1,0 +1,11 @@
+{
+  "name": "dmujeres-web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Sirve el panel de DMujeres Tracking y pasa /api a la API",
+  "engines": { "node": ">=24" },
+  "scripts": {
+    "start": "node src/servidor.js"
+  }
+}
