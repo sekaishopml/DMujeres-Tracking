@@ -1,0 +1,190 @@
+@import 'tailwindcss';
+@import '@fontsource-variable/inter';
+@import '@fontsource/poppins/600.css';
+@import '@fontsource/poppins/700.css';
+
+@custom-variant dark (&:where([data-tema='oscuro'], [data-tema='oscuro'] *));
+
+/* Sistema de diseño DMujeres Tracking.
+   Estructura en azul marino (oscuro para la navegación, claro para acciones
+   secundarias y el trazado del mapa) y el magenta oficial de DMujeres
+   (#EB0045, el mismo del ícono de la app) para la marca, la acción principal
+   y la selección. Poppins es la tipografía del logotipo: se usa en títulos y
+   cifras; Inter en el texto de trabajo. Todo color sale de estos tokens. */
+@theme {
+  --font-sans: 'Inter Variable', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-display: 'Poppins', 'Inter Variable', system-ui, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  --color-marino-950: #06101f;
+  --color-marino-900: #0c1f3d;
+  --color-marino-800: #132b50;
+  --color-marino-700: #17365d;
+  --color-marino-600: #1f4a7c;
+  --color-marino-500: #2c5f99;
+  --color-marino-400: #5a86bb;
+  --color-marino-300: #93b2d6;
+  --color-marino-200: #c5d6ea;
+  --color-marino-100: #e3ecf6;
+  --color-marino-50: #f2f6fb;
+
+  /* Superficies marino que no cambian con el tema (panel de acceso, capa
+     activa del mapa, velos). */
+  --color-tinta: #0c1f3d;
+  --color-tinta-2: #132b50;
+  --color-tinta-3: #17365d;
+  --color-sombra: #06101f;
+
+  --color-marca: #eb0045;
+  --color-marca-oscuro: #c4003a;
+  --color-marca-claro: #ff5c8a;
+  --color-marca-suave: #fdebf1;
+
+  --color-fondo: #f0f2f7;
+  --color-superficie: #ffffff;
+  --color-borde: #e1e7ef;
+  --color-borde-fuerte: #c9d3e0;
+  --color-texto: #122036;
+  --color-texto-2: #52627a;
+  --color-texto-3: #8390a3;
+
+  /* Estados de un equipo: una sola paleta para chips, mapa y gráficos. */
+  --color-movimiento: #16a34a;
+  --color-movimiento-suave: #e8f6ed;
+  --color-detenido: #2563eb;
+  --color-detenido-suave: #e8effd;
+  --color-sin-senal: #d97706;
+  --color-sin-senal-suave: #fdf3e2;
+  --color-deshabilitado: #64748b;
+  --color-deshabilitado-suave: #eef1f5;
+  --color-peligro: #dc2626;
+  --color-peligro-suave: #fdecec;
+
+  --radius-control: 10px;
+  --radius-tarjeta: 16px;
+
+  --shadow-tarjeta: 0 1px 2px rgb(12 31 61 / 0.04), 0 4px 16px -6px rgb(12 31 61 / 0.08);
+  --shadow-flotante: 0 12px 32px rgb(12 31 61 / 0.16), 0 2px 6px rgb(12 31 61 / 0.08);
+
+  --animate-entrar: entrar 180ms cubic-bezier(0.16, 0.84, 0.44, 1);
+  @keyframes entrar {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: none; }
+  }
+}
+
+/* Modo nocturno: negro elegante de fondo, superficies en marino oscuro y
+   texto en marino claro. Se activa con data-tema="oscuro" en <html> (lo pone
+   lib/tema.ts según la preferencia guardada o la del sistema). La escala
+   marino se invierte para que "texto marino-900" siga siendo el de más
+   contraste; las superficies fijas usan tinta/sombra. */
+:root[data-tema='oscuro'] {
+  color-scheme: dark;
+  --color-marino-950: #f5f8fc;
+  --color-marino-900: #e8eef7;
+  --color-marino-800: #d3dfee;
+  --color-marino-700: #b7cae3;
+  --color-marino-600: #93b0d6;
+  --color-marino-500: #6f93c2;
+  --color-marino-400: #5577a6;
+  --color-marino-300: #34507a;
+  --color-marino-200: #263d5f;
+  --color-marino-100: #1a2c47;
+  --color-marino-50: #13213a;
+
+  --color-marca-suave: rgb(235 0 69 / 0.16);
+  --color-fondo: #070b14;
+  --color-superficie: #0e1729;
+  --color-borde: #1d2b44;
+  --color-borde-fuerte: #2a3c5c;
+  --color-texto: #e6edf7;
+  --color-texto-2: #9eb0c9;
+  --color-texto-3: #6c7f9b;
+
+  --color-movimiento: #22c55e;
+  --color-movimiento-suave: rgb(34 197 94 / 0.14);
+  --color-detenido: #60a5fa;
+  --color-detenido-suave: rgb(96 165 250 / 0.14);
+  --color-sin-senal: #f59e0b;
+  --color-sin-senal-suave: rgb(245 158 11 / 0.14);
+  --color-deshabilitado: #8b9bb3;
+  --color-deshabilitado-suave: rgb(139 155 179 / 0.14);
+  --color-peligro: #f87171;
+  --color-peligro-suave: rgb(248 113 113 / 0.14);
+
+  --shadow-tarjeta: 0 1px 2px rgb(0 0 0 / 0.4), 0 6px 20px -8px rgb(0 0 0 / 0.5);
+  --shadow-flotante: 0 16px 40px rgb(0 0 0 / 0.55), 0 2px 8px rgb(0 0 0 / 0.4);
+}
+
+@layer base {
+  /* Medidas del marco que se adaptan al alto y ancho de la ventana: en un
+     portátil de 1366x768 el lateral cabe sin barra de desplazamiento y en
+     pantallas grandes conserva las medidas de diseño (tope de cada clamp). */
+  :root {
+    --ancho-lateral: clamp(208px, 16.5vw, 248px);
+    --alto-cabecera: clamp(64px, 10vh, 80px);
+    --alto-item: clamp(34px, 5.4vh, 44px);
+    --zoom-ui: 1;
+  }
+  /* En escritorio el panel se ve al 85 %: a zoom 100 % del navegador la
+     interfaz resultaba grande. Los mapas se compensan en MapaBase (MapLibre
+     calcula mal el cursor si hereda un zoom de CSS). */
+  @media (min-width: 1024px) {
+    :root { --zoom-ui: 0.85; }
+    #root { zoom: var(--zoom-ui); }
+  }
+  html, body, #root { height: 100%; }
+  /* Cambio de tema suave, sin animar nada más. */
+  html.tema-transicion * { transition: background-color 200ms ease, border-color 200ms ease, color 200ms ease !important; }
+  body {
+    @apply bg-fondo font-sans text-[13.5px] leading-[1.5] text-texto antialiased;
+    font-feature-settings: 'cv11', 'ss01';
+  }
+  h1, h2, h3 { @apply font-display text-marino-900; }
+  :focus-visible { @apply outline-2 outline-offset-2 outline-marca; }
+  ::selection { background: var(--color-marca-suave); }
+}
+
+/* Cifras alineadas en tablas y fichas. */
+@utility cifras {
+  font-variant-numeric: tabular-nums;
+}
+
+/* MapLibre: controles con la misma piel del panel. */
+.maplibregl-ctrl-group {
+  @apply overflow-hidden rounded-control! border border-borde shadow-flotante!;
+}
+.maplibregl-ctrl-scale {
+  @apply rounded-sm border-marino-400! bg-superficie/85! text-[11px] text-marino-800!;
+}
+.maplibregl-popup-content {
+  @apply rounded-control! px-3! py-2.5! font-sans text-[12.5px] shadow-flotante!;
+}
+
+/* Controles de MapLibre en modo nocturno. */
+:root[data-tema='oscuro'] .maplibregl-ctrl-group { background: var(--color-superficie); }
+:root[data-tema='oscuro'] .maplibregl-ctrl-group button + button { border-top-color: var(--color-borde); }
+:root[data-tema='oscuro'] .maplibregl-ctrl-icon { filter: invert(1) hue-rotate(180deg); }
+:root[data-tema='oscuro'] .maplibregl-ctrl-attrib { background: rgb(14 23 41 / 0.8); color: var(--color-texto-2); }
+:root[data-tema='oscuro'] .maplibregl-ctrl-attrib a { color: var(--color-texto-2); }
+:root[data-tema='oscuro'] .maplibregl-popup-content { background: var(--color-superficie); color: var(--color-texto); }
+
+/* Pantalla de carga: el logotipo y debajo un círculo magenta que gira. */
+@keyframes girar-carga { to { transform: rotate(360deg); } }
+.circulo-carga {
+  width: 34px; height: 34px; border-radius: 9999px;
+  border: 3px solid var(--color-marca-suave); border-top-color: var(--color-marca);
+  animation: girar-carga 0.8s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .circulo-carga { animation-duration: 2.4s; }
+}
+
+/* Notificaciones: contador que baja, panel que se despliega y campana. */
+@keyframes contador { from { transform: translateY(-110%); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes desplegar { from { opacity: 0; transform: translateY(-6px) scale(.97); } to { opacity: 1; transform: none; } }
+@keyframes aparecer { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+@keyframes campana {
+  0%, 100% { transform: rotate(0); } 15% { transform: rotate(14deg); } 30% { transform: rotate(-12deg); }
+  45% { transform: rotate(8deg); } 60% { transform: rotate(-5deg); } 75% { transform: rotate(2deg); }
+}
