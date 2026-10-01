@@ -1,0 +1,3265 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "DMujeres Tracking API v1",
+    "version": "1.0.0",
+    "summary": "API propia de DMujeres Tracking para la Web nueva.",
+    "description": "API del panel de DMujeres Tracking (`/api/v1`). El panel solo habla con esta API. Los datos usan nombres en español y no exponen tablas internas. La sesión va en la cookie `dmj_sesion` (HttpOnly, Secure, SameSite=Lax). Los errores tienen la forma `{\"error\":{\"codigo\":\"...\",\"mensaje\":\"...\"}}`. Lo que usa la app (`/api/mobile/v1/*` y OsmAnd) es aparte y se describe en docs/."
+  },
+  "servers": [
+    {
+      "url": "/",
+      "description": "Mismo origen. Nginx enruta /api/v1/* al servicio api (Node 24 LTS)."
+    }
+  ],
+  "security": [
+    {
+      "cookieSesion": []
+    }
+  ],
+  "tags": [
+    {
+      "name": "auth",
+      "description": "Sesión de la Web (cookie propia)."
+    },
+    {
+      "name": "flota",
+      "description": "Dispositivos y su última posición."
+    },
+    {
+      "name": "posiciones",
+      "description": "Posiciones en vivo para el panel."
+    },
+    {
+      "name": "replay",
+      "description": "Recorridos históricos por ventana temporal."
+    },
+    {
+      "name": "reportes",
+      "description": "Viajes, paradas y resumen operativo."
+    },
+    {
+      "name": "bateria",
+      "description": "Estado y muestras de batería."
+    },
+    {
+      "name": "usuarios",
+      "description": "Gestión de usuarios y permisos."
+    },
+    {
+      "name": "geocodificacion",
+      "description": "Direcciones de puntos (geocodificación inversa)."
+    },
+    {
+      "name": "sistema",
+      "description": "Configuración, salud y versión."
+    }
+  ],
+  "paths": {
+    "/api/v1/auth/login": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Inicia sesión en la Web",
+        "description": "Valida usuario y clave y crea la sesión. Responde con `Set-Cookie: dmj_sesion=...; HttpOnly; Secure; SameSite=Lax`. La credencial interna del servidor no se devuelve.",
+        "operationId": "iniciarSesion",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Credenciales"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Sesión creada.",
+            "headers": {
+              "Set-Cookie": {
+                "description": "Cookie `dmj_sesion` HttpOnly, Secure y SameSite=Lax.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Sesion"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/DatosInvalidos"
+          },
+          "401": {
+            "$ref": "#/components/responses/NoAutenticado"
+          },
+          "500": {
+            "$ref": "#/components/responses/ErrorInterno"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServicioNoDisponible"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/logout": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Cierra la sesión de la Web",
+        "description": "Invalida la sesión en el servidor y expira la cookie `dmj_sesion`.",
+        "operationId": "cerrarSesion",
+        "responses": {
+          "204": {
+            "description": "Sesión cerrada; cookie expirada."
+          },
+          "401": {
+            "$ref": "#/components/responses/NoAutenticado"
+          },
+          "500": {
+            "$ref": "#/components/responses/ErrorInterno"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServicioNoDisponible"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/me": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Devuelve el usuario de la sesión actual",
+        "description": "Usado por la Web al arrancar para restaurar el estado de sesión y evaluar permisos.",
+        "operationId": "obtenerSesion",
+        "responses": {
+          "200": {
+            "description": "Usuario autenticado.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Usuario"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/NoAutenticado"
+          },
+          "500": {
+            "$ref": "#/components/responses/ErrorInterno"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServicioNoDisponible"
+          }
+        }
+      }
+    },
+    "/api/v1/fleet": {
+      "get": {
+        "tags": [
+          "flota"
+        ],
+        "summary": "Lista la flota de dispositivos",
+        "description": "Panel completo: estado, última conexión, jornada, batería y pendientes. Paginado.",
+        "operationId": "listarFlota",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Pagina"
+          },
+          {
+            "$ref": "#/components/parameters/Tamano"
+          },
+          {
+            "$ref": "#/components/parameters/Orden"
+          },
+          {
+            "$ref": "#/components/parameters/DispositivoId"
+          },
+          {
+            "$ref": "#/components/parameters/Desde"
+          },
+          {
+            "$ref": "#/components/parameters/Hasta"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Página de dispositivos.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginaDispositivo"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/DatosInvalidos"
+          },
+          "401": {
+            "$ref": "#/components/responses/NoAutenticado"
+          },
+          "403": {
+            "$ref": "#/components/responses/SinPermiso"
+          },
+          "500": {
+            "$ref": "#/components/responses/ErrorInterno"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServicioNoDisponible"
+          }
+        }
+      }
+    },
+    "/api/v1/fleet/{id}": {
+      "put": {
+        "tags": [
+          "flota"
+        ],
+        "summary": "Actualiza un equipo (nombre y configuración)",
+        "description": "Permitido a administradores y a usuarios con el equipo asignado. `configuracion` acepta solo la whitelist `mobile.*` del contrato y hace merge en los atributos del dispositivo, de modo que nunca pisa otras claves. Audita la acción.",
+        "operationId": "actualizarDispositivo",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdDispositivo"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ActualizacionDispositivo"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Equipo actualizado.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RespuestaDispositivo"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/DatosInvalidos"
+          },
+          "401": {
+            "$ref": "#/components/responses/NoAutenticado"
+          },
+          "403": {
+            "$ref": "#/components/responses/SinPermiso"
+          },
+          "404": {
+            "$ref": "#/components/responses/NoEncontrado"
+          },
+          "500": {
+            "$ref": "#/components/responses/ErrorInterno"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServicioNoDisponible"
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "flota"
+        ],
+        "summary": "Detalle de un dispositivo",
+        "description": "Acepta el `idPublico` (UUID) o el id numérico anterior.",
+        "operationId": "obtenerDispositivo",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdDispositivo"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Dispositivo solicitado.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Dispositivo"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/NoAutenticado"
+          },
+          "403": {
+            "$ref": "#/components/responses/SinPermiso"
+          },
+          "404": {
+            "$ref": "#/components/responses/NoEncontrado"
+          },
+          "500": {
+            "$ref": "#/components/responses/ErrorInterno"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServicioNoDisponible"
+          }
+        }
+      }
+    },
+    "/api/v1/fleet/{id}/position": {
+      "get": {
+        "tags": [
+          "flota"
+        ],
+        "summary": "Última posición de un dispositivo",
+        "description": "Lee el estado actual del dispositivo (una fila por dispositivo en el modelo interno). No ejecuta consultas de máximo sobre el histórico.",
+        "operationId": "obtenerPosicionDispositivo",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdDispositivo"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Última posición conocida.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Posicion"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/NoAutenticado"
+          },
+          "403": {
+            "$ref": "#/components/responses/SinPermiso"
+          },
+          "404": {
+            "$ref": "#/components/responses/NoEncontrado"
+          },
+          "500": {
+            "$ref": "#/components/responses/ErrorInterno"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServicioNoDisponible"
+          }
+        }
+      }
+    },
+    "/api/v1/fleet/{id}/journeys": {
+      "get": {
+        "tags": [
+          "flota"
+        ],
+        "summary": "Jornadas de un equipo en un rango",
+        "description": "Horas de encendido (`inicioEn`) y apagado (`finEn`) de las jornadas del equipo, ordenadas de más antigua a más reciente. Una jornada sin `finEn` está abierta (`abierta: true`) y su `duracionMin` se calcula hasta el momento de la consulta. Si se omiten `desde`/`hasta`, la ventana por defecto es el día actual en la zona horaria de la API; máximo 366 días.",
+        "operationId": "listarJornadas",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdDispositivo"
+          },
+          {
+            "$ref": "#/components/parameters/Desde"
+          },
+          {
+            "$ref": "#/components/parameters/Hasta"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Jornadas del equipo en la ventana pedida.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RespuestaJornadas"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/DatosInvalidos"
+          },
+          "401": {
+            "$ref": "#/components/responses/NoAutenticado"
+          },
+          "403": {
+            "$ref": "#/components/responses/SinPermiso"
+          },
+          "404": {
+            "$ref": "#/components/responses/NoEncontrado"
+          },
+          "500": {
+            "$ref": "#/components/responses/ErrorInterno"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServicioNoDisponible"
+          }
+        }
+      }
+    },
+    "/api/v1/journeys": {
+      "get": {
+        "tags": [
+          "flota"
+        ],
+        "summary": "Jornadas de toda la flota en un rango",
+        "description": "Igual que `/api/v1/fleet/{id}/journeys` pero para todos los equipos visibles de la cuenta: administradores ven la flota completa y el resto solo sus asignaciones activas. Con `dispositivoId` filtra por equipo (`idPublico` UUID, id numérico anterior o id interno). Ordenadas por `inicioEn` ascendente; paginado. Respuesta vacía en el rango no es error: cierra el día sin jornadas.",
+        "operationId": "listarJornadasFlota",
+        "security": [
+          {
+            "cookieSesion": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Desde"
+          },
+          {
+            "$ref": "#/components/parameters/Hasta"
+          },
+          {
+            "$ref": "#/components/parameters/DispositivoId"
+          },
+          {
+            "$ref": "#/components/parameters/Pagina"
+          },
+          {
+            "$ref": "#/components/parameters/Tamano"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Página de jornadas de la flota.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginaJornada"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/DatosInvalidos"
+          },
+          "401": {
+            "$ref": "#/components/responses/NoAutenticado"
+          },
+          "403": {
+            "$ref": "#/components/responses/SinPermiso"
+          },
+          "500": {
+            "$ref": "#/components/responses/ErrorInterno"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServicioNoDisponible"
+          }
+        }
+      }
+    },
+    "/api/v1/positions/live": {
+      "get": {
+        "tags": [
+          "posiciones"
+        ],
+        "summary": "Posiciones en vivo de la flota",
+        "description": "Endpoint de sondeo del panel (primera versión: cada 5 s). La Web debe usar AbortController, control de solapamiento y backoff ante error. El contrato queda preparado para SSE/WebSocket en el futuro sin cambiar la forma de los datos.",
+        "operationId": "listarPosicionesVivas",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/DispositivoId"
+          },
+          {
+            "$ref": "#/components/parameters/Desde"
+          },
+          {
+            "$ref": "#/components/parameters/Hasta"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Posiciones vigentes y marca de tiempo del servidor.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PosicionesVivas"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/DatosInvalidos"
+          },
+          "401": {
+            "$ref": "#/components/responses/NoAutenticado"
+          },
+          "403": {
+            "$ref": "#/components/responses/SinPermiso"
+          },
+          "500": {
+            "$ref": "#/components/responses/ErrorInterno"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServicioNoDisponible"
+          }
+        }
+      }
+    },
+    "/api/v1/replay": {
+      "get": {
+        "tags": [
+          "replay"
+        ],
+        "summary": "Dispositivos con recorrido disponible en un rango",
+        "description": "Catálogo para el selector de replay: dispositivos con posiciones dentro de `desde`/`hasta`. El recorrido de un dispositivo se pide en `/api/v1/replay/{deviceId}`.",
+        "operationId": "listarReplayDisponible",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Desde"
+          },
+          {
+            "$ref": "#/components/parameters/Hasta"
+          },
+          {
+            "$ref": "#/components/parameters/DispositivoId"
+          },
+          {
+            "$ref": "#/components/parameters/Pagina"
+          },
+          {
+            "$ref": "#/components/parameters/Tamano"
+          },
+          {
+            "$ref": "#/components/parameters/Orden"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Página de recorridos disponibles.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginaReplayDisponible"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/DatosInvalidos"
+          },
+          "401": {
+            "$ref": "#/components/responses/NoAutenticado"
+          },
+          "403": {
+            "$ref": "#/components/responses/SinPermiso"
+          },
+          "500": {
+            "$ref": "#/components/responses/ErrorInterno"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServicioNoDisponible"
+          }
+        }
+      }
+    },
+    "/api/v1/replay/{deviceId}": {
+      "get": {
+        "tags": [
+          "replay"
+        ],
+        "summary": "Recorrido histórico de un dispositivo",
+        "description": "Carga por ventana temporal (`desde`/`hasta`), con huecos de señal y resumen. La Web representa el recorrido como geometría, no como miles de elementos DOM.",
+        "operationId": "obtenerReplay",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/DeviceId"
+          },
+          {
+            "$ref": "#/components/parameters/Desde"
+          },
+          {
+            "$ref": "#/components/parameters/Hasta"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Recorrido del dispositivo en la ventana pedida.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Replay"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/DatosInvalidos"
+          },
+          "401": {
+            "$ref": "#/components/responses/NoAutenticado"
+          },
+          "403": {
+            "$ref": "#/components/responses/SinPermiso"
+          },
+          "404": {
+            "$ref": "#/components/responses/NoEncontrado"
+          },
+          "500": {
+            "$ref": "#/components/responses/ErrorInterno"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServicioNoDisponible"
+          }
+        }
+      }
+    },
+    "/api/v1/reports/trips": {
+      "get": {
+        "tags": [
+          "reportes"
+        ],
+        "summary": "Reporte de viajes",
+        "description": "Viajes detectados por dispositivo en la ventana pedida. Paginado.",
+        "operationId": "listarViajes",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/DispositivoId"
+          },
+          {
+            "$ref": "#/components/parameters/Desde"
+          },
+          {
+            "$ref": "#/components/parameters/Hasta"
+          },
+          {
+            "$ref": "#/components/parameters/Pagina"
+          },
+          {
+            "$ref": "#/components/parameters/Tamano"
+          },
+          {
+            "$ref": "#/components/parameters/Orden"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Página de viajes.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginaReporteViaje"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/DatosInvalidos"
+          },
+          "401": {
+            "$ref": "#/components/responses/NoAutenticado"
+          },
+          "403": {
+            "$ref": "#/components/responses/SinPermiso"
+          },
+          "500": {
+            "$ref": "#/components/responses/ErrorInterno"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServicioNoDisponible"
+          }
+        }
+      }
+    },
+    "/api/v1/reports/stops": {
+      "get": {
+        "tags": [
+          "reportes"
+        ],
+        "summary": "Reporte de paradas",
+        "description": "Paradas detectadas por dispositivo en la ventana pedida. Paginado.",
+        "operationId": "listarParadas",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/DispositivoId"
+          },
+          {
+            "$ref": "#/components/parameters/Desde"
+          },
+          {
+            "$ref": "#/components/parameters/Hasta"
+          },
+          {
+            "$ref": "#/components/parameters/Pagina"
+          },
+          {
+            "$ref": "#/components/parameters/Tamano"
+          },
+          {
+            "$ref": "#/components/parameters/Orden"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Página de paradas.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginaReporteParada"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/DatosInvalidos"
+          },
+          "401": {
+            "$ref": "#/components/responses/NoAutenticado"
+          },
+          "403": {
+            "$ref": "#/components/responses/SinPermiso"
+          },
+          "500": {
+            "$ref": "#/components/responses/ErrorInterno"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServicioNoDisponible"
+          }
+        }
+      }
+    },
+    "/api/v1/reports/summary": {
+      "get": {
+        "tags": [
+          "reportes"
+        ],
+        "summary": "Resumen operativo del rango",
+        "description": "Totales y desglose por dispositivo para la ventana pedida.",
+        "operationId": "obtenerResumenReportes",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/DispositivoId"
+          },
+          {
+            "$ref": "#/components/parameters/Desde"
+          },
+          {
+            "$ref": "#/components/parameters/Hasta"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Resumen del rango.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResumenReporte"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/DatosInvalidos"
+          },
+          "401": {
+            "$ref": "#/components/responses/NoAutenticado"
+          },
+          "403": {
+            "$ref": "#/components/responses/SinPermiso"
+          },
+          "500": {
+            "$ref": "#/components/responses/ErrorInterno"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServicioNoDisponible"
+          }
+        }
+      }
+    },
+    "/api/v1/battery": {
+      "get": {
+        "tags": [
+          "bateria"
+        ],
+        "summary": "Estado de batería de la flota",
+        "description": "Resumen por dispositivo (sin la serie completa de muestras). Paginado.",
+        "operationId": "listarBateriaFlota",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Pagina"
+          },
+          {
+            "$ref": "#/components/parameters/Tamano"
+          },
+          {
+            "$ref": "#/components/parameters/Orden"
+          },
+          {
+            "$ref": "#/components/parameters/DispositivoId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Página de resúmenes de batería.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginaBateriaResumen"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/DatosInvalidos"
+          },
+          "401": {
+            "$ref": "#/components/responses/NoAutenticado"
+          },
+          "403": {
+            "$ref": "#/components/responses/SinPermiso"
+          },
+          "500": {
+            "$ref": "#/components/responses/ErrorInterno"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServicioNoDisponible"
+          }
+        }
+      }
+    },
+    "/api/v1/battery/{deviceId}": {
+      "get": {
+        "tags": [
+          "bateria"
+        ],
+        "summary": "Batería de un dispositivo",
+        "description": "Estado actual y serie de muestras dentro de la ventana `desde`/`hasta`.",
+        "operationId": "obtenerBateriaDispositivo",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/DeviceId"
+          },
+          {
+            "$ref": "#/components/parameters/Desde"
+          },
+          {
+            "$ref": "#/components/parameters/Hasta"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Batería del dispositivo.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Bateria"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/NoAutenticado"
+          },
+          "403": {
+            "$ref": "#/components/responses/SinPermiso"
+          },
+          "404": {
+            "$ref": "#/components/responses/NoEncontrado"
+          },
+          "500": {
+            "$ref": "#/components/responses/ErrorInterno"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServicioNoDisponible"
+          }
+        }
+      }
+    },
+    "/api/v1/users": {
+      "post": {
+        "tags": [
+          "usuarios"
+        ],
+        "summary": "Crea un usuario",
+        "description": "Solo administradores. Genera la credencial con el mismo PBKDF2 heredado (PBKDF2-HMAC-SHA1, 1000 iteraciones, 24 bytes, sal aleatoria de 24 bytes) y nunca la devuelve ni la registra. `nombre_usuario` se deriva del correo (parte local, minúsculas, sin espacios) y se desambigua si ya existe. Sincroniza las asignaciones de equipos y audita la acción.",
+        "operationId": "crearUsuario",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UsuarioCreacion"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Usuario creado con sus equipos asignados.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RespuestaUsuario"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/DatosInvalidos"
+          },
+          "401": {
+            "$ref": "#/components/responses/NoAutenticado"
+          },
+          "403": {
+            "$ref": "#/components/responses/SinPermiso"
+          },
+          "500": {
+            "$ref": "#/components/responses/ErrorInterno"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServicioNoDisponible"
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "usuarios"
+        ],
+        "summary": "Lista usuarios",
+        "description": "Solo administradores. Paginado.",
+        "operationId": "listarUsuarios",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Pagina"
+          },
+          {
+            "$ref": "#/components/parameters/Tamano"
+          },
+          {
+            "$ref": "#/components/parameters/Orden"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Página de usuarios.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginaUsuario"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/DatosInvalidos"
+          },
+          "401": {
+            "$ref": "#/components/responses/NoAutenticado"
+          },
+          "403": {
+            "$ref": "#/components/responses/SinPermiso"
+          },
+          "500": {
+            "$ref": "#/components/responses/ErrorInterno"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServicioNoDisponible"
+          }
+        }
+      }
+    },
+    "/api/v1/users/{id}": {
+      "put": {
+        "tags": [
+          "usuarios"
+        ],
+        "summary": "Actualiza un usuario",
+        "description": "Solo administradores. `clave` vacía o ausente no cambia la credencial. `dispositivoIds` sincroniza las asignaciones del usuario (activa/desactiva filas con fechas, sin borrar histórico). No permite quitar el rol al último administrador activo. Audita la acción.",
+        "operationId": "actualizarUsuario",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdUsuario"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UsuarioActualizacion"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Usuario actualizado.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RespuestaUsuario"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/DatosInvalidos"
+          },
+          "401": {
+            "$ref": "#/components/responses/NoAutenticado"
+          },
+          "403": {
+            "$ref": "#/components/responses/SinPermiso"
+          },
+          "404": {
+            "$ref": "#/components/responses/NoEncontrado"
+          },
+          "500": {
+            "$ref": "#/components/responses/ErrorInterno"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServicioNoDisponible"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "usuarios"
+        ],
+        "summary": "Da de baja un usuario",
+        "description": "Solo administradores. Baja lógica (`habilitado=false`), revoca sus sesiones y desactiva sus asignaciones sin borrar histórico. Responde 400 si es la propia cuenta o si la instancia quedaría sin administradores activos. Audita la acción.",
+        "operationId": "eliminarUsuario",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdUsuario"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Usuario dado de baja."
+          },
+          "400": {
+            "$ref": "#/components/responses/DatosInvalidos"
+          },
+          "401": {
+            "$ref": "#/components/responses/NoAutenticado"
+          },
+          "403": {
+            "$ref": "#/components/responses/SinPermiso"
+          },
+          "404": {
+            "$ref": "#/components/responses/NoEncontrado"
+          },
+          "500": {
+            "$ref": "#/components/responses/ErrorInterno"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServicioNoDisponible"
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "usuarios"
+        ],
+        "summary": "Detalle de un usuario",
+        "description": "Solo administradores, o el propio usuario. Acepta `idPublico` (UUID) o el id numérico anterior.",
+        "operationId": "obtenerUsuario",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdUsuario"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Usuario solicitado.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Usuario"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/NoAutenticado"
+          },
+          "403": {
+            "$ref": "#/components/responses/SinPermiso"
+          },
+          "404": {
+            "$ref": "#/components/responses/NoEncontrado"
+          },
+          "500": {
+            "$ref": "#/components/responses/ErrorInterno"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServicioNoDisponible"
+          }
+        }
+      }
+    },
+    "/api/v1/config": {
+      "get": {
+        "tags": [
+          "sistema"
+        ],
+        "summary": "Configuración de la Web",
+        "description": "Preferencias del sistema y de operación que la Web necesita para renderizar (mapa, refresco, capacidades). No expone secretos ni configuración interna del servidor.",
+        "operationId": "obtenerConfiguracion",
+        "responses": {
+          "200": {
+            "description": "Configuración de la Web.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Configuracion"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/NoAutenticado"
+          },
+          "500": {
+            "$ref": "#/components/responses/ErrorInterno"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServicioNoDisponible"
+          }
+        }
+      }
+    },
+    "/api/v1/geocode/reverse": {
+      "get": {
+        "tags": [
+          "geocodificacion"
+        ],
+        "summary": "Dirección de un punto",
+        "description": "Geocodificación inversa con Nominatim (OpenStreetMap): devuelve una dirección corta en español para una coordenada. Si el servicio externo no responde dentro del tiempo límite, `direccion` viaja como `null` y la petición sigue siendo 200.",
+        "operationId": "obtenerDireccion",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Latitud"
+          },
+          {
+            "$ref": "#/components/parameters/Longitud"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Dirección resuelta, o `null` si no se pudo obtener.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RespuestaDireccion"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/DatosInvalidos"
+          },
+          "401": {
+            "$ref": "#/components/responses/NoAutenticado"
+          },
+          "500": {
+            "$ref": "#/components/responses/ErrorInterno"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServicioNoDisponible"
+          }
+        }
+      }
+    },
+    "/api/v1/health": {
+      "get": {
+        "tags": [
+          "sistema"
+        ],
+        "summary": "Salud (liveness)",
+        "description": "Comprueba que el proceso responde. Sin autenticación.",
+        "operationId": "obtenerSalud",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Proceso vivo.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Salud"
+                }
+              }
+            }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServicioNoDisponible"
+          }
+        }
+      }
+    },
+    "/api/v1/ready": {
+      "get": {
+        "tags": [
+          "sistema"
+        ],
+        "summary": "Disponibilidad (readiness)",
+        "description": "Comprueba base de datos y servicio de tracking. Sin autenticación.",
+        "operationId": "obtenerDisponibilidad",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Dependencias listas (o degradadas) con su detalle.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Disponibilidad"
+                }
+              }
+            }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServicioNoDisponible"
+          }
+        }
+      }
+    },
+    "/api/v1/version": {
+      "get": {
+        "tags": [
+          "sistema"
+        ],
+        "summary": "Versión desplegada",
+        "description": "Versión de la API, versión del esquema y build. Sin autenticación.",
+        "operationId": "obtenerVersion",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Versiones del despliegue.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Version"
+                }
+              }
+            }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServicioNoDisponible"
+          }
+        }
+      }
+    },
+    "/api/v1/salud": {
+      "get": {
+        "tags": [
+          "sistema"
+        ],
+        "summary": "Salud de la flota con causa",
+        "description": "Estado por equipo (HEALTHY/DEGRADED/OFFLINE/RECOVERING/MISCONFIGURED) con causa legible, derivado de posiciones/eventos/atributos. Los campos que la app aún no reporta viajan como null.",
+        "operationId": "listarSalud",
+        "responses": {
+          "200": {
+            "description": "Salud de la flota.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RespuestaSalud"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/NoAutenticado"
+          },
+          "403": {
+            "$ref": "#/components/responses/SinPermiso"
+          },
+          "500": {
+            "$ref": "#/components/responses/ErrorInterno"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServicioNoDisponible"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "cookieSesion": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "dmj_sesion",
+        "description": "Cookie de sesión propia de DMujeres Tracking: HttpOnly, Secure y SameSite=Lax. La emite `/api/v1/auth/login` y la invalida `/api/v1/auth/logout`. La credencial interna del servidor nunca llega al navegador."
+      }
+    },
+    "parameters": {
+      "Desde": {
+        "name": "desde",
+        "in": "query",
+        "required": false,
+        "description": "Inicio del rango, ISO-8601 con zona (`2026-09-25T00:00:00-03:00`) o UTC (`Z`).",
+        "schema": {
+          "type": "string",
+          "format": "date-time",
+          "example": "2026-09-25T00:00:00-03:00"
+        }
+      },
+      "Hasta": {
+        "name": "hasta",
+        "in": "query",
+        "required": false,
+        "description": "Fin del rango, ISO-8601 con zona o UTC. Debe ser posterior a `desde`.",
+        "schema": {
+          "type": "string",
+          "format": "date-time",
+          "example": "2026-09-25T23:59:59-03:00"
+        }
+      },
+      "DispositivoId": {
+        "name": "dispositivoId",
+        "in": "query",
+        "required": false,
+        "description": "Filtra por dispositivo: `idPublico` (UUID) o id numérico anterior.",
+        "schema": {
+          "type": "string"
+        },
+        "example": "01932f6e-7a10-7000-8000-000000000001"
+      },
+      "Pagina": {
+        "name": "pagina",
+        "in": "query",
+        "required": false,
+        "description": "Página solicitada (1-based). Por defecto 1.",
+        "schema": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 1
+        }
+      },
+      "Tamano": {
+        "name": "tamano",
+        "in": "query",
+        "required": false,
+        "description": "Tamaño de página. Por defecto 25; máximo 200.",
+        "schema": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 200,
+          "default": 25
+        }
+      },
+      "Orden": {
+        "name": "orden",
+        "in": "query",
+        "required": false,
+        "description": "Campo de ordenamiento; prefijo `-` para descendente. Ejemplos: `nombre`, `-ultimaConexion`, `-registradoEn`.",
+        "schema": {
+          "type": "string",
+          "pattern": "^-?[a-zA-Z][a-zA-Z0-9]*$"
+        },
+        "example": "-ultimaConexion"
+      },
+      "IdDispositivo": {
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "description": "Identificador del dispositivo: `idPublico` (UUID) o id numérico anterior.",
+        "schema": {
+          "type": "string"
+        },
+        "example": "01932f6e-7a10-7000-8000-000000000001"
+      },
+      "DeviceId": {
+        "name": "deviceId",
+        "in": "path",
+        "required": true,
+        "description": "Identificador del dispositivo: `idPublico` (UUID) o id numérico anterior.",
+        "schema": {
+          "type": "string"
+        },
+        "example": "01932f6e-7a10-7000-8000-000000000001"
+      },
+      "IdUsuario": {
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "description": "Identificador del usuario: `idPublico` (UUID) o id numérico anterior.",
+        "schema": {
+          "type": "string"
+        },
+        "example": "01932f6e-7a10-7000-8000-000000000010"
+      },
+      "Latitud": {
+        "name": "lat",
+        "in": "query",
+        "required": true,
+        "description": "Latitud en grados decimales (-90 a 90).",
+        "schema": {
+          "type": "number",
+          "minimum": -90,
+          "maximum": 90
+        },
+        "example": -2.1577
+      },
+      "Longitud": {
+        "name": "lon",
+        "in": "query",
+        "required": true,
+        "description": "Longitud en grados decimales (-180 a 180).",
+        "schema": {
+          "type": "number",
+          "minimum": -180,
+          "maximum": 180
+        },
+        "example": -79.8991
+      }
+    },
+    "responses": {
+      "DatosInvalidos": {
+        "description": "Datos de entrada inválidos (400).",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorRespuesta"
+            }
+          }
+        }
+      },
+      "NoAutenticado": {
+        "description": "Sesión ausente o expirada (401).",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorRespuesta"
+            }
+          }
+        }
+      },
+      "SinPermiso": {
+        "description": "El usuario autenticado no tiene permiso (403).",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorRespuesta"
+            }
+          }
+        }
+      },
+      "NoEncontrado": {
+        "description": "Recurso inexistente o no visible para el usuario (404).",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorRespuesta"
+            }
+          }
+        }
+      },
+      "ErrorInterno": {
+        "description": "Error interno (500). El cuerpo no expone detalles del motor.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorRespuesta"
+            }
+          }
+        }
+      },
+      "ServicioNoDisponible": {
+        "description": "Servicio o dependencia no disponible (503).",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorRespuesta"
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "CodigoError": {
+        "type": "string",
+        "enum": [
+          "NO_AUTENTICADO",
+          "SIN_PERMISO",
+          "NO_ENCONTRADO",
+          "DATOS_INVALIDOS",
+          "ERROR_INTERNO",
+          "SERVICIO_NO_DISPONIBLE"
+        ],
+        "description": "Código de error normalizado de la API v1."
+      },
+      "ApiError": {
+        "type": "object",
+        "description": "Detalle del error.",
+        "required": [
+          "codigo",
+          "mensaje"
+        ],
+        "properties": {
+          "codigo": {
+            "$ref": "#/components/schemas/CodigoError"
+          },
+          "mensaje": {
+            "type": "string",
+            "description": "Mensaje legible para operador; nunca incluye SQL, nombres de tablas ni trazas."
+          }
+        },
+        "additionalProperties": false
+      },
+      "ErrorRespuesta": {
+        "type": "object",
+        "description": "Cuerpo uniforme de error de `/api/v1`.",
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/ApiError"
+          }
+        },
+        "additionalProperties": false
+      },
+      "Usuario": {
+        "type": "object",
+        "required": [
+          "id",
+          "idPublico",
+          "nombre",
+          "correo",
+          "administrador",
+          "soloLectura",
+          "habilitado",
+          "dispositivoIds"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Id numérico anterior."
+          },
+          "idPublico": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Referencia pública ordenable (`uuidv7`)."
+          },
+          "nombre": {
+            "type": "string",
+            "description": "Nombre de usuario."
+          },
+          "correo": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "email"
+          },
+          "administrador": {
+            "type": "boolean"
+          },
+          "soloLectura": {
+            "type": "boolean"
+          },
+          "habilitado": {
+            "type": "boolean"
+          },
+          "dispositivoIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "idPublico de los equipos con asignación activa y vigente."
+          }
+        },
+        "additionalProperties": false
+      },
+      "UsuarioCreacion": {
+        "type": "object",
+        "required": [
+          "nombre",
+          "correo",
+          "clave"
+        ],
+        "properties": {
+          "nombre": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "correo": {
+            "type": "string",
+            "format": "email",
+            "maxLength": 320
+          },
+          "clave": {
+            "type": "string",
+            "format": "password",
+            "minLength": 8,
+            "maxLength": 200,
+            "description": "Se guarda con el PBKDF2 heredado; nunca se devuelve ni se registra."
+          },
+          "administrador": {
+            "type": "boolean",
+            "default": false
+          },
+          "soloLectura": {
+            "type": "boolean",
+            "default": false
+          },
+          "dispositivoIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "idPublico o id numérico anterior de los equipos a asignar."
+          }
+        },
+        "additionalProperties": false
+      },
+      "UsuarioActualizacion": {
+        "type": "object",
+        "minProperties": 1,
+        "properties": {
+          "nombre": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "correo": {
+            "type": "string",
+            "format": "email",
+            "maxLength": 320
+          },
+          "clave": {
+            "type": "string",
+            "format": "password",
+            "maxLength": 200,
+            "description": "Vacía o ausente no cambia la credencial."
+          },
+          "administrador": {
+            "type": "boolean"
+          },
+          "soloLectura": {
+            "type": "boolean"
+          },
+          "dispositivoIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Sincroniza la lista completa de equipos asignados."
+          }
+        },
+        "additionalProperties": false
+      },
+      "RespuestaUsuario": {
+        "type": "object",
+        "required": [
+          "usuario"
+        ],
+        "properties": {
+          "usuario": {
+            "$ref": "#/components/schemas/Usuario"
+          }
+        },
+        "additionalProperties": false
+      },
+      "Credenciales": {
+        "type": "object",
+        "required": [
+          "usuario",
+          "clave"
+        ],
+        "properties": {
+          "usuario": {
+            "type": "string",
+            "description": "Usuario o correo existente."
+          },
+          "clave": {
+            "type": "string",
+            "format": "password"
+          }
+        },
+        "additionalProperties": false
+      },
+      "Sesion": {
+        "type": "object",
+        "required": [
+          "usuario",
+          "expiraEn"
+        ],
+        "properties": {
+          "usuario": {
+            "$ref": "#/components/schemas/Usuario"
+          },
+          "expiraEn": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false
+      },
+      "EstadoDispositivo": {
+        "type": "string",
+        "enum": [
+          "EN_LINEA",
+          "DETENIDO",
+          "SENAL_DEBIL",
+          "SIN_SENAL",
+          "DESHABILITADO",
+          "DESCONOCIDO"
+        ]
+      },
+      "Dispositivo": {
+        "type": "object",
+        "required": [
+          "id",
+          "idPublico",
+          "nombre",
+          "identificadorUnico",
+          "habilitado",
+          "estado",
+          "ultimaConexion",
+          "versionApp",
+          "jornadaActiva",
+          "bateriaPct",
+          "cargando",
+          "pendientes",
+          "configuracion"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "idPublico": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "nombre": {
+            "type": "string"
+          },
+          "identificadorUnico": {
+            "type": "string",
+            "description": "Identificador con el que reporta la app."
+          },
+          "habilitado": {
+            "type": "boolean"
+          },
+          "estado": {
+            "$ref": "#/components/schemas/EstadoDispositivo"
+          },
+          "ultimaConexion": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "versionApp": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "jornadaActiva": {
+            "type": "boolean"
+          },
+          "bateriaPct": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 100
+          },
+          "cargando": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "pendientes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "description": "Mensajes/posiciones en cola de la App."
+          },
+          "configuracion": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "Whitelist `mobile.*` de configuración del equipo. Solo los administradores la reciben; el resto recibe `null`.",
+            "additionalProperties": {
+              "type": [
+                "string",
+                "number",
+                "boolean"
+              ]
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "ActualizacionDispositivo": {
+        "type": "object",
+        "minProperties": 1,
+        "properties": {
+          "nombre": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "configuracion": {
+            "type": "object",
+            "minProperties": 1,
+            "description": "Solo se aceptan las claves de la whitelist `mobile.*`; el resto responde 400. Hace merge sobre los atributos existentes.",
+            "propertyNames": {
+              "enum": [
+                "mobile.intervalSeconds",
+                "mobile.minIntervalSeconds",
+                "mobile.distanceMeters",
+                "mobile.angleDegrees",
+                "mobile.accuracy",
+                "mobile.bufferEnabled",
+                "mobile.bufferMax",
+                "mobile.bufferPolicy",
+                "mobile.ackTimeoutSeconds",
+                "mobile.maxRetries"
+              ]
+            },
+            "additionalProperties": {
+              "type": [
+                "string",
+                "number",
+                "boolean"
+              ]
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "RespuestaDispositivo": {
+        "type": "object",
+        "required": [
+          "dispositivo"
+        ],
+        "properties": {
+          "dispositivo": {
+            "$ref": "#/components/schemas/Dispositivo"
+          }
+        },
+        "additionalProperties": false
+      },
+      "Posicion": {
+        "type": "object",
+        "required": [
+          "id",
+          "dispositivoId",
+          "latitud",
+          "longitud",
+          "altitudM",
+          "velocidadKmh",
+          "rumboGrados",
+          "precisionM",
+          "bateriaPct",
+          "registradoEn",
+          "recibidoEn",
+          "valida"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "dispositivoId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "latitud": {
+            "type": "number",
+            "minimum": -90,
+            "maximum": 90
+          },
+          "longitud": {
+            "type": "number",
+            "minimum": -180,
+            "maximum": 180
+          },
+          "altitudM": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "velocidadKmh": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "rumboGrados": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 360
+          },
+          "precisionM": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "bateriaPct": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 100
+          },
+          "registradoEn": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Hora del fix en el dispositivo."
+          },
+          "recibidoEn": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Hora de recepción en el servidor."
+          },
+          "valida": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "PosicionesVivas": {
+        "type": "object",
+        "required": [
+          "datos",
+          "generadoEn",
+          "intervaloRefrescoSegundos"
+        ],
+        "properties": {
+          "datos": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Posicion"
+            }
+          },
+          "generadoEn": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "intervaloRefrescoSegundos": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Sugerencia de sondeo mientras no exista SSE/WebSocket."
+          }
+        },
+        "additionalProperties": false
+      },
+      "Hueco": {
+        "type": "object",
+        "required": [
+          "desde",
+          "hasta",
+          "duracionSegundos",
+          "motivo"
+        ],
+        "properties": {
+          "desde": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "hasta": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "duracionSegundos": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "motivo": {
+            "type": "string",
+            "enum": [
+              "SIN_SENAL",
+              "SIN_DATOS",
+              "PAUSA",
+              "APAGADO"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "ReplayResumen": {
+        "type": "object",
+        "required": [
+          "inicio",
+          "fin",
+          "totalPosiciones",
+          "totalHuecos",
+          "distanciaKm",
+          "duracionMin",
+          "velocidadPromedioKmh",
+          "velocidadMaximaKmh",
+          "bateriaInicialPct",
+          "bateriaFinalPct"
+        ],
+        "properties": {
+          "inicio": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "fin": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "totalPosiciones": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "totalHuecos": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "distanciaKm": {
+            "type": "number",
+            "minimum": 0
+          },
+          "duracionMin": {
+            "type": "number",
+            "minimum": 0
+          },
+          "velocidadPromedioKmh": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "velocidadMaximaKmh": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "bateriaInicialPct": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 100
+          },
+          "bateriaFinalPct": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 100
+          }
+        },
+        "additionalProperties": false
+      },
+      "Replay": {
+        "type": "object",
+        "required": [
+          "dispositivo",
+          "desde",
+          "hasta",
+          "posiciones",
+          "huecos",
+          "resumen",
+          "generadoEn"
+        ],
+        "properties": {
+          "dispositivo": {
+            "$ref": "#/components/schemas/Dispositivo"
+          },
+          "desde": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "hasta": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "posiciones": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Posicion"
+            }
+          },
+          "huecos": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Hueco"
+            }
+          },
+          "resumen": {
+            "$ref": "#/components/schemas/ReplayResumen"
+          },
+          "generadoEn": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "reconstruidos": {
+            "type": "array",
+            "description": "Tramos reconstruidos por calles con método y versión de mapa (reemplaza a estimados).",
+            "items": {
+              "$ref": "#/components/schemas/TramoReconstruido"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "ReplayDisponible": {
+        "type": "object",
+        "required": [
+          "dispositivoId",
+          "idPublico",
+          "nombre",
+          "desde",
+          "hasta",
+          "totalPosiciones"
+        ],
+        "properties": {
+          "dispositivoId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "idPublico": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "nombre": {
+            "type": "string"
+          },
+          "desde": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "hasta": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "totalPosiciones": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "additionalProperties": false
+      },
+      "Jornada": {
+        "type": "object",
+        "description": "Ventana de encendido/apagado de un equipo, usada por el replay para ubicar la jornada.",
+        "required": [
+          "id",
+          "inicioEn",
+          "finEn",
+          "duracionMin",
+          "abierta"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "inicioEn": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Instante de encendido/inicio de jornada."
+          },
+          "finEn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "Instante de apagado/fin de jornada; `null` si sigue abierta."
+          },
+          "duracionMin": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Duración en minutos; si la jornada está abierta se calcula hasta el momento de la consulta."
+          },
+          "abierta": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RespuestaJornadas": {
+        "type": "object",
+        "required": [
+          "jornadas",
+          "total"
+        ],
+        "properties": {
+          "jornadas": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Jornada"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "additionalProperties": false
+      },
+      "JornadaFlota": {
+        "type": "object",
+        "description": "Jornada con la unidad a la que pertenece; alimenta el listado de la auditoría.",
+        "required": [
+          "id",
+          "dispositivoId",
+          "idPublico",
+          "nombre",
+          "inicioEn",
+          "finEn",
+          "duracionMin",
+          "abierta"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "dispositivoId": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Id interno del equipo de la jornada."
+          },
+          "idPublico": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Referencia pública del equipo."
+          },
+          "nombre": {
+            "type": "string",
+            "description": "Nombre de la unidad."
+          },
+          "inicioEn": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Instante de encendido/inicio de jornada."
+          },
+          "finEn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "Instante de apagado/fin de jornada; `null` si sigue abierta."
+          },
+          "duracionMin": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Duración en minutos; si la jornada está abierta se calcula hasta el momento de la consulta."
+          },
+          "abierta": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "PaginaJornada": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/PaginaBase"
+          },
+          {
+            "type": "object",
+            "required": [
+              "datos"
+            ],
+            "properties": {
+              "datos": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/JornadaFlota"
+                }
+              }
+            },
+            "additionalProperties": false
+          }
+        ]
+      },
+      "PuntoGeo": {
+        "type": "object",
+        "required": [
+          "latitud",
+          "longitud"
+        ],
+        "properties": {
+          "latitud": {
+            "type": "number",
+            "minimum": -90,
+            "maximum": 90
+          },
+          "longitud": {
+            "type": "number",
+            "minimum": -180,
+            "maximum": 180
+          }
+        },
+        "additionalProperties": false
+      },
+      "RespuestaDireccion": {
+        "type": "object",
+        "required": [
+          "direccion"
+        ],
+        "properties": {
+          "direccion": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Dirección corta en español, o `null` si no se pudo resolver."
+          }
+        },
+        "additionalProperties": false
+      },
+      "ReporteViaje": {
+        "type": "object",
+        "required": [
+          "id",
+          "dispositivoId",
+          "idPublico",
+          "inicio",
+          "fin",
+          "duracionMin",
+          "distanciaKm",
+          "velocidadPromedioKmh",
+          "velocidadMaximaKmh",
+          "origen",
+          "destino",
+          "paradas"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "dispositivoId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "idPublico": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Referencia pública del viaje."
+          },
+          "inicio": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "fin": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "duracionMin": {
+            "type": "number",
+            "minimum": 0
+          },
+          "distanciaKm": {
+            "type": "number",
+            "minimum": 0
+          },
+          "velocidadPromedioKmh": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "velocidadMaximaKmh": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "origen": {
+            "$ref": "#/components/schemas/PuntoGeo"
+          },
+          "destino": {
+            "$ref": "#/components/schemas/PuntoGeo"
+          },
+          "paradas": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "additionalProperties": false
+      },
+      "ReporteParada": {
+        "type": "object",
+        "required": [
+          "id",
+          "dispositivoId",
+          "idPublico",
+          "inicio",
+          "fin",
+          "duracionMin",
+          "latitud",
+          "longitud"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "dispositivoId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "idPublico": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Referencia pública de la parada."
+          },
+          "inicio": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "fin": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "duracionMin": {
+            "type": "number",
+            "minimum": 0
+          },
+          "latitud": {
+            "type": "number",
+            "minimum": -90,
+            "maximum": 90
+          },
+          "longitud": {
+            "type": "number",
+            "minimum": -180,
+            "maximum": 180
+          },
+          "direccion": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "ResumenDispositivo": {
+        "type": "object",
+        "required": [
+          "dispositivoId",
+          "idPublico",
+          "nombre",
+          "distanciaKm",
+          "duracionMin",
+          "viajes",
+          "paradas"
+        ],
+        "properties": {
+          "dispositivoId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "idPublico": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "nombre": {
+            "type": "string"
+          },
+          "distanciaKm": {
+            "type": "number",
+            "minimum": 0
+          },
+          "duracionMin": {
+            "type": "number",
+            "minimum": 0
+          },
+          "viajes": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "paradas": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "ultimaPosicionEn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ResumenReporte": {
+        "type": "object",
+        "required": [
+          "desde",
+          "hasta",
+          "dispositivos",
+          "posiciones",
+          "distanciaTotalKm",
+          "duracionTotalMin",
+          "viajes",
+          "paradas",
+          "porDispositivo"
+        ],
+        "properties": {
+          "desde": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "hasta": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "dispositivos": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "posiciones": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "distanciaTotalKm": {
+            "type": "number",
+            "minimum": 0
+          },
+          "duracionTotalMin": {
+            "type": "number",
+            "minimum": 0
+          },
+          "viajes": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "paradas": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "porDispositivo": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ResumenDispositivo"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "MuestraBateria": {
+        "type": "object",
+        "required": [
+          "registradoEn",
+          "bateriaPct",
+          "cargando"
+        ],
+        "properties": {
+          "registradoEn": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "bateriaPct": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 100
+          },
+          "cargando": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "Bateria": {
+        "type": "object",
+        "required": [
+          "dispositivoId",
+          "actual",
+          "cargando",
+          "muestras"
+        ],
+        "properties": {
+          "dispositivoId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "actual": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 100
+          },
+          "cargando": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "muestras": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MuestraBateria"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "BateriaResumen": {
+        "type": "object",
+        "required": [
+          "dispositivoId",
+          "idPublico",
+          "nombre",
+          "actual",
+          "cargando",
+          "actualizadoEn"
+        ],
+        "properties": {
+          "dispositivoId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "idPublico": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "nombre": {
+            "type": "string"
+          },
+          "actual": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 100
+          },
+          "cargando": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "actualizadoEn": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false
+      },
+      "PaginaBase": {
+        "type": "object",
+        "required": [
+          "total",
+          "pagina",
+          "tamano"
+        ],
+        "properties": {
+          "total": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "pagina": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "tamano": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      },
+      "PaginaDispositivo": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/PaginaBase"
+          },
+          {
+            "type": "object",
+            "required": [
+              "datos"
+            ],
+            "properties": {
+              "datos": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Dispositivo"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "PaginaUsuario": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/PaginaBase"
+          },
+          {
+            "type": "object",
+            "required": [
+              "datos"
+            ],
+            "properties": {
+              "datos": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Usuario"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "PaginaReporteViaje": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/PaginaBase"
+          },
+          {
+            "type": "object",
+            "required": [
+              "datos"
+            ],
+            "properties": {
+              "datos": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/ReporteViaje"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "PaginaReporteParada": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/PaginaBase"
+          },
+          {
+            "type": "object",
+            "required": [
+              "datos"
+            ],
+            "properties": {
+              "datos": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/ReporteParada"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "PaginaBateriaResumen": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/PaginaBase"
+          },
+          {
+            "type": "object",
+            "required": [
+              "datos"
+            ],
+            "properties": {
+              "datos": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/BateriaResumen"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "PaginaReplayDisponible": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/PaginaBase"
+          },
+          {
+            "type": "object",
+            "required": [
+              "datos"
+            ],
+            "properties": {
+              "datos": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/ReplayDisponible"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "MapaConfig": {
+        "type": "object",
+        "required": [
+          "estiloUrl",
+          "centroInicial",
+          "zoomInicial"
+        ],
+        "properties": {
+          "estiloUrl": {
+            "type": "string",
+            "description": "URL del estilo de MapLibre GL JS."
+          },
+          "centroInicial": {
+            "$ref": "#/components/schemas/PuntoGeo"
+          },
+          "zoomInicial": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 24
+          }
+        },
+        "additionalProperties": false
+      },
+      "CapacidadesConfig": {
+        "type": "object",
+        "required": [
+          "replay",
+          "reportes",
+          "sse",
+          "websocket",
+          "exportacion"
+        ],
+        "properties": {
+          "replay": {
+            "type": "boolean"
+          },
+          "reportes": {
+            "type": "boolean"
+          },
+          "sse": {
+            "type": "boolean",
+            "description": "Preparado; la primera versión usa sondeo."
+          },
+          "websocket": {
+            "type": "boolean",
+            "description": "Preparado; la primera versión usa sondeo."
+          },
+          "exportacion": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "Configuracion": {
+        "type": "object",
+        "required": [
+          "versionApi",
+          "entorno",
+          "zonaHoraria",
+          "intervaloRefrescoSegundos",
+          "mapa",
+          "capacidades"
+        ],
+        "properties": {
+          "versionApi": {
+            "type": "string",
+            "const": "v1"
+          },
+          "entorno": {
+            "type": "string",
+            "enum": [
+              "desarrollo",
+              "pruebas",
+              "produccion"
+            ]
+          },
+          "zonaHoraria": {
+            "type": "string",
+            "example": "America/Argentina/Buenos_Aires"
+          },
+          "intervaloRefrescoSegundos": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Sondeo recomendado del panel en vivo (5 s en la primera versión)."
+          },
+          "mapa": {
+            "$ref": "#/components/schemas/MapaConfig"
+          },
+          "capacidades": {
+            "$ref": "#/components/schemas/CapacidadesConfig"
+          }
+        },
+        "additionalProperties": false
+      },
+      "Salud": {
+        "type": "object",
+        "required": [
+          "estado"
+        ],
+        "properties": {
+          "estado": {
+            "type": "string",
+            "enum": [
+              "ok"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "DependenciasSalud": {
+        "type": "object",
+        "required": [
+          "baseDatos",
+          "tracking"
+        ],
+        "properties": {
+          "baseDatos": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "error"
+            ]
+          },
+          "tracking": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "error"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "Disponibilidad": {
+        "type": "object",
+        "required": [
+          "estado",
+          "dependencias",
+          "comprobadoEn"
+        ],
+        "properties": {
+          "estado": {
+            "type": "string",
+            "enum": [
+              "listo",
+              "degradado"
+            ]
+          },
+          "dependencias": {
+            "$ref": "#/components/schemas/DependenciasSalud"
+          },
+          "comprobadoEn": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false
+      },
+      "Version": {
+        "type": "object",
+        "required": [
+          "version",
+          "versionApi",
+          "versionEsquema",
+          "commit",
+          "construidoEn"
+        ],
+        "properties": {
+          "version": {
+            "type": "string",
+            "example": "0.1.0"
+          },
+          "versionApi": {
+            "type": "string",
+            "const": "v1"
+          },
+          "versionEsquema": {
+            "type": "string",
+            "description": "Versión del esquema aplicado (`dmt_*`)."
+          },
+          "commit": {
+            "type": "string"
+          },
+          "construidoEn": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false
+      },
+      "EstadoSalud": {
+        "type": "string",
+        "enum": [
+          "HEALTHY",
+          "DEGRADED",
+          "OFFLINE",
+          "RECOVERING",
+          "MISCONFIGURED"
+        ]
+      },
+      "PermisosSalud": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "required": [
+          "fondo",
+          "fina"
+        ],
+        "properties": {
+          "fondo": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "fina": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "SaludDispositivo": {
+        "type": "object",
+        "required": [
+          "dispositivoId",
+          "estado",
+          "causa"
+        ],
+        "properties": {
+          "dispositivoId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "estado": {
+            "$ref": "#/components/schemas/EstadoSalud"
+          },
+          "causa": {
+            "type": "string",
+            "description": "Causa legible en español; nunca un OFFLINE mudo."
+          },
+          "lastFixAgeS": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "uploadLagS": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "captureGapS": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "bufferDepth": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "bateriaPct": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 100
+          },
+          "cargando": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "gps": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "permisos": {
+            "$ref": "#/components/schemas/PermisosSalud"
+          },
+          "bateriaExenta": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "fgs": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "jornada": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "red": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "bootId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "recoveryCount": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "appVersion": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "android": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "fabricante": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "modelo": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "RespuestaSalud": {
+        "type": "object",
+        "required": [
+          "datos"
+        ],
+        "properties": {
+          "datos": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SaludDispositivo"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "TramoReconstruido": {
+        "type": "object",
+        "description": "Tramo entre dos fixes muy separados resuelto por calles. MATCHED = ajustado a vía con fixes intermedios (/match); ESTIMATED = ruta A→B sin observaciones (/route). Nunca se presenta como GPS registrado.",
+        "required": [
+          "desde",
+          "hasta",
+          "metodo",
+          "mapaVersion",
+          "trazado"
+        ],
+        "properties": {
+          "desde": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "hasta": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "metodo": {
+            "type": "string",
+            "enum": [
+              "MATCHED",
+              "ESTIMATED"
+            ]
+          },
+          "mapaVersion": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "SHA-256 del PBF de GraphHopper; null si no se conoce."
+          },
+          "trazado": {
+            "type": "array",
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "number"
+              },
+              "minItems": 2,
+              "maxItems": 2
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  }
+}
