@@ -1,0 +1,43 @@
+# Base de datos de DMujeres Tracking: PostgreSQL 18 con TimescaleDB.
+#
+# Escucha solo en 127.0.0.1:5443. Usuario, clave y nombre de la base salen
+# del .env de la raíz. Los datos viven en el volumen dmt_db_datos, así que
+# sobreviven aunque se borre el contenedor.
+#
+# PGDATA se fija en /var/lib/postgresql/data para que el volumen sea el
+# directorio de datos real (la imagen de PostgreSQL 18 usa otra ruta por defecto).
+#
+#   docker compose -f infraestructura/docker-compose.yml up -d
+#   docker compose -f infraestructura/docker-compose.yml down
+
+name: dmt
+
+services:
+  dmt-db:
+    image: timescale/timescaledb:2.30.1-pg18
+    container_name: dmt-db
+    restart: unless-stopped
+    env_file:
+      - /home/DMujeres-Tracking/.env
+    ports:
+      - "127.0.0.1:5443:5432"
+    volumes:
+      - dmt_db_datos:/var/lib/postgresql/data
+    environment:
+      PGDATA: /var/lib/postgresql/data
+    command:
+      - postgres
+      - -c
+      - shared_preload_libraries=timescaledb,pg_stat_statements
+      - -c
+      - max_connections=200
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U ${POSTGRES_USER:-dmt} -d ${POSTGRES_DB:-dmujeres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
+
+volumes:
+  dmt_db_datos:
+    name: dmt_db_datos

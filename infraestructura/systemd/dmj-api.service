@@ -1,0 +1,20 @@
+[Unit]
+Description=DMujeres Tracking - API del panel
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=dmujeres
+Group=dmujeres
+WorkingDirectory=/home/DMujeres-Tracking/servidor/api
+EnvironmentFile=/home/DMujeres-Tracking/.env
+ExecStart=/usr/local/bin/node24 src/servidor.js
+Restart=always
+RestartSec=3
+TimeoutStopSec=15
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

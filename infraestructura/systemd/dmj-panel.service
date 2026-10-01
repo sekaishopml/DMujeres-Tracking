@@ -1,0 +1,23 @@
+[Unit]
+Description=DMujeres Tracking - panel web (puerto 8999)
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=dmujeres
+Group=dmujeres
+WorkingDirectory=/home/DMujeres-Tracking/servidor/web
+EnvironmentFile=/home/DMujeres-Tracking/.env
+Environment=DMJ_WEB_HOST=0.0.0.0
+Environment=DMJ_WEB_PORT=8999
+Environment=DMJ_WEB_DIST=/home/DMujeres-Tracking/panel/dist
+ExecStart=/usr/local/bin/node24 src/servidor.js
+Restart=always
+RestartSec=3
+TimeoutStopSec=15
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

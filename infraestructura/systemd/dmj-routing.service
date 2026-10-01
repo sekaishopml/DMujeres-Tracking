@@ -1,0 +1,16 @@
+[Unit]
+Description=DMujeres Tracking - ruteo por calles (GraphHopper)
+After=network.target
+
+[Service]
+Type=simple
+User=dmujeres
+Group=dmujeres
+ExecStart=/usr/bin/java -Xmx768m -cp /opt/route-service/matchservice.jar:/opt/route-service/clases dmj.RouteService
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

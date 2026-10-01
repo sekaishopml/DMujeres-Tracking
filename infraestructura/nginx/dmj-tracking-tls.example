@@ -1,0 +1,61 @@
+# Ejemplo de HTTPS para el panel. Todavía no está en uso.
+#
+# Para activarlo:
+#   1. Un dominio que apunte a 68.168.20.219.
+#   2. Instalar certbot:
+#        sudo apt-get install -y certbot python3-certbot-nginx
+#   3. Sacar el certificado (con --nginx certbot también cambia el server :80):
+#        sudo certbot --nginx -d tracking.<dominio-real>
+#      Sin tocar el :80 actual:
+#        sudo certbot certonly --webroot -w /var/www/html -d tracking.<dominio-real>
+#   4. Reemplazar tracking.ejemplo.invalid por el dominio real y renombrar esta
+#      plantilla a /etc/nginx/sites-available/dmj-tracking-tls, enlazarla en
+#      sites-enabled y recargar:
+#        sudo ln -s /etc/nginx/sites-available/dmj-tracking-tls /etc/nginx/sites-enabled/
+#        sudo nginx -t && sudo systemctl reload nginx
+#   5. En el server :80, redirigir todo a HTTPS (301) dejando solo
+#      /.well-known/acme-challenge/ para renovaciones.
+#
+# NOTA: en nginx < 1.25.1 usar "listen 443 ssl http2;" en lugar de
+#       "listen 443 ssl;" + "http2 on;".
+
+# server {
+#     listen 443 ssl;
+#     listen [::]:443 ssl;
+#     http2 on;
+#
+#     server_name tracking.ejemplo.invalid;
+#
+#     ssl_certificate     /etc/letsencrypt/live/tracking.ejemplo.invalid/fullchain.pem;
+#     ssl_certificate_key /etc/letsencrypt/live/tracking.ejemplo.invalid/privkey.pem;
+#     include             /etc/letsencrypt/options-ssl-nginx.conf;
+#     ssl_dhparam         /etc/letsencrypt/ssl-dhparams.pem;
+#
+#     client_max_body_size 10m;
+#
+#     location / {
+#         proxy_pass http://127.0.0.1:8999;
+#         proxy_http_version 1.1;
+#         proxy_set_header Host $host;
+#         proxy_set_header X-Real-IP $remote_addr;
+#         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+#         proxy_set_header X-Forwarded-Proto $scheme;
+#         proxy_connect_timeout 5s;
+#         proxy_read_timeout 60s;
+#         proxy_send_timeout 60s;
+#     }
+# }
+
+# server {
+#     listen 80;
+#     listen [::]:80;
+#     server_name tracking.ejemplo.invalid;
+#
+#     location /.well-known/acme-challenge/ {
+#         root /var/www/html;
+#     }
+#
+#     location / {
+#         return 301 https://$host$request_uri;
+#     }
+# }
