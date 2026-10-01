@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/white">
+
+    <ImageView
+        android:id="@+id/splash_logo"
+        android:layout_width="230dp"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:layout_marginBottom="64dp"
+        android:adjustViewBounds="true"
+        android:alpha="0"
+        android:contentDescription="@string/app_logo"
+        android:src="@drawable/logo_banner" />
+
+    <!-- Círculo de carga abajo, sobre la versión. -->
+    <ProgressBar
+        android:id="@+id/splash_loader"
+        style="?android:attr/progressBarStyle"
+        android:layout_width="30dp"
+        android:layout_height="30dp"
+        android:layout_gravity="bottom|center_horizontal"
+        android:layout_marginBottom="68dp"
+        android:alpha="0"
+        android:indeterminate="true"
+        android:indeterminateTint="@color/primary" />
+
+    <TextView
+        android:id="@+id/splash_version"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|center_horizontal"
+        android:layout_marginBottom="32dp"
+        android:alpha="0"
+        android:textColor="@color/text_tertiary"
+        android:textSize="11sp" />
+</FrameLayout>

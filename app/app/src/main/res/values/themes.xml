@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!-- La app está diseñada solo en claro (fondos blancos fijos); con DayNight
+         el teléfono en modo oscuro volvía invisible el texto por defecto. -->
+    <style name="AppTheme" parent="Theme.AppCompat.Light.NoActionBar">
+        <item name="colorPrimary">@color/primary</item>
+        <item name="colorPrimaryDark">@color/primary_dark</item>
+        <item name="colorAccent">@color/accent</item>
+        <item name="android:windowOptOutEdgeToEdgeEnforcement">true</item>
+        <!-- Fondo blanco desde el primer cuadro (antes del layout). -->
+        <item name="android:windowBackground">@color/white</item>
+    </style>
+
+</resources>

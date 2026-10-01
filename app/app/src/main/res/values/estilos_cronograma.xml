@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Estilos del formulario de actividad del cronograma. -->
+<resources>
+
+    <style name="CronoEtiqueta">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:textColor">@color/text_primary</item>
+        <item name="android:textSize">14sp</item>
+        <item name="android:textStyle">bold</item>
+    </style>
+
+    <style name="CronoCampoHora">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">52dp</item>
+        <item name="android:layout_marginTop">4dp</item>
+        <item name="android:background">@drawable/ds_field</item>
+        <item name="android:digits">0123456789:.</item>
+        <item name="android:gravity">center</item>
+        <item name="android:hint">@string/crono_hora_hint</item>
+        <item name="android:importantForAutofill">no</item>
+        <!-- La hora se guarda y restaura desde la actividad (con su AM/PM). -->
+        <item name="android:saveEnabled">false</item>
+        <item name="android:inputType">time</item>
+        <item name="android:maxLength">5</item>
+        <item name="android:selectAllOnFocus">true</item>
+        <item name="android:textColor">@color/text_primary</item>
+        <item name="android:textSize">20sp</item>
+        <item name="android:textStyle">bold</item>
+    </style>
+
+    <style name="CronoAmPmFila">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">38dp</item>
+        <item name="android:layout_marginTop">6dp</item>
+        <item name="android:orientation">horizontal</item>
+    </style>
+
+    <style name="CronoAmPm">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">match_parent</item>
+        <item name="android:layout_weight">1</item>
+        <item name="android:background">@drawable/ds_chip_tipo</item>
+        <item name="android:gravity">center</item>
+        <item name="android:textSize">13sp</item>
+        <item name="android:textStyle">bold</item>
+    </style>
+
+</resources>

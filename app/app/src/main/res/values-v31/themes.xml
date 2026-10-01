@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Android 12+: pantalla de arranque del sistema en blanco con el ícono de
+         la app (sin esto, con el teléfono en modo oscuro salía fondo negro). -->
+    <style name="AppTheme" parent="Theme.AppCompat.Light.NoActionBar">
+        <item name="colorPrimary">@color/primary</item>
+        <item name="colorPrimaryDark">@color/primary_dark</item>
+        <item name="colorAccent">@color/accent</item>
+        <item name="android:windowOptOutEdgeToEdgeEnforcement">true</item>
+        <item name="android:windowBackground">@color/white</item>
+        <item name="android:windowSplashScreenBackground">@color/white</item>
+        <item name="android:windowSplashScreenIconBackgroundColor">@color/white</item>
+        <!-- Sin ícono en el arranque del sistema (lo recortaba en círculo): el
+             logo completo lo muestra SplashActivity sobre el mismo blanco. -->
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/ds_transparente</item>
+        <item name="android:statusBarColor">@color/white</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:forceDarkAllowed">false</item>
+    </style>
+</resources>

@@ -1,0 +1,136 @@
+plugins {
+    id 'com.android.application'
+    id 'kotlin-android'
+    id 'com.google.gms.google-services'
+    id 'com.google.firebase.crashlytics'
+}
+
+// Las claves de firma y la configuración privada viven fuera del repositorio,
+// en /opt/dmj-keys (o en la carpeta que indique DMJ_CLAVES).
+def clavesDir = System.getenv('DMJ_CLAVES') ?: '/opt/dmj-keys'
+
+// Firebase lee google-services.json de esta carpeta; si falta, se copia de las claves.
+if (!file('google-services.json').exists() && file("$clavesDir/google-services.json").exists()) {
+    copy {
+        from "$clavesDir/google-services.json"
+        into projectDir
+    }
+}
+
+// Clave del canal móvil por defecto (opcional; normalmente llega al iniciar sesión).
+def secretsProperties = new Properties()
+def secretsFile = file("$clavesDir/secrets.properties")
+if (secretsFile.exists()) {
+    secretsFile.withInputStream { secretsProperties.load(it) }
+}
+def mobileApiKey = secretsProperties.getProperty('MOBILE_HTTP_API_KEY', '')
+
+android {
+    compileSdk 35
+    defaultConfig {
+        // Reemplazo total en la flota: misma identidad que la app nativa para
+        // que Android acepte la actualización (misma firma) y Firebase siga
+        // resolviendo el google-services.json compartido.
+        applicationId 'com.dmujeres.traccar'
+        minSdkVersion 21
+        targetSdkVersion 35
+        versionCode 303
+        versionName '2.4.2'
+        multiDexEnabled true
+        buildConfigField "String", "MOBILE_HTTP_API_KEY", "\"${mobileApiKey}\""
+        manifestPlaceholders = [appLabel: "Dmujeres Tracking"]
+    }
+    namespace 'com.dmujeres.app'
+
+    packagingOptions {
+        resources {
+            excludes += ['META-INF/DEPENDENCIES']
+        }
+    }
+
+    buildFeatures {
+        flavorDimensions = ['default']
+        buildConfig = true
+    }
+    productFlavors {
+        regular {
+            isDefault = true
+            ext.enableCrashlytics = false
+            // Desarrollo: app APARTE (com.dmujeres.traccar.dev) para poder
+            // instalar en un teléfono que ya tiene la app de flota, sin
+            // desinstalarla ni chocar de firma.
+            applicationIdSuffix ".dev"
+            manifestPlaceholders = [appLabel: "Dmujeres Tracking (dev)"]
+        }
+        google
+    }
+
+    signingConfigs {
+        // Siempre la misma clave: si cambia, Android rechaza la actualización.
+        release {
+            def keystoreProperties = new Properties()
+            def keystorePropertiesFile = file("$clavesDir/keystore.properties")
+            if (keystorePropertiesFile.exists()) {
+                keystorePropertiesFile.withInputStream { keystoreProperties.load(it) }
+            }
+            storeFile file("$clavesDir/debug.keystore")
+            storePassword keystoreProperties.getProperty('storePassword', 'android')
+            keyAlias keystoreProperties.getProperty('keyAlias', 'androiddebugkey')
+            keyPassword keystoreProperties.getProperty('keyPassword', 'android')
+        }
+    }
+
+    buildTypes {
+        release {
+            signingConfig signingConfigs.release
+        }
+    }
+
+    testOptions {
+        unitTests {
+            includeAndroidResources = true
+        }
+    }
+    lint {
+        checkReleaseBuilds false
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = JavaVersion.VERSION_17.toString()
+    }
+}
+
+dependencies {
+    implementation 'com.google.android.material:material:1.12.0'
+    implementation 'androidx.multidex:multidex:2.0.1'
+    implementation 'androidx.preference:preference-ktx:1.2.1'
+    implementation 'androidx.core:core-ktx:1.16.0'
+    implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3"
+    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
+    implementation 'com.github.judemanutd:autostarter:1.1.0'
+    implementation('dev.doubledot.doki:library:0.0.1@aar') {
+        transitive = true
+    }
+    testImplementation 'androidx.test:core:1.6.1'
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.robolectric:robolectric:4.14.1'
+    googleImplementation platform('com.google.firebase:firebase-bom:33.12.0')
+    googleImplementation 'com.google.firebase:firebase-analytics'
+    googleImplementation 'com.google.firebase:firebase-crashlytics'
+    googleImplementation 'com.google.firebase:firebase-messaging'
+    googleImplementation 'com.google.android.gms:play-services-location:21.3.0'
+    googleImplementation 'com.google.android.play:review:2.0.2'
+}
+
+// El flavor `regular` no usa Firebase (solo el `google`). Sin esto, Gradle
+// exige google-services.json incluso para `regularDebug` y el build local
+// falla en equipos que no tienen el archivo (que no se versiona).
+afterEvaluate {
+    tasks.matching { it.name.contains('GoogleServices') && it.name.contains('Regular') }
+        .configureEach { enabled = false }
+}

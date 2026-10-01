@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Hueco sin registrar en el cronograma del día: borde punteado. -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_pressed="true">
+        <shape android:shape="rectangle">
+            <solid android:color="@color/magenta_soft" />
+            <stroke android:width="1dp" android:color="@color/primary" android:dashWidth="5dp" android:dashGap="4dp" />
+            <corners android:radius="12dp" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="@android:color/transparent" />
+            <stroke android:width="1dp" android:color="@color/text_tertiary" android:dashWidth="5dp" android:dashGap="4dp" />
+            <corners android:radius="12dp" />
+        </shape>
+    </item>
+</selector>

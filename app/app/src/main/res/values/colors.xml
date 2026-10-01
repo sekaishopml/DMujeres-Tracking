@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!-- Marca DMujeres -->
+    <color name="primary">#EB0045</color>
+    <color name="primary_dark">#C4003B</color>
+    <color name="accent">#FF1464</color>
+    <color name="white">#FFFFFF</color>
+    <color name="ic_launcher_background">#EB0045</color>
+    <color name="background">#F6F6F6</color>
+    <color name="ink">#181818</color>
+    <color name="muted">#8A8A8A</color>
+    <color name="status_ok">#2E7D32</color>
+    <!-- Azul marino intenso (botón ACTUALIZAR y consola) -->
+    <color name="navy">#0B2545</color>
+
+    <!-- Sistema de diseño 2.2: superficies, texto y estados -->
+    <color name="navy_700">#17365D</color>
+    <color name="navy_soft">#EEF2F8</color>
+    <color name="magenta_soft">#FDEBF1</color>
+    <color name="surface">#FFFFFF</color>
+    <color name="canvas">#F4F6FA</color>
+    <color name="line">#E6E9EF</color>
+    <color name="text_primary">#0C1F3D</color>
+    <color name="text_secondary">#5B6576</color>
+    <color name="text_tertiary">#8C95A4</color>
+    <color name="ok">#15803D</color>
+    <color name="ok_soft">#E6F4EA</color>
+    <color name="warn">#C2410C</color>
+    <color name="warn_soft">#FDEFE3</color>
+    <color name="danger_soft">#FDECEC</color>
+
+</resources>
