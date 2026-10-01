@@ -20,8 +20,14 @@ object HoraCronograma {
     /** Resultado de leer lo que escribió la persona: hora en 24 h y si es PM. */
     data class Lectura(val hora24: String, val pm: Boolean)
 
-    /** Hora y minuto escritos a mano ("9", "930", "9:30", "9.30", "14:30"); null si no se entiende. */
-    private fun partes(texto: String): Pair<Int, Int>? {
+    /**
+     * Hora y minuto escritos a mano ("9", "930", "9:30", "9.30", "14:30");
+     * null si no se entiende. `completa` es true si la hora viene con dos
+     * dígitos y minutos ("08:30", "0830", "11:00"): esa se toma tal cual.
+     */
+    private data class Partes(val h: Int, val m: Int, val completa: Boolean)
+
+    private fun partes(texto: String): Partes? {
         val limpio = texto.trim().replace('.', ':').replace(' ', ':')
         val (hTexto, mTexto) = when {
             limpio.contains(':') -> limpio.substringBefore(':') to limpio.substringAfter(':')
@@ -32,7 +38,7 @@ object HoraCronograma {
         val h = hTexto.toIntOrNull() ?: return null
         val m = (mTexto.ifEmpty { "0" }).toIntOrNull() ?: return null
         if (h !in 0..23 || m !in 0..59) return null
-        return h to m
+        return Partes(h, m, hTexto.length == 2 && mTexto.isNotEmpty() && limpio.length >= 4)
     }
 
     private fun lectura(h24: Int, m: Int) = Lectura(String.format(Locale.US, "%02d:%02d", h24, m), h24 >= 12)
@@ -53,17 +59,18 @@ object HoraCronograma {
     }
 
     /**
-     * Como [interpretar], pero sin AM/PM elegido lo deduce como lo diría una
-     * persona en su jornada:
+     * Como [interpretar], pero sin AM/PM elegido. Una hora completa en 24 h
+     * ("08:30", "0300", "11:00") se toma tal cual. Una corta ("9", "930",
+     * "2:30") se deduce como lo diría una persona en su jornada:
      *  - con [despuesDe] (la hora de inicio, al leer "Hasta"), el primero que
-     *    quede después: "de 11 a 2" es de 11 a. m. a 2 p. m.;
-     *  - si no, de 6 a 11 es mañana y 12 y de 1 a 5 son tarde ("a las 3" es
-     *    3 p. m.).
+     *    quede después: "de 11 a 2" es de 11:00 a 14:00;
+     *  - si no, de 6 a 11 es mañana y 12 y de 1 a 5 son tarde ("a las 3" son
+     *    las 15:00).
      * Un AM/PM tocado a mano ([pmElegido]) siempre manda.
      */
     fun interpretarNatural(texto: String, pmElegido: Boolean?, despuesDe: Int? = null): Lectura? {
-        val (h, m) = partes(texto) ?: return null
-        if (h == 0 || h >= 13) return lectura(h, m)
+        val (h, m, completa) = partes(texto) ?: return null
+        if (completa || h == 0 || h >= 13) return lectura(h, m)
         if (pmElegido != null) return lectura(con(h, pmElegido), m)
         if (despuesDe != null) {
             val am = con(h, false)
@@ -85,30 +92,15 @@ object HoraCronograma {
         }
     }
 
-    /** Rango corto: "8:00 – 9:30 a. m." si comparten AM/PM, si no "11:00 a. m. – 1:00 p. m.". */
-    fun rangoCorto(hora: String, horaFin: String?): String {
-        if (horaFin == null) return legible(hora)
-        if (esPm(hora) != esPm(horaFin)) return "${legible(hora)} – ${legible(horaFin)}"
-        return "${legible(hora).substringBefore(' ')} – ${legible(horaFin)}"
-    }
-
-    /** "14:30" -> "02:30" (para mostrar junto al AM/PM). */
-    fun a12(hora24: String): String {
-        val m = aMinutos(hora24)
-        val h = (m / 60) % 12
-        return String.format(Locale.US, "%02d:%02d", if (h == 0) 12 else h, m % 60)
-    }
+    /** Rango corto: "08:00 – 09:30", o solo el inicio. */
+    fun rangoCorto(hora: String, horaFin: String?): String = rango(hora, horaFin)
 
     fun esPm(hora24: String): Boolean = aMinutos(hora24) >= 12 * 60
 
-    /** "14:30" -> "2:30 p. m." para listas y la pantalla principal. */
-    fun legible(hora24: String): String {
-        val m = aMinutos(hora24)
-        val h = (m / 60) % 12
-        return String.format(Locale.US, "%d:%02d %s", if (h == 0) 12 else h, m % 60, if (m >= 12 * 60) "p. m." else "a. m.")
-    }
+    /** "9:5" o "14:30" -> "09:05" / "14:30", en 24 h. */
+    fun legible(hora24: String): String = deMinutos(aMinutos(hora24))
 
-    /** Rango legible: "9:00 a. m. – 11:30 a. m." o solo el inicio. */
+    /** Rango legible: "09:00 – 11:30" o solo el inicio. */
     fun rango(hora: String, horaFin: String?): String =
         if (horaFin == null) legible(hora) else "${legible(hora)} – ${legible(horaFin)}"
 

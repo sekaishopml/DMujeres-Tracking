@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Agregar o editar una actividad del cronograma (pantalla completa, no
-     popup): tipo, horario (Desde/Hasta con AM/PM y aviso de cruces), lugar y
-     nota. Guardar queda siempre a la vista, sobre el teclado. -->
+<!-- Agregar o editar una actividad del cronograma (pantalla completa): tipo,
+     horario (Desde/Hasta en 24 h y aviso de cruces), lugar y nota. Guardar
+     queda siempre a la vista, sobre el teclado. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
@@ -58,8 +58,11 @@
         android:fillViewport="true">
 
         <LinearLayout
+            android:id="@+id/act_contenido"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:focusable="true"
+            android:focusableInTouchMode="true"
             android:orientation="vertical"
             android:padding="16dp">
 
@@ -78,6 +81,7 @@
                 <LinearLayout
                     android:id="@+id/act_tipos_1"
                     android:layout_width="match_parent"
+                    android:baselineAligned="false"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
                     android:orientation="horizontal" />
@@ -85,6 +89,7 @@
                 <LinearLayout
                     android:id="@+id/act_tipos_2"
                     android:layout_width="match_parent"
+                    android:baselineAligned="false"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="6dp"
                     android:orientation="horizontal" />
@@ -152,20 +157,6 @@
                             style="@style/CronoCampoHora"
                             android:imeOptions="actionNext"
                             android:nextFocusForward="@+id/act_hasta" />
-
-                        <LinearLayout style="@style/CronoAmPmFila">
-
-                            <TextView
-                                android:id="@+id/act_desde_am"
-                                style="@style/CronoAmPm"
-                                android:layout_marginEnd="4dp"
-                                android:text="AM" />
-
-                            <TextView
-                                android:id="@+id/act_desde_pm"
-                                style="@style/CronoAmPm"
-                                android:text="PM" />
-                        </LinearLayout>
                     </LinearLayout>
 
                     <TextView
@@ -193,21 +184,8 @@
                         <EditText
                             android:id="@+id/act_hasta"
                             style="@style/CronoCampoHora"
+                            android:hint="@string/crono_hasta_hint"
                             android:imeOptions="actionDone" />
-
-                        <LinearLayout style="@style/CronoAmPmFila">
-
-                            <TextView
-                                android:id="@+id/act_hasta_am"
-                                style="@style/CronoAmPm"
-                                android:layout_marginEnd="4dp"
-                                android:text="AM" />
-
-                            <TextView
-                                android:id="@+id/act_hasta_pm"
-                                style="@style/CronoAmPm"
-                                android:text="PM" />
-                        </LinearLayout>
                     </LinearLayout>
                 </LinearLayout>
 
@@ -292,11 +270,20 @@
                     android:textColor="@color/text_primary"
                     android:textSize="15sp" />
 
+                <TextView
+                    android:id="@+id/act_lugares_titulo"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:text="@string/crono_visitados_antes"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="12sp" />
+
                 <HorizontalScrollView
                     android:id="@+id/act_lugares_scroll"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
+                    android:layout_marginTop="6dp"
                     android:scrollbars="none">
 
                     <LinearLayout

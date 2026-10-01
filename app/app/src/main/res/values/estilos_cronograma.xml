@@ -29,21 +29,6 @@
         <item name="android:textStyle">bold</item>
     </style>
 
-    <style name="CronoAmPmFila">
-        <item name="android:layout_width">match_parent</item>
-        <item name="android:layout_height">38dp</item>
-        <item name="android:layout_marginTop">6dp</item>
-        <item name="android:orientation">horizontal</item>
-    </style>
 
-    <style name="CronoAmPm">
-        <item name="android:layout_width">0dp</item>
-        <item name="android:layout_height">match_parent</item>
-        <item name="android:layout_weight">1</item>
-        <item name="android:background">@drawable/ds_chip_tipo</item>
-        <item name="android:gravity">center</item>
-        <item name="android:textSize">13sp</item>
-        <item name="android:textStyle">bold</item>
-    </style>
 
 </resources>

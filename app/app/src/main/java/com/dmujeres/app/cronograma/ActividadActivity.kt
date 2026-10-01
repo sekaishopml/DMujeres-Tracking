@@ -7,8 +7,11 @@ import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
 import android.util.TypedValue
+import android.graphics.Rect
 import android.view.Gravity
+import android.view.MotionEvent
 import android.view.View
+import android.view.inputmethod.InputMethodManager
 import android.widget.ArrayAdapter
 import android.widget.AutoCompleteTextView
 import android.widget.EditText
@@ -32,11 +35,14 @@ import java.util.UUID
 /**
  * Agregar o editar una actividad del cronograma, en pantalla completa.
  *
- * - Nueva de hoy: Desde = hora actual y Hasta = una hora después. Desde un
- *   hueco del día llegan sus horas; en otro día, después de la última.
- * - La hora se escribe ("9", "930", "14:30"); el AM/PM se deduce como en una
- *   jornada ("de 11 a 2" es de 11 a. m. a 2 p. m.) y se puede tocar a mano.
- * - Hasta acompaña a Desde (misma duración) mientras no se toque.
+ * - Nueva: Desde = hora actual y Hasta vacío (es opcional: sin hora de fin,
+ *   la actividad dura hasta la siguiente o hasta tocar Terminé). Desde un
+ *   hueco del día llegan sus horas.
+ * - Las horas se muestran en 24 h. Una hora completa ("08:30", "1400") se
+ *   toma tal cual; una corta ("9", "2:30") se deduce como en una jornada
+ *   ("de 11 a 2" es de 11:00 a 14:00).
+ * - Si Hasta tiene hora y no se tocó, acompaña a Desde con la misma duración.
+ * - Tocar fuera de un campo termina de editarlo y cierra el teclado.
  * - Si se cruza con otra actividad, se ve antes de guardar cómo se acomoda la
  *   vecina (AgendaDia) y se ofrece mover esta en su lugar.
  */
@@ -81,8 +87,8 @@ class ActividadActivity : AppCompatActivity() {
             override fun handleOnBackPressed() = salir()
         })
 
-        desde = CampoHora(R.id.act_desde, R.id.act_desde_am, R.id.act_desde_pm, { null }) { alCambiarDesde() }
-        hasta = CampoHora(R.id.act_hasta, R.id.act_hasta_am, R.id.act_hasta_pm, {
+        desde = CampoHora(R.id.act_desde, { null }) { alCambiarDesde() }
+        hasta = CampoHora(R.id.act_hasta, {
             desde.leer()?.let { HoraCronograma.aMinutos(it) }
         }) { alCambiarHasta() }
 
@@ -90,7 +96,7 @@ class ActividadActivity : AppCompatActivity() {
         val (inicio, fin) = horasIniciales(actual, savedInstanceState)
         desde.poner(inicio)
         hasta.poner(fin)
-        duracion = (HoraCronograma.aMinutos(fin) - HoraCronograma.aMinutos(inicio)).takeIf { it > 0 } ?: 60
+        duracion = fin?.let { HoraCronograma.aMinutos(it) - HoraCronograma.aMinutos(inicio) }?.takeIf { it > 0 } ?: 60
         if (savedInstanceState != null) {
             desde.tocado = savedInstanceState.getBoolean(KEY_DESDE_TOCADO)
             hasta.tocado = savedInstanceState.getBoolean(KEY_HASTA_TOCADO)
@@ -140,6 +146,24 @@ class ActividadActivity : AppCompatActivity() {
         outState.putBoolean(KEY_CAMBIOS, cambios)
     }
 
+    /** Al tocar fuera del campo que se está editando, se termina de editar. */
+    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        if (ev.action == MotionEvent.ACTION_DOWN) {
+            val campo = currentFocus
+            if (campo is EditText) {
+                val r = Rect()
+                campo.getGlobalVisibleRect(r)
+                if (!r.contains(ev.rawX.toInt(), ev.rawY.toInt())) terminarEdicion(campo)
+            }
+        }
+        return super.dispatchTouchEvent(ev)
+    }
+
+    private fun terminarEdicion(campo: View) {
+        findViewById<View>(R.id.act_contenido).requestFocus()
+        getSystemService(InputMethodManager::class.java)?.hideSoftInputFromWindow(campo.windowToken, 0)
+    }
+
     // ── Datos de partida ───────────────────────────────────────────────────
 
     private fun hoy(): String = iso.format(Calendar.getInstance(zona).time)
@@ -152,24 +176,14 @@ class ActividadActivity : AppCompatActivity() {
     private fun delDiaSinEsta(): List<Actividad> =
         Actividades.delDia(this, fecha).filter { it.clientId != existente?.clientId }
 
-    private fun horasIniciales(actual: Actividad?, estado: Bundle?): Pair<String, String> {
+    private fun horasIniciales(actual: Actividad?, estado: Bundle?): Pair<String, String?> {
         val guardadoDesde = estado?.getString(KEY_DESDE)
-        val guardadoHasta = estado?.getString(KEY_HASTA)
-        if (guardadoDesde != null && guardadoHasta != null) return guardadoDesde to guardadoHasta
-        if (actual != null) {
-            // Sin hora de fin: hasta la siguiente actividad o una hora.
-            val siguiente = delDiaSinEsta().firstOrNull { it.hora > actual.hora }?.hora
-            return actual.hora to (actual.horaFin ?: siguiente ?: HoraCronograma.sumar(actual.hora, 60))
-        }
+        if (guardadoDesde != null) return guardadoDesde to estado.getString(KEY_HASTA)
+        if (actual != null) return actual.hora to actual.horaFin
         val pedidoDesde = intent.getStringExtra(EXTRA_DESDE)
         val pedidoHasta = intent.getStringExtra(EXTRA_HASTA)
         if (pedidoDesde != null && pedidoHasta != null) return pedidoDesde to pedidoHasta
-        val inicio = when {
-            fecha == hoy() -> horaActual()
-            // Otro día: después de lo último cargado, o al empezar la jornada.
-            else -> delDiaSinEsta().mapNotNull { it.horaFin ?: it.hora }.maxOrNull() ?: INICIO_DIA
-        }
-        return inicio to HoraCronograma.sumar(inicio, 60)
+        return horaActual() to null
     }
 
     private fun fechaLegible(): String {
@@ -195,6 +209,8 @@ class ActividadActivity : AppCompatActivity() {
             val v = TextView(this).apply {
                 text = t.etiqueta
                 gravity = Gravity.CENTER
+                maxLines = 2
+                setPadding(dp(4), 0, dp(4), 0)
                 setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
                 setTypeface(typeface, Typeface.BOLD)
                 setBackgroundResource(R.drawable.ds_chip_tipo)
@@ -258,7 +274,9 @@ class ActividadActivity : AppCompatActivity() {
                 }
             })
         }
-        findViewById<View>(R.id.act_lugares_scroll).visibility = if (frecuentes.isEmpty()) View.GONE else View.VISIBLE
+        val conFrecuentes = if (frecuentes.isEmpty()) View.GONE else View.VISIBLE
+        findViewById<View>(R.id.act_lugares_titulo).visibility = conFrecuentes
+        findViewById<View>(R.id.act_lugares_scroll).visibility = conFrecuentes
     }
 
     // ── Horario ────────────────────────────────────────────────────────────
@@ -266,8 +284,8 @@ class ActividadActivity : AppCompatActivity() {
     private fun alCambiarDesde() {
         cambios = true
         val d = desde.leer()
-        // Hasta acompaña a Desde con la misma duración mientras no se toque.
-        if (d != null && !hasta.tocado) hasta.poner(HoraCronograma.sumar(d, duracion))
+        // Si Hasta tiene hora y no se tocó, acompaña a Desde con la misma duración.
+        if (d != null && !hasta.tocado && hasta.leer() != null) hasta.poner(HoraCronograma.sumar(d, duracion))
         refrescar()
     }
 
@@ -291,15 +309,17 @@ class ActividadActivity : AppCompatActivity() {
 
     private fun refrescar() {
         error.visibility = View.GONE
-        desde.reflejar()
-        hasta.reflejar()
         val resumen = findViewById<TextView>(R.id.act_resumen)
         val d = desde.leer()
         val h = hasta.leer()
         val tramo = tramoElegido()
         when {
-            d == null || h == null -> {
+            d == null || (h == null && !hasta.vacio()) -> {
                 resumen.setText(R.string.crono_resumen_falta)
+                resumen.setTextColor(getColor(R.color.text_secondary))
+            }
+            h == null -> {
+                resumen.text = getString(R.string.crono_resumen_sin_fin_fmt, HoraCronograma.legible(d))
                 resumen.setTextColor(getColor(R.color.text_secondary))
             }
             tramo == null -> {
@@ -390,8 +410,8 @@ class ActividadActivity : AppCompatActivity() {
         val horario = findViewById<View>(R.id.act_horario)
         val d = desde.leer()
         val h = hasta.leer()
-        if (d == null || h == null) return mostrarError(R.string.crono_error_hora, horario)
-        if (HoraCronograma.aMinutos(h) <= HoraCronograma.aMinutos(d)) return mostrarError(R.string.crono_error_rango_noche, horario)
+        if (d == null || (h == null && !hasta.vacio())) return mostrarError(R.string.crono_error_hora, horario)
+        if (h != null && HoraCronograma.aMinutos(h) <= HoraCronograma.aMinutos(d)) return mostrarError(R.string.crono_error_rango_noche, horario)
         if (tipo == TipoActividad.VISITA && textoLugar == null) return mostrarError(R.string.crono_error_lugar, findViewById(R.id.act_lugar_card))
         if (tipo == TipoActividad.NOVEDAD && textoNota == null) return mostrarError(R.string.crono_error_nota)
         if (ajustes.any { it.cruce == Cruce.CUBIERTA }) return mostrarError(R.string.crono_error_cruce, horario)
@@ -455,30 +475,22 @@ class ActividadActivity : AppCompatActivity() {
     }
 
     /**
-     * Campo de hora con AM/PM. Lo puesto por la app (hora actual, la de la
-     * actividad) se lee tal cual; lo escrito a mano se interpreta con
-     * [HoraCronograma.interpretarNatural] y el AM/PM tocado manda.
+     * Campo de hora en 24 h. Lo escrito se interpreta con
+     * [HoraCronograma.interpretarNatural]; al salir del campo queda como
+     * "HH:mm".
      */
     private inner class CampoHora(
         idTexto: Int,
-        idAm: Int,
-        idPm: Int,
         private val despuesDe: () -> Int?,
         private val alCambiar: () -> Unit,
     ) {
         private val texto = findViewById<EditText>(idTexto)
-        private val am = findViewById<TextView>(idAm)
-        private val pm = findViewById<TextView>(idPm)
-        private var pmManual: Boolean? = null
-        private var puesto: Pair<String, String>? = null
         private var programando = false
 
-        /** La persona escribió o tocó AM/PM en este campo. */
+        /** La persona escribió en este campo. */
         var tocado = false
 
         init {
-            am.setOnClickListener { tocarAmPm(false) }
-            pm.setOnClickListener { tocarAmPm(true) }
             texto.setOnFocusChangeListener { _, conFoco -> if (!conFoco) normalizar() }
             texto.addTextChangedListener(object : TextWatcher {
                 override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
@@ -491,42 +503,21 @@ class ActividadActivity : AppCompatActivity() {
             })
         }
 
-        private fun tocarAmPm(valor: Boolean) {
-            pmManual = valor
-            tocado = true
-            alCambiar()
-        }
+        fun vacio(): Boolean = texto.text.isBlank()
 
-        fun leer(): String? {
-            val actual = texto.text.toString()
-            val p = puesto
-            if (p != null && pmManual == null && actual == p.first) return p.second
-            return HoraCronograma.interpretarNatural(actual, pmManual, despuesDe())?.hora24
-        }
+        fun leer(): String? = HoraCronograma.interpretarNatural(texto.text.toString(), null, despuesDe())?.hora24
 
-        /** Marca AM o PM según lo que se va a guardar. */
-        fun reflejar() {
-            val esPm = leer()?.let { HoraCronograma.esPm(it) } ?: pmManual ?: return
-            am.isSelected = !esPm
-            pm.isSelected = esPm
-            am.setTextColor(getColor(if (!esPm) R.color.white else R.color.text_primary))
-            pm.setTextColor(getColor(if (esPm) R.color.white else R.color.text_primary))
-        }
-
-        fun poner(hora24: String) {
-            val visible = HoraCronograma.a12(hora24)
+        /** Pone la hora (o deja el campo vacío con null). */
+        fun poner(hora24: String?) {
             programando = true
-            texto.setText(visible)
+            texto.setText(hora24.orEmpty())
             programando = false
-            puesto = visible to hora24
-            pmManual = null
-            reflejar()
         }
 
         /** "930" -> "09:30" al salir del campo, sin cambiar la hora. */
         fun normalizar() {
             val valor = leer() ?: return
-            if (texto.text.toString() != HoraCronograma.a12(valor) || pmManual != null) poner(valor)
+            if (texto.text.toString() != valor) poner(valor)
         }
     }
 

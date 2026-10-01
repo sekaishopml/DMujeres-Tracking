@@ -32,11 +32,10 @@ class HoraInterpretarTest {
     }
 
     @Test
-    fun muestraEn12Horas() {
-        assertEquals("02:30", HoraCronograma.a12("14:30"))
-        assertEquals("12:00", HoraCronograma.a12("00:00"))
-        assertEquals("2:30 p. m.", HoraCronograma.legible("14:30"))
-        assertEquals("9:00 a. m. – 11:30 a. m.", HoraCronograma.rango("09:00", "11:30"))
+    fun muestraEn24Horas() {
+        assertEquals("14:30", HoraCronograma.legible("14:30"))
+        assertEquals("09:05", HoraCronograma.legible("9:5"))
+        assertEquals("09:00 – 11:30", HoraCronograma.rango("09:00", "11:30"))
     }
 
     private data class A(val hora: String, val fin: String?)
@@ -75,6 +74,15 @@ class HoraNaturalTest {
         assertEquals("09:00", leer("9", despuesDe = "08:00"))
         assertEquals("12:00", leer("12", despuesDe = "08:00"))
         assertEquals("21:00", leer("9", despuesDe = "20:00"))
+    }
+
+    @Test
+    fun horaCompletaSeTomaTalCual() {
+        assertEquals("03:00", leer("03:00"))
+        assertEquals("02:30", leer("0230"))
+        assertEquals("10:00", leer("10:00", despuesDe = "11:00"))
+        assertEquals("13:30", leer("1:30", despuesDe = "11:00"))
+        assertEquals("15:00", leer("3"))
     }
 
     @Test

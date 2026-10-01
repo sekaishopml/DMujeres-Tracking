@@ -546,7 +546,7 @@ class CronogramaActivity : AppCompatActivity() {
         return fila
     }
 
-    /** "En curso · termina 10:00 a. m." y "Terminé" para cerrarla a la hora real. */
+    /** "En curso · termina 10:00" y "Terminé" para cerrarla a la hora real. */
     private fun enCursoConTermine(a: Actividad, ahora: Int): View {
         val fila = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL

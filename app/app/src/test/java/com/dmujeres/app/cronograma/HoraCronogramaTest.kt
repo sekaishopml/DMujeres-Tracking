@@ -16,7 +16,8 @@ class HoraCronogramaTest {
         assertEquals("45 min", HoraCronograma.duracion(45))
         assertEquals("1 h", HoraCronograma.duracion(60))
         assertEquals("2 h 30 min", HoraCronograma.duracion(150))
-        assertEquals("8:00 – 9:30 a. m.", HoraCronograma.rangoCorto("08:00", "09:30"))
-        assertEquals("11:00 a. m. – 1:00 p. m.", HoraCronograma.rangoCorto("11:00", "13:00"))
+        assertEquals("08:00 – 09:30", HoraCronograma.rangoCorto("08:00", "09:30"))
+        assertEquals("11:00 – 13:00", HoraCronograma.rangoCorto("11:00", "13:00"))
+        assertEquals("14:30", HoraCronograma.rangoCorto("14:30", null))
     }
 }

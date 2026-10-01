@@ -398,7 +398,7 @@ Se registrará el cierre en el panel.</string>
   <string name="crono_eliminar_actividad">Eliminar actividad</string>
   <string name="crono_resumen_fmt">%1$s · %2$s</string>
   <string name="crono_resumen_falta">Escribe la hora, por ejemplo 9:30 o 14:30.</string>
-  <string name="crono_error_rango_noche">La hora de fin debe ser después de la de inicio. Si pasa de la medianoche, regístrala hasta las 11:59 p. m.</string>
+  <string name="crono_error_rango_noche">La hora de fin debe ser después de la de inicio. Si pasa de la medianoche, regístrala hasta las 23:59</string>
   <string name="crono_cruce_titulo">Se cruza con otra actividad</string>
   <string name="crono_cruce_al_guardar">Al guardar:</string>
   <string name="crono_cruce_recorta_fmt">• %1$s terminará a las %2$s.</string>
@@ -432,6 +432,9 @@ Se registrará el cierre en el panel.</string>
   <string name="crono_desde">Desde</string>
   <string name="crono_hasta">Hasta</string>
   <string name="crono_hora_hint">00:00</string>
+  <string name="crono_hasta_hint">Opcional</string>
+  <string name="crono_resumen_sin_fin_fmt">Desde las %1$s · sin hora de fin (termina cuando empiece la siguiente o al tocar Terminé)</string>
+  <string name="crono_visitados_antes">Visitados anteriormente</string>
   <string name="crono_error_hora">Escribe una hora válida, por ejemplo 9:30 o 14:30.</string>
   <string name="crono_error_rango">La hora de fin debe ser después de la de inicio.</string>
   <string name="crono_home_en_curso_fmt">En curso: %1$s · hasta %2$s</string>
