@@ -1,0 +1,24 @@
+# Secretos y configuración local
+.env
+*.env
+google-services.json
+*.keystore
+*.jks
+keystore.properties
+secrets.properties
+
+# Dependencias y compilados
+node_modules/
+dist/
+build/
+.gradle/
+local.properties
+*.log
+*.dump
+
+# Archivos que se generan al trabajar
+*.antes
+mdback.zip
+
+# APKs publicados y manifiesto de actualización (viven en el servidor)
+ota/
