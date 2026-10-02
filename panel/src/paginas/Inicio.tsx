@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react';
-import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { FileText, Map as MapaIcono, Route } from 'lucide-react';
@@ -578,40 +577,37 @@ function Resumen({
     .sort()[0];
   const cifra = (n: number | undefined) => (eventos == null ? GUION : (n ?? 0));
   const alertas = eventos?.conteo.alerta ?? 0;
-  // Una fila de celdas parejas a todo el ancho: cada dato en su lugar, sin huecos.
-  const celdas: { texto: string; valor: ReactNode; clase?: string }[] = [
-    { texto: 'En ruta', valor: enRuta, clase: 'text-movimiento' },
-    { texto: 'Detenidas', valor: detenidas, clase: 'text-detenido' },
-    { texto: 'Sin señal', valor: sinSenal, clase: sinSenal > 0 ? 'text-sin-senal' : undefined },
-    { texto: 'Primera entrada', valor: primera ? hora(primera) : GUION },
-    { texto: 'Inicios', valor: cifra(eventos?.conteo.inicio_jornada) },
-    { texto: 'Cierres', valor: cifra(eventos?.conteo.fin_jornada) },
-    { texto: 'Actividades', valor: cifra(eventos?.conteo.actividad) },
-    { texto: 'Alertas', valor: cifra(eventos?.conteo.alerta), clase: alertas > 0 ? 'text-peligro' : undefined },
-  ];
   return (
-    <Tarjeta className="grid flex-none grid-cols-3 divide-borde overflow-hidden sm:grid-cols-5 xl:grid-cols-9 xl:divide-x">
-      <button
-        type="button"
-        onClick={alVerTodas}
-        className="col-span-3 cursor-pointer px-4 py-3 text-left hover:bg-fondo sm:col-span-1"
-        title="Ver quiénes están en jornada"
-      >
-        <span className="block text-[12px] text-texto-2">En jornada</span>
-        <span className="text-[22px] leading-tight font-semibold text-marino-900 cifras">
-          {personas.length}
-          <span className="ml-1 text-[13px] font-normal text-texto-3">de {total}</span>
-        </span>
-        <span className="mt-1 block h-1 overflow-hidden rounded-full bg-fondo">
-          <span className="block h-full bg-movimiento" style={{ width: `${total > 0 ? (personas.length / total) * 100 : 0}%` }} />
+    <Tarjeta className="flex flex-none flex-wrap items-center gap-x-8 gap-y-3 px-5 py-4">
+      <button type="button" onClick={alVerTodas} className="cursor-pointer text-left">
+        <span className="block text-[13px] text-texto-2">En jornada</span>
+        <span className="text-[26px] leading-tight font-semibold text-marino-900 cifras">
+          {personas.length} <span className="text-[15px] font-normal text-texto-3">de {total}</span>
         </span>
       </button>
-      {celdas.map((c) => (
-        <div key={c.texto} className="px-4 py-3">
-          <span className="block truncate text-[12px] text-texto-2">{c.texto}</span>
-          <span className={cn('text-[22px] leading-tight font-semibold text-marino-900 cifras', c.clase)}>{c.valor}</span>
+      <p className="text-[13px] leading-relaxed text-texto-2">
+        {enRuta} en ruta, {detenidas} {detenidas === 1 ? 'detenida' : 'detenidas'}, {sinSenal} sin señal
+        <br />
+        Primera entrada: {primera ? hora(primera) : GUION}
+      </p>
+      <dl className="ml-auto flex gap-6 text-[13px]">
+        <div>
+          <dt className="text-texto-2">Inicios</dt>
+          <dd className="text-[18px] font-semibold text-marino-900 cifras">{cifra(eventos?.conteo.inicio_jornada)}</dd>
         </div>
-      ))}
+        <div>
+          <dt className="text-texto-2">Cierres</dt>
+          <dd className="text-[18px] font-semibold text-marino-900 cifras">{cifra(eventos?.conteo.fin_jornada)}</dd>
+        </div>
+        <div>
+          <dt className="text-texto-2">Actividades</dt>
+          <dd className="text-[18px] font-semibold text-marino-900 cifras">{cifra(eventos?.conteo.actividad)}</dd>
+        </div>
+        <div>
+          <dt className="text-texto-2">Alertas</dt>
+          <dd className={cn('text-[18px] font-semibold cifras', alertas > 0 ? 'text-peligro' : 'text-marino-900')}>{cifra(eventos?.conteo.alerta)}</dd>
+        </div>
+      </dl>
     </Tarjeta>
   );
 }
