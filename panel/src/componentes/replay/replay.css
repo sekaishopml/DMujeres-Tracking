@@ -748,18 +748,18 @@ table.tabla thead th { position: sticky; top: 0; z-index: 1; }
    coordenada, con la duración en píldora a la derecha. La dispersión parada
    ya la muestran el halo y la nube de puntos quietos; la insignia solo
    rotula sin tapar el corredor. */
-.marcador-parada { position: absolute; width: 22px; height: 22px; cursor: pointer; }
+.marcador-parada { position: absolute; width: 18px; height: 18px; cursor: pointer; }
 /* Área de toque mayor que la insignia: con poco zoom se elige sin puntería. */
 .marcador-parada::before { content: ''; position: absolute; inset: -12px; border-radius: 50%; }
 .parada-insignia {
   position: absolute; inset: 0; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
-  background: var(--navy-2); color: #fff; font-size: 11px; font-weight: 700;
-  border: 2px solid #fff; box-shadow: 0 1px 6px rgba(4, 18, 31, .45), 0 0 0 1px rgba(4, 18, 31, .25);
+  background: var(--navy-2); color: #fff; font-size: 10px; font-weight: 700;
+  border: 1.5px solid #fff; box-shadow: 0 1px 3px rgba(4, 18, 31, .35);
   font-variant-numeric: tabular-nums;
 }
 .parada-duracion {
-  position: absolute; left: 24px; top: 50%; transform: translateY(-50%);
+  position: absolute; left: 21px; top: 50%; transform: translateY(-50%);
   white-space: nowrap; font-size: 11px; font-weight: 650; color: var(--navy-2);
   background: rgba(255, 255, 255, .94); border: 1px solid var(--linea-3);
   border-radius: 20px; padding: 1px 7px; font-variant-numeric: tabular-nums;
@@ -768,7 +768,7 @@ table.tabla thead th { position: sticky; top: 0; z-index: 1; }
    insignia rellena y aro suave, con la píldora de duración en el mismo color. */
 .marcador-parada.activa .parada-insignia {
   background: #eb0045;
-  box-shadow: 0 0 0 3px rgba(235, 0, 69, .25), 0 1px 6px rgba(4, 18, 31, .45);
+  box-shadow: 0 0 0 2px rgba(235, 0, 69, .22), 0 1px 3px rgba(4, 18, 31, .35);
 }
 .marcador-parada.activa .parada-duracion { border-color: #eb0045; color: #eb0045; }
 /* Clase sin uso (círculo hueco naranja); queda por si un mapa reutilizado

@@ -509,6 +509,9 @@ export default function Replay() {
       if (mapa.getLayer(vieja)) mapa.removeLayer(vieja);
     }
     const trazo = ['in', ['get', 'tipo'], ['literal', ['ruta', 'matched', 'estimated']]];
+    // Cada tramo se corre a la derecha de su sentido de marcha al acercar el
+    // zoom: la ida y la vuelta por la misma calle se ven como dos líneas.
+    const desplazamiento = ['interpolate', ['linear'], ['zoom'], 13, 0, 15, 2.5, 18, 5];
     const noQuieto = ['!=', ['get', 'modo'], 'quieto'];
     // Superficie de acierto: toda la traza, casi transparente.
     if (!mapa.getLayer('replay-linea-hit')) {
@@ -527,11 +530,8 @@ export default function Replay() {
         source: 'replay-halos',
         paint: {
           'circle-color': COLOR_RUTA,
-          'circle-opacity': 0.12,
-          'circle-stroke-color': COLOR_RUTA,
-          'circle-stroke-opacity': 0.55,
-          'circle-stroke-width': 1.5,
-          'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, 14, 16, 34],
+          'circle-opacity': 0.08,
+          'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, 7, 16, 18],
         },
       });
     }
@@ -546,6 +546,7 @@ export default function Replay() {
         paint: {
           'line-color': COLOR_BORDE,
           'line-width': ['interpolate', ['linear'], ['zoom'], 10, 5.5, 14, 8, 17, 11],
+          'line-offset': desplazamiento as never,
         },
       });
     }
@@ -559,6 +560,7 @@ export default function Replay() {
         paint: {
           'line-color': COLOR_POR_HORA as never,
           'line-width': ['interpolate', ['linear'], ['zoom'], 10, 3, 14, 5, 17, 7.5],
+          'line-offset': desplazamiento as never,
         },
       });
     }
@@ -573,6 +575,7 @@ export default function Replay() {
         paint: {
           'line-color': COLOR_POR_HORA as never,
           'line-width': ['interpolate', ['linear'], ['zoom'], 10, 2.4, 14, 3.8, 17, 5.5],
+          'line-offset': desplazamiento as never,
         },
       });
     }
@@ -586,6 +589,7 @@ export default function Replay() {
         paint: {
           'line-color': COLOR_POR_HORA as never,
           'line-width': ['interpolate', ['linear'], ['zoom'], 10, 2.2, 16, 4],
+          'line-offset': desplazamiento as never,
           'line-dasharray': [1.2, 1.2],
         },
       });
