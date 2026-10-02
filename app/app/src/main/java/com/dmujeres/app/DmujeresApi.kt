@@ -20,6 +20,7 @@ object DmujeresApi {
 
     private const val TAG = "DmujeresApi"
     const val KEY_JOURNEY_ID = "journeyId"
+    private val ZONA_JORNADA = java.util.TimeZone.getTimeZone("America/Guayaquil")
     const val KEY_PASSWORD = "password"
     const val KEY_JOURNEY_STARTED_AT = "journeyStartedAt"
     const val KEY_JOURNEY_OPEN = "journeyOpen"
@@ -185,6 +186,44 @@ object DmujeresApi {
         val startedAt = prefs(context).getLong(KEY_JOURNEY_STARTED_AT, 0L)
         val format = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault())
         return if (startedAt > 0L) format.format(java.util.Date(startedAt)) else "--:--"
+    }
+
+    // Próxima medianoche ya calculada: hasta entonces la revisión no hace nada.
+    @Volatile private var proximaMedianoche = 0L
+
+    /** Inicio del día (00:00 en Ecuador) que contiene [ms]. */
+    fun inicioDelDia(ms: Long): Long = java.util.Calendar.getInstance(ZONA_JORNADA).apply {
+        timeInMillis = ms
+        set(java.util.Calendar.HOUR_OF_DAY, 0)
+        set(java.util.Calendar.MINUTE, 0)
+        set(java.util.Calendar.SECOND, 0)
+        set(java.util.Calendar.MILLISECOND, 0)
+    }.timeInMillis
+
+    /**
+     * Una jornada abierta que viene de otro día se parte a medianoche: se
+     * cierra a las 23:59:59 y sigue como jornada nueva desde las 00:00, igual
+     * que si la persona tocara Finalizar e Iniciar. Así cada día tiene su
+     * jornada. El panel no lo notifica (cierre y apertura en el mismo minuto).
+     */
+    fun renovarSiCambioDeDia(context: Context, ahora: Long = System.currentTimeMillis()) {
+        if (ahora < proximaMedianoche) return
+        val hoy = inicioDelDia(ahora)
+        proximaMedianoche = hoy + 24 * 3_600_000L
+        if (!isJourneyOpen(context)) return
+        val p = prefs(context)
+        val inicio = p.getLong(KEY_JOURNEY_STARTED_AT, 0L)
+        if (inicio <= 0L || inicio >= hoy) return
+        val anterior = p.getLong(KEY_JOURNEY_ID, inicio)
+        p.edit()
+            .putLong(KEY_JOURNEY_ID, hoy)
+            .putLong(KEY_JOURNEY_STARTED_AT, hoy)
+            .putBoolean(KEY_JOURNEY_OPEN, true)
+            .commit()
+        JourneyOutbox.enqueue(context, "stop", anterior, hoy - 1)
+        JourneyOutbox.enqueue(context, "start", hoy, hoy)
+        StatusActivity.addMessage(context.getString(R.string.journey_renewed))
+        flushJourneyEvents(context)
     }
 
     /** Fin de jornada: cierra la jornada abierta (si la hay). */

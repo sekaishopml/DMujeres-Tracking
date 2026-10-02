@@ -48,6 +48,7 @@ function limitesMesUtc(fecha) {
 const VENTANA_CAPTURA_MS_ATRAS = 30 * 24 * 60 * 60 * 1000;
 const VENTANA_CAPTURA_MS_ADELANTE = 24 * 60 * 60 * 1000;
 const MAX_ATRASO_INICIO_IOS_MS = 30 * 60 * 1000;
+const ZONA_JORNADA = 'America/Guayaquil';
 
 export function fechaCapturaValida(fecha, ahoraMs = Date.now()) {
   if (!(fecha instanceof Date) || Number.isNaN(fecha.getTime())) return false;
@@ -803,18 +804,34 @@ export class Almacen {
   }
 
   // Traccar Client de iOS no avisa inicio ni fin de jornada: la abre su primer
-  // punto reciente (los viejos que llegan del búfer no abren nada).
+  // punto reciente (los viejos que llegan del búfer no abren nada). Si la
+  // abierta viene de otro día, se parte a medianoche como hace la app Android.
   async #abrirJornadaIos(dispositivoId, posicion) {
-    const inicioEn = new Date(posicion.registradoEn);
-    if (Date.now() - inicioEn.getTime() > MAX_ATRASO_INICIO_IOS_MS) return;
-    const { rowCount } = await this.#pool.query(
-      `SELECT 1 FROM tracking.dmt_dispositivo d
+    const instante = new Date(posicion.registradoEn);
+    if (Date.now() - instante.getTime() > MAX_ATRASO_INICIO_IOS_MS) return;
+    const { rows } = await this.#pool.query(
+      `SELECT j.inicio_en, j.atributos->>'journeyId' AS journey_id,
+              date_trunc('day', $2::timestamptz AT TIME ZONE '${ZONA_JORNADA}') AT TIME ZONE '${ZONA_JORNADA}' AS dia
+         FROM tracking.dmt_dispositivo d
+         LEFT JOIN operations.dmt_jornada j ON j.dispositivo_id = d.id AND j.estado = 'abierta'
         WHERE d.id = $1 AND d.atributos->>'plataforma' = 'ios'
-          AND NOT EXISTS (SELECT 1 FROM operations.dmt_jornada j
-                           WHERE j.dispositivo_id = d.id AND j.estado = 'abierta')`,
-      [dispositivoId],
+        LIMIT 1`,
+      [dispositivoId, instante],
     );
-    if (rowCount === 0) return;
+    const fila = rows[0];
+    if (!fila) return;
+    let inicioEn = instante;
+    if (fila.inicio_en) {
+      if (fila.inicio_en >= fila.dia) return;
+      await this.cerrarJornada({
+        dispositivoId,
+        journeyId: fila.journey_id,
+        finEn: new Date(fila.dia.getTime() - 1),
+        bateriaFin: null,
+        parcheDispositivo: { 'mobile.journeyId': 0 },
+      });
+      inicioEn = fila.dia;
+    }
     const journeyId = inicioEn.getTime();
     await this.abrirJornada({
       dispositivoId,
@@ -886,7 +903,7 @@ export class Almacen {
        )
        SELECT jornada_id, dispositivo_id, journey_id, ios, ultima
          FROM actividad
-        WHERE now() - ultima > make_interval(hours => CASE WHEN ios THEN $2 ELSE $1 END)`,
+        WHERE now() - ultima > make_interval(hours => CASE WHEN ios THEN $2::int ELSE $1::int END)`,
       [horasTimeout, horasTimeoutIos],
     );
     for (const fila of vencidas.rows) {

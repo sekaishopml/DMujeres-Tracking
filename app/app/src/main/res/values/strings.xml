@@ -137,6 +137,7 @@ Se registrará el cierre en el panel.</string>
   <string name="journey_confirm_cancel">Cancelar</string>
   <string name="journey_started_toast">Jornada iniciada</string>
   <string name="journey_ended_toast">Jornada finalizada</string>
+  <string name="journey_renewed">Nuevo día: la jornada sigue como una nueva desde las 00:00</string>
   <string name="journey_missing_permissions">Faltan permisos · complétalos para registrar la jornada</string>
   <string name="update_action">Actualizar</string>
   <string name="pending_label">Pendientes por enviar</string>

@@ -348,6 +348,7 @@ class TrackingController(private val context: Context) :
         // nuevos a la cola mientras se vacía.
         if (captureFrozen) return
         val now = System.currentTimeMillis()
+        DmujeresApi.renovarSiCambioDeDia(context, now)
         // Un salto imposible se descarta antes de que afecte a la máquina, al
         // último punto o al vigilante.
         if (captureGate.isTeleport(
