@@ -5,7 +5,7 @@ import Recorridos from '@/componentes/reportes/Recorridos';
 
 type Vista = 'cronograma' | 'recorridos';
 const VISTAS = [
-  { valor: 'cronograma', etiqueta: 'Cronograma de actividades' },
+  { valor: 'cronograma', etiqueta: 'Cronograma' },
   { valor: 'recorridos', etiqueta: 'Recorridos' },
 ] as const;
 
@@ -13,10 +13,11 @@ const VISTAS = [
 // recorrido) y, aparte, las métricas de viajes, paradas y distancias.
 export default function Reportes() {
   const [vista, setVista] = useState<Vista>('cronograma');
+  // Las pestañas van en la misma barra que los filtros de cada vista.
+  const pestanas = <Segmentado opciones={VISTAS} valor={vista} alCambiar={setVista} />;
   return (
-    <div className="space-y-4">
-      <Segmentado opciones={VISTAS} valor={vista} alCambiar={setVista} />
-      {vista === 'cronograma' ? <Cronograma /> : <Recorridos />}
+    <div>
+      {vista === 'cronograma' ? <Cronograma pestanas={pestanas} /> : <Recorridos pestanas={pestanas} />}
     </div>
   );
 }

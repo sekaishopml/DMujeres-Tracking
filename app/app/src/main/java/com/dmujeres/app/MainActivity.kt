@@ -46,6 +46,7 @@ private const val REFRESH_STEPS = 8
 
 /** Bloqueo del botón de jornada tras un toque (anti doble toque). */
 private const val JOURNEY_TAP_GUARD_MS = 1_200L
+private const val KEY_PIE_OCULTO = "pieActividadesOculto"
 
 /** Pendientes a partir de los cuales el estado pasa a "Sin conexión". */
 private const val PENDING_OFFLINE_THRESHOLD = 30
@@ -249,6 +250,7 @@ class MainActivity : AppCompatActivity() {
         findViewById<View>(R.id.cronograma_card).setOnClickListener {
             startActivity(Intent(this, com.dmujeres.app.cronograma.CronogramaActivity::class.java))
         }
+        configurarPie()
 
         button.setOnClickListener {
             // Anti doble toque: el botón se bloquea un instante mientras cambia
@@ -501,6 +503,60 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * Pie de actividades: al arrastrar el asa hacia abajo queda solo el
+     * resumen; hacia arriba, o con un toque, vuelve a su tamaño. Se recuerda.
+     */
+    @android.annotation.SuppressLint("ClickableViewAccessibility")
+    private fun configurarPie() {
+        val pie = findViewById<View>(R.id.pie_actividades) ?: return
+        val asa = findViewById<View>(R.id.pie_asa) ?: return
+        val prefs = PreferenceManager.getDefaultSharedPreferences(this)
+        val visibleOculto = 48 * resources.displayMetrics.density
+        val umbral = android.view.ViewConfiguration.get(this).scaledTouchSlop
+        fun recorrido() = (pie.height - asa.height - visibleOculto).coerceAtLeast(0f)
+        fun ir(oculto: Boolean) {
+            prefs.edit().putBoolean(KEY_PIE_OCULTO, oculto).apply()
+            pie.animate().translationY(if (oculto) recorrido() else 0f).setDuration(280)
+                .setInterpolator(android.view.animation.DecelerateInterpolator(1.6f)).start()
+        }
+        // Si cambia el alto (otro texto), el pie oculto sigue mostrando lo mismo.
+        pie.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
+            if (prefs.getBoolean(KEY_PIE_OCULTO, false) && !arrastrandoPie) pie.translationY = recorrido()
+        }
+        var inicioY = 0f
+        var inicioTraslado = 0f
+        var movio = false
+        asa.setOnTouchListener { vista, e ->
+            when (e.actionMasked) {
+                android.view.MotionEvent.ACTION_DOWN -> {
+                    pie.animate().cancel()
+                    arrastrandoPie = true
+                    inicioY = e.rawY
+                    inicioTraslado = pie.translationY
+                    movio = false
+                }
+                android.view.MotionEvent.ACTION_MOVE -> {
+                    val delta = e.rawY - inicioY
+                    if (kotlin.math.abs(delta) > umbral) movio = true
+                    if (movio) pie.translationY = (inicioTraslado + delta).coerceIn(0f, recorrido())
+                }
+                android.view.MotionEvent.ACTION_UP, android.view.MotionEvent.ACTION_CANCEL -> {
+                    arrastrandoPie = false
+                    if (movio) {
+                        ir(pie.translationY > recorrido() / 2)
+                    } else if (e.actionMasked == android.view.MotionEvent.ACTION_UP) {
+                        vista.performClick()
+                    }
+                }
+            }
+            true
+        }
+        asa.setOnClickListener { ir(pie.translationY < recorrido() / 2) }
+    }
+
+    private var arrastrandoPie = false
+
     private fun refreshCronograma() {
         val resumen = findViewById<TextView>(R.id.crono_resumen) ?: return
         val detalle = findViewById<TextView>(R.id.crono_detalle)
@@ -678,14 +734,25 @@ class MainActivity : AppCompatActivity() {
             }
         }
         Thread {
-            fun pause() = runCatching { Thread.sleep(900) }
+            fun pause() = runCatching { Thread.sleep(450) }
             try {
                 // 1) puntos pendientes
                 val before = runCatching { DatabaseHelper(this).countPositions() }.getOrDefault(0)
                 say(getString(R.string.refresh_step_pending, before), 1)
                 TrackingService.refreshNow()
-                pause()
-                val after = runCatching { DatabaseHelper(this).countPositions() }.getOrDefault(0)
+                // También lo demás que espera subir: avisos de jornada y actividades.
+                DmujeresApi.flushJourneyEvents(this)
+                com.dmujeres.app.cronograma.Actividades.sincronizar(this)
+                // Se espera a que la cola baje de verdad (hasta 6 s), no un tiempo fijo.
+                var after = before
+                var quieto = 0
+                for (i in 0 until 12) {
+                    runCatching { Thread.sleep(500) }
+                    val ahora = runCatching { DatabaseHelper(this).countPositions() }.getOrDefault(after)
+                    quieto = if (ahora == after) quieto + 1 else 0
+                    after = ahora
+                    if (after == 0 || quieto >= 3) break
+                }
                 say(getString(R.string.refresh_step_pending_ok, (before - after).coerceAtLeast(0)), 2)
                 if (after > 0) markWarning()
                 pause()
@@ -774,8 +841,13 @@ class MainActivity : AppCompatActivity() {
                 // todo está bien, naranja de aviso si algo falló.
                 if (summary.allGood) animateFillTint(navy, 400) else markWarning()
                 say(getString(summary.textRes), 8, 700)
-                runOnUiThread { runCatching { refreshLockedHome() } }
-                pause()
+                runOnUiThread {
+                    runCatching { refreshLockedHome() }
+                    // De paso se revisa si hay versión nueva de la app.
+                    runCatching { showUpdateDialogIfAvailable() }
+                }
+                // Si algo falló, el mensaje queda el tiempo suficiente para leerlo.
+                runCatching { Thread.sleep(if (summary.allGood) 900 else 3_000) }
                 // Reposo: vuelve la palabra ACTUALIZAR y el fondo blanco.
                 runOnUiThread {
                     if (isFinishing || isDestroyed) return@runOnUiThread

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Asa del pie de actividades: se arrastra para bajarlo o subirlo. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="#66FFFFFF" />
+    <corners android:radius="2dp" />
+</shape>

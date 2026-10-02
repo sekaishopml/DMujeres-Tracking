@@ -376,6 +376,7 @@ Se registrará el cierre en el panel.</string>
   <string name="crono_guardar">Guardar</string>
   <string name="crono_iniciar">Iniciar actividad</string>
   <string name="crono_finalizar">Finalizar actividad</string>
+  <string name="pie_asa">Mostrar u ocultar actividades</string>
   <string name="crono_home_titulo">Actividades de hoy</string>
   <string name="crono_home_ninguna">Sin actividad en curso</string>
   <string name="crono_home_abierta_fmt">Desde las %1$s · lleva %2$s</string>

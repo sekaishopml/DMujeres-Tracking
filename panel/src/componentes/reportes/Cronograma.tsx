@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Check, ChevronDown, ChevronLeft, ChevronRight, Download, MapPin, Navigation, TriangleAlert } from 'lucide-react';
-import { AccionesPagina } from '@/componentes/marco/Marco';
 import { Segmentado } from '@/componentes/ui/Segmentado';
 import { Tarjeta } from '@/componentes/ui/Tarjeta';
 import { Avatar } from '@/componentes/ui/Avatar';
@@ -41,7 +41,7 @@ const VISTAS = [
 // Cronograma de actividades: lo que cada persona declaró en la app, en
 // semana (columnas por día, como su Excel) o en mes (calendario), con la
 // auditoría contra su recorrido a la hora declarada.
-export default function Cronograma() {
+export default function Cronograma({ pestanas }: { pestanas?: ReactNode }) {
   const hoy = fechaHoyLocal();
   const [vista, setVista] = useState<Vista>('semana');
   const [ancla, setAncla] = useState(hoy);
@@ -97,44 +97,47 @@ export default function Cronograma() {
 
   return (
     <div className="space-y-4">
-      <AccionesPagina>
-        <SelectorPersona
-          personas={equipos.map((e) => ({ id: e.idPublico, nombre: e.nombre, nuevas: nuevasPor.get(e.idPublico) ?? 0 }))}
-          valor={elegida}
-          alCambiar={setPersona}
-        />
-        <Segmentado opciones={VISTAS} valor={vista} alCambiar={setVista} />
-        <div className="flex items-center gap-1">
-          <button type="button" onClick={() => mover(-1)} className={claseBoton('secundario', 'sm')} aria-label="Anterior">
-            <ChevronLeft className="size-4" />
-          </button>
-          <button type="button" onClick={() => setAncla(hoy)} className={claseBoton('secundario', 'sm')}>
-            Hoy
-          </button>
-          <button type="button" onClick={() => mover(1)} className={claseBoton('secundario', 'sm')} aria-label="Siguiente">
-            <ChevronRight className="size-4" />
+      {/* Una sola barra: vista, persona, periodo y, debajo, lo que se está viendo. */}
+      <Tarjeta>
+        <div className="flex flex-wrap items-center gap-2 px-3 py-2.5">
+          {pestanas}
+          <SelectorPersona
+            personas={equipos.map((e) => ({ id: e.idPublico, nombre: e.nombre, nuevas: nuevasPor.get(e.idPublico) ?? 0 }))}
+            valor={elegida}
+            alCambiar={setPersona}
+          />
+          <Segmentado opciones={VISTAS} valor={vista} alCambiar={setVista} />
+          <div className="flex items-center gap-1">
+            <button type="button" onClick={() => mover(-1)} className={claseBoton('secundario', 'sm')} aria-label="Anterior">
+              <ChevronLeft className="size-4" />
+            </button>
+            <button type="button" onClick={() => setAncla(hoy)} className={claseBoton('secundario', 'sm')}>
+              Hoy
+            </button>
+            <button type="button" onClick={() => mover(1)} className={claseBoton('secundario', 'sm')} aria-label="Siguiente">
+              <ChevronRight className="size-4" />
+            </button>
+          </div>
+          <button
+            type="button"
+            onClick={() => exportarCsv(datos, desde, hasta)}
+            disabled={datos.length === 0}
+            className={cn(claseBoton('secundario', 'sm'), 'ml-auto')}
+          >
+            <Download className="size-4" /> CSV
           </button>
         </div>
-        <button
-          type="button"
-          onClick={() => exportarCsv(datos, desde, hasta)}
-          disabled={datos.length === 0}
-          className={claseBoton('secundario', 'sm')}
-        >
-          <Download className="size-4" /> CSV
-        </button>
-      </AccionesPagina>
-
-      <Tarjeta className="flex flex-wrap items-center gap-x-6 gap-y-2 px-5 py-3">
-        <p className="font-display text-[15px] font-semibold text-marino-900 first-letter:uppercase">{titulo}</p>
-        <Dato valor={datos.length} etiqueta="actividades" />
-        <Dato valor={novedades} etiqueta="novedades" tono={novedades > 0 ? 'text-marca' : undefined} />
-        <Dato
-          valor={sinJornada}
-          etiqueta="cargadas sin jornada"
-          tono={sinJornada > 0 ? 'text-sin-senal' : undefined}
-          titulo="Se cargaron con la jornada cerrada: no llevan ubicación de registro."
-        />
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-1 border-t border-borde px-4 py-2">
+          <p className="text-[14px] font-semibold text-marino-900 first-letter:uppercase">{titulo}</p>
+          <Dato valor={datos.length} etiqueta="actividades" />
+          <Dato valor={novedades} etiqueta="novedades" tono={novedades > 0 ? 'text-marca' : undefined} />
+          <Dato
+            valor={sinJornada}
+            etiqueta="cargadas sin jornada"
+            tono={sinJornada > 0 ? 'text-sin-senal' : undefined}
+            titulo="Se cargaron con la jornada cerrada: no llevan ubicación de registro."
+          />
+        </div>
       </Tarjeta>
 
       {cronograma.error ? (
@@ -252,7 +255,7 @@ function SelectorPersona({
 function Dato({ valor, etiqueta, tono, titulo }: { valor: number; etiqueta: string; tono?: string; titulo?: string }) {
   return (
     <p className="text-[12.5px] text-texto-2" title={titulo}>
-      <span className={cn('font-display text-[16px] font-semibold text-marino-900 cifras', tono)}>{valor}</span>{' '}
+      <span className={cn('text-[14px] font-semibold text-marino-900 cifras', tono)}>{valor}</span>{' '}
       {etiqueta}
     </p>
   );

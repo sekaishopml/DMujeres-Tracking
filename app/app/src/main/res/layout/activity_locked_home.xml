@@ -265,14 +265,29 @@
 
     <!-- Pie marino: cronograma de actividades y versión. -->
     <LinearLayout
+        android:id="@+id/pie_actividades"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:background="@drawable/ds_footer_navy"
         android:orientation="vertical"
         android:paddingStart="18dp"
-        android:paddingTop="14dp"
         android:paddingEnd="18dp"
         android:paddingBottom="6dp">
+
+        <!-- Asa: arrastrar hacia abajo deja solo el resumen; hacia arriba (o un
+             toque) lo devuelve a su tamaño. -->
+        <FrameLayout
+            android:id="@+id/pie_asa"
+            android:layout_width="match_parent"
+            android:layout_height="22dp"
+            android:contentDescription="@string/pie_asa">
+
+            <View
+                android:layout_width="36dp"
+                android:layout_height="4dp"
+                android:layout_gravity="center"
+                android:background="@drawable/ds_asa" />
+        </FrameLayout>
 
         <!-- Actividades: lo que está en curso (o lo que sigue) y un solo botón
              para iniciar o finalizar. Tocar el texto abre el cronograma. -->

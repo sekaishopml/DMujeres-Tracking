@@ -1,11 +1,9 @@
 import { useMemo, useState } from 'react';
+import type { ReactNode } from 'react';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import { Clock, MapPin, Route, Timer, Users } from 'lucide-react';
 import type { Pagina, ReporteParada, ReporteViaje, ResumenReporte } from '@contratos';
 import { api, consulta } from '@/lib/api';
-import { AccionesPagina } from '@/componentes/marco/Marco';
 import { Tarjeta, CabeceraTarjeta } from '@/componentes/ui/Tarjeta';
-import { Cifra } from '@/componentes/ui/Cifra';
 import { Segmentado } from '@/componentes/ui/Segmentado';
 import { Entrada, Selector } from '@/componentes/ui/Campo';
 import { Tabla, Th, Td, Fila } from '@/componentes/ui/Tabla';
@@ -45,7 +43,7 @@ function fechaValida(valor: string): boolean {
   return valor !== '' && !Number.isNaN(new Date(`${valor}T00:00:00`).getTime());
 }
 
-export default function Recorridos() {
+export default function Recorridos({ pestanas }: { pestanas?: ReactNode }) {
   const flota = useQuery({ queryKey: CLAVE_FLOTA, queryFn: () => traerFlota(), staleTime: 60_000 });
   const [equipo, setEquipo] = useState('');
   const [pestana, setPestana] = useState<Pestana>('resumen');
@@ -121,8 +119,9 @@ export default function Recorridos() {
   const r = resumen.data;
 
   return (
-    <div className="space-y-5">
-      <AccionesPagina>
+    <div className="space-y-4">
+      <Tarjeta className="flex flex-wrap items-center gap-2 px-3 py-2.5">
+        {pestanas}
         <Selector
           aria-label="Persona"
           className="w-44"
@@ -155,18 +154,25 @@ export default function Recorridos() {
           min={rango.desde || undefined}
           onChange={(e) => cambiarFecha({ hasta: e.target.value })}
         />
-      </AccionesPagina>
+      </Tarjeta>
 
       {flota.error && <ErrorCarga mensaje={mensajeError(flota.error)} alReintentar={() => flota.refetch()} />}
       {resumen.error && <ErrorCarga mensaje={mensajeError(resumen.error)} alReintentar={() => resumen.refetch()} />}
 
-      <div className="grid grid-cols-2 gap-3 sm:gap-5 xl:grid-cols-5">
-        <Cifra etiqueta="Distancia total" icono={Route} tono="marino" valor={r ? kilometros(r.distanciaTotalKm * 1000) : GUION} />
-        <Cifra etiqueta="Tiempo en movimiento" icono={Timer} tono="movimiento" valor={r ? duracion(r.duracionTotalMin * 60) : GUION} />
-        <Cifra etiqueta="Viajes" icono={Clock} tono="detenido" valor={r ? r.viajes : GUION} />
-        <Cifra etiqueta="Paradas" icono={MapPin} tono="sinSenal" valor={r ? r.paradas : GUION} />
-        <Cifra etiqueta="Personas" icono={Users} tono="marca" valor={r ? r.dispositivos : GUION} />
-      </div>
+      <Tarjeta className="grid grid-cols-2 divide-borde overflow-hidden sm:grid-cols-5 sm:divide-x">
+        {[
+          ['Distancia total', r ? kilometros(r.distanciaTotalKm * 1000) : GUION],
+          ['Tiempo en movimiento', r ? duracion(r.duracionTotalMin * 60) : GUION],
+          ['Viajes', r ? r.viajes : GUION],
+          ['Paradas', r ? r.paradas : GUION],
+          ['Personas', r ? r.dispositivos : GUION],
+        ].map(([texto, valor]) => (
+          <div key={String(texto)} className="px-4 py-3">
+            <span className="block text-[12px] text-texto-2">{texto}</span>
+            <span className="text-[20px] leading-tight font-semibold text-marino-900 cifras">{valor}</span>
+          </div>
+        ))}
+      </Tarjeta>
       <p className="text-[12px] text-texto-3">
         {r
           ? `Rango consultado: ${fechaHora(r.desde)} — ${fechaHora(r.hasta)}`
