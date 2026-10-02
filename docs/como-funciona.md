@@ -8,10 +8,9 @@ que llega: si la persona está quieta descarta el temblor del GPS, si gira en
 una esquina guarda ese punto aunque no toque, y descarta los saltos
 imposibles. Mientras se mueve guarda más seguido y estando quieta, menos.
 
-Sin jornada abierta la app no registra un recorrido. Solo manda un punto de
-presencia cada 8 a 12 minutos, con la ubicación aproximada, para saber dónde
-está el teléfono y si sigue encendido. Por eso la repetición de ruta solo
-dibuja lo que pasó dentro de una jornada.
+Sin jornada abierta la app no registra ni envía ningún punto. La repetición
+de ruta, además, solo dibuja lo que pasó dentro de una jornada, por si llegan
+puntos de versiones viejas de la app.
 
 Si la jornada queda abierta al pasar la medianoche, la app la cierra a las
 23:59:59 y sigue como una jornada nueva desde las 00:00. Así cada día tiene la

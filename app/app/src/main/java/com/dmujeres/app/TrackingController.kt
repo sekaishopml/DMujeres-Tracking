@@ -349,6 +349,8 @@ class TrackingController(private val context: Context) :
         if (captureFrozen) return
         val now = System.currentTimeMillis()
         DmujeresApi.renovarSiCambioDeDia(context, now)
+        // Sin jornada abierta no se registra nada: ni recorrido ni presencia.
+        if (!preferences.getBoolean(DmujeresApi.KEY_JOURNEY_OPEN, false)) return
         // Un salto imposible se descarta antes de que afecte a la máquina, al
         // último punto o al vigilante.
         if (captureGate.isTeleport(
