@@ -11,9 +11,18 @@
 .inicio-lista:hover { scrollbar-color: var(--color-marino-300) transparent; }
 .inicio-lista:hover::-webkit-scrollbar-thumb { background: var(--color-marino-300); }
 .inicio-lista::-webkit-scrollbar-thumb:hover { background: var(--color-marca); }
+.inicio-lista > li {
+  animation: inicio-entrar 360ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(var(--orden, 0) * 45ms);
+}
+.inicio-aparecer { animation: inicio-fundido 280ms ease-out both; }
 @keyframes inicio-entrar {
   from { opacity: 0; transform: translateY(-8px); }
   to { opacity: 1; transform: none; }
+}
+@keyframes inicio-fundido { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .inicio-lista > li, .inicio-aparecer { animation: none; }
 }
 /* Filas de planillas (Asistencia): entran de arriba hacia abajo. */
 .inicio-fila {
