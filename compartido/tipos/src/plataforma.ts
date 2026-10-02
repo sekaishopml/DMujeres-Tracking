@@ -37,8 +37,9 @@ export interface UsuarioPlataforma {
 }
 
 export interface CreacionUsuarioPlataforma {
-  usuario: string;
-  clave: string;
+  // En iPhone no se mandan: el servidor usa el identificador de dispositivo.
+  usuario?: string;
+  clave?: string;
   nombre: string;
   telefono?: string;
   cargo?: string;

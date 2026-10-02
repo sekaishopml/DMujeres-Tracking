@@ -6,6 +6,7 @@
 // nombre de la persona, identificador = usuario en minúsculas) y su
 // asignación; 409 si el identificador ya existe. Responde {usuario, equipo}.
 
+import { randomBytes } from 'node:crypto';
 import { consultar, enTransaccion } from './db.js';
 import { datosInvalidos, noEncontrado, conflicto } from './errores.js';
 import {
@@ -455,8 +456,6 @@ export async function obtenerCuenta(ctx) {
 export async function crearCuenta(ctx) {
   await exigirOperativo(ctx);
   const cuerpo = await leerCuerpoJson(ctx.req, 16384);
-  const usuario = usuarioObligatorio(cuerpo.usuario);
-  const clave = claveObligatoria(cuerpo.clave);
   const nombre = textoObligatorio(cuerpo.nombre, 'nombre');
   const telefono = textoOpcional(cuerpo.telefono, 'telefono', 40);
   const cargo = textoOpcional(cuerpo.cargo, 'cargo', 200);
@@ -466,16 +465,19 @@ export async function crearCuenta(ctx) {
   // Si no se indica, una persona de campo nace con su equipo; una cuenta de
   // administración no (no se rastrea).
   const crearEquipoSolicitado = booleanoOpcional(cuerpo.crearEquipo, 'crearEquipo');
-  // iPhone: el equipo usa Traccar Client y se identifica con el ID que esa
-  // app trae (se copia de su pantalla), no con el usuario.
+  // iPhone: el equipo usa Traccar Client y se da de alta como en Traccar, con
+  // nombre e identificador de dispositivo. No entra a ninguna app: su usuario
+  // es el identificador y la clave es aleatoria.
   const ios = cuerpo.plataforma === 'ios';
   if (cuerpo.plataforma != null && !['android', 'ios'].includes(cuerpo.plataforma)) {
     throw datosInvalidos('plataforma debe ser android o ios.');
   }
-  const idTraccar = ios ? textoObligatorio(cuerpo.identificadorEquipo, 'identificadorEquipo', 64) : null;
+  const idTraccar = ios ? textoObligatorio(cuerpo.identificadorEquipo, 'identificadorEquipo', 40) : null;
   if (idTraccar != null && !/^[A-Za-z0-9._-]+$/.test(idTraccar)) {
-    throw datosInvalidos('El ID del iPhone solo admite letras, números, punto, guion y guion bajo.');
+    throw datosInvalidos('El identificador de dispositivo solo admite letras, números, punto, guion y guion bajo.');
   }
+  const usuario = usuarioObligatorio(ios ? idTraccar : cuerpo.usuario);
+  const clave = ios ? randomBytes(24).toString('base64url') : claveObligatoria(cuerpo.clave);
   const credencial = crearCredencial(clave);
 
   const resultado = await enTransaccion(ctx.pool, async (cliente) => {

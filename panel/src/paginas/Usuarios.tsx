@@ -133,27 +133,29 @@ function DialogoCuenta({
   const [validacion, setValidacion] = useState('');
 
   function enviar() {
-    if (!usuario && !cuenta.trim()) return setValidacion('Escribe el nombre con el que la persona va a entrar.');
+    const iphone = !usuario && plataforma === 'ios';
+    if (iphone && !idIphone.trim()) return setValidacion('Escribe el identificador de dispositivo que muestra Traccar Client.');
+    if (!usuario && !iphone && !cuenta.trim()) return setValidacion('Escribe el nombre con el que la persona va a entrar.');
     if (!nombre.trim()) return setValidacion('Escribe el nombre completo de la persona.');
-    if (!usuario && !clave) return setValidacion('Escribe una contraseña para la cuenta nueva.');
-    if (!usuario && plataforma === 'ios' && !idIphone.trim()) {
-      return setValidacion('Copia el identificador que muestra Traccar Client en el iPhone.');
-    }
-    if (clave && clave.length < CLAVE_MINIMA) {
+    if (!usuario && !iphone && !clave) return setValidacion('Escribe una contraseña para la cuenta nueva.');
+    if (!iphone && clave && clave.length < CLAVE_MINIMA) {
       return setValidacion(`La contraseña debe tener al menos ${CLAVE_MINIMA} caracteres.`);
     }
     setValidacion('');
     const gruposElegidos = grupos.filter((grupo) => grupoIds.includes(idTextoGrupo(grupo))).map(idOriginalGrupo);
     if (!usuario) {
       const cuerpo: CreacionUsuarioPlataforma = {
-        usuario: cuenta.trim(),
-        clave,
         nombre: nombre.trim(),
         // El equipo de rastreo se crea siempre junto con la cuenta.
         crearEquipo: true,
         plataforma,
       };
-      if (plataforma === 'ios') cuerpo.identificadorEquipo = idIphone.trim();
+      if (iphone) {
+        cuerpo.identificadorEquipo = idIphone.trim();
+      } else {
+        cuerpo.usuario = cuenta.trim();
+        cuerpo.clave = clave;
+      }
       if (telefono.trim() !== '') cuerpo.telefono = telefono.trim();
       if (cargo.trim() !== '') cuerpo.cargo = cargo.trim();
       if (gruposElegidos.length > 0) cuerpo.grupoIds = gruposElegidos;
@@ -215,10 +217,9 @@ function DialogoCuenta({
         </fieldset>
       )}
       {!usuario && plataforma === 'ios' && (
-        <>
           <Campo
-            etiqueta="Identificador del iPhone"
-            ayuda="El número que aparece en Traccar Client como identificador del dispositivo."
+            etiqueta="Identificador de dispositivo"
+            ayuda="El que muestra Traccar Client en el iPhone, en «Identificador de dispositivo»."
           >
             <Entrada
               value={idIphone}
@@ -228,20 +229,8 @@ function DialogoCuenta({
               placeholder="Por ejemplo: 482913"
             />
           </Campo>
-          <div className="rounded-control bg-marino-50 px-3 py-2.5 text-[12.5px] leading-relaxed text-texto-2">
-            <p className="mb-1 font-semibold text-marino-900">En el iPhone, dentro de Traccar Client:</p>
-            <ol className="list-decimal space-y-0.5 pl-4">
-              <li>
-                Dirección del servidor: <b className="text-marino-900">{SERVIDOR_IPHONE}</b>
-              </li>
-              <li>Precisión alta, intervalo 60 s y, si aparece, latido cada 300 s y detección de parada apagada.</li>
-              <li>En Ajustes del iPhone: ubicación «Siempre» con ubicación exacta, y actualización en segundo plano activada.</li>
-              <li>Encender el seguimiento al empezar el día. La jornada se abre sola con el primer punto y se cierra tras unas 2 h sin puntos.</li>
-            </ol>
-          </div>
-        </>
       )}
-      {!usuario && (
+      {!usuario && plataforma === 'android' && (
         <Campo etiqueta="Nombre para entrar">
           <Entrada
             value={cuenta}
@@ -252,6 +241,7 @@ function DialogoCuenta({
           />
         </Campo>
       )}
+      {(usuario || plataforma === 'android') && (
       <Campo
         etiqueta={usuario ? 'Contraseña nueva' : 'Contraseña'}
         ayuda={usuario ? 'Déjala vacía para no cambiarla.' : `Mínimo ${CLAVE_MINIMA} caracteres.`}
@@ -274,6 +264,7 @@ function DialogoCuenta({
           </button>
         </div>
       </Campo>
+      )}
       <Campo etiqueta="Nombre de la persona">
         <Entrada value={nombre} onChange={(evento) => setNombre(evento.target.value)} />
       </Campo>
@@ -316,6 +307,18 @@ function DialogoCuenta({
           </>
         )}
       </fieldset>
+      {!usuario && plataforma === 'ios' && (
+        <div className="rounded-control bg-marino-50 px-3 py-2.5 text-[12.5px] leading-relaxed text-texto-2">
+          <p className="mb-1 font-semibold text-marino-900">En el iPhone, dentro de Traccar Client:</p>
+          <ol className="list-decimal space-y-0.5 pl-4">
+            <li>
+              Dirección del servidor: <b className="text-marino-900">{SERVIDOR_IPHONE}</b>
+            </li>
+            <li>En Ajustes del iPhone: ubicación «Siempre» con ubicación exacta, y actualización en segundo plano activada.</li>
+            <li>Encender el seguimiento al empezar el día. La jornada se abre sola con el primer punto y se cierra tras unas 2 h sin puntos.</li>
+          </ol>
+        </div>
+      )}
       {validacion !== '' ? (
         <AvisoError>{validacion}</AvisoError>
       ) : error != null ? (
