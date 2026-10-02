@@ -2,8 +2,9 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { BatteryWarning, Bell, CirclePlay, CircleStop, SignalHigh, WifiOff } from 'lucide-react';
-import type { Dispositivo, JornadaFlota } from '@contratos';
-import { CLAVE_FLOTA, traerFlota, traerJornadasFlota } from '@/dominio/datos';
+import type { Dispositivo } from '@contratos';
+import { CLAVE_FLOTA, traerFlota } from '@/dominio/datos';
+import { api, consulta } from '@/lib/api';
 import { claveEstado } from '@/dominio/estado';
 import { hace, hora } from '@/dominio/formatoBase';
 import { fechaHoyLocal, finDeDia, inicioDeDia } from '@/dominio/rango';
@@ -90,39 +91,44 @@ function actualizarCortes(previos: Corte[], equipos: Dispositivo[]): Corte[] {
   return lista.slice(-60);
 }
 
+// Eventos de jornada del día (/api/v1/eventos): llegan con la hora exacta en
+// que la persona inició o finalizó, aunque la jornada haya empezado otro día.
+interface EventoJornada {
+  categoria: string;
+  en: string;
+  dispositivoId: string;
+  nombre: string;
+}
+
 // La app renueva la jornada cerrándola y abriendo otra en el mismo minuto:
 // ese cierre y esa apertura no son hechos de la persona y no se notifican.
 const RENOVACION_MS = 2 * 60_000;
 
-function desdeJornadas(jornadas: JornadaFlota[]): Notificacion[] {
-  const salida: Notificacion[] = [];
-  const esRenovacion = (persona: string, fin: string) =>
-    jornadas.some((o) => o.idPublico === persona && Math.abs(ms(o.inicioEn) - ms(fin)) <= RENOVACION_MS && o.inicioEn >= fin);
-  const vieneDeRenovacion = (j: JornadaFlota) =>
-    jornadas.some((o) => o.idPublico === j.idPublico && o.finEn != null && ms(j.inicioEn) - ms(o.finEn) >= 0 && ms(j.inicioEn) - ms(o.finEn) <= RENOVACION_MS);
-  for (const j of jornadas) {
-    if (!vieneDeRenovacion(j)) salida.push({
-      id: `ini-${j.idPublico}-${j.inicioEn}`,
-      tipo: 'inicio',
-      idPublico: j.idPublico,
-      nombre: j.nombre,
-      instante: j.inicioEn,
-      titulo: 'Inició la jornada',
-      detalle: `Activó el registro a las ${hora(j.inicioEn)}`,
+function desdeEventos(eventos: EventoJornada[]): Notificacion[] {
+  const jornada = eventos.filter((e) => e.categoria === 'inicio_jornada' || e.categoria === 'fin_jornada');
+  const esRenovacion = (e: EventoJornada) =>
+    jornada.some(
+      (o) =>
+        o.dispositivoId === e.dispositivoId &&
+        o.categoria !== e.categoria &&
+        Math.abs(ms(o.en) - ms(e.en)) <= RENOVACION_MS &&
+        // fin seguido de inicio, no al revés
+        (e.categoria === 'fin_jornada' ? ms(o.en) >= ms(e.en) : ms(o.en) <= ms(e.en)),
+    );
+  return jornada
+    .filter((e) => !esRenovacion(e))
+    .map((e) => {
+      const inicio = e.categoria === 'inicio_jornada';
+      return {
+        id: `${inicio ? 'ini' : 'fin'}-${e.dispositivoId}-${e.en}`,
+        tipo: inicio ? 'inicio' : 'fin',
+        idPublico: e.dispositivoId,
+        nombre: e.nombre,
+        instante: e.en,
+        titulo: inicio ? 'Inició la jornada' : 'Finalizó la jornada',
+        detalle: `${inicio ? 'Activó' : 'Desactivó'} el registro a las ${hora(e.en)}`,
+      };
     });
-    if (j.finEn && !esRenovacion(j.idPublico, j.finEn)) {
-      salida.push({
-        id: `fin-${j.idPublico}-${j.finEn}`,
-        tipo: 'fin',
-        idPublico: j.idPublico,
-        nombre: j.nombre,
-        instante: j.finEn,
-        titulo: 'Finalizó la jornada',
-        detalle: `Desactivó el registro a las ${hora(j.finEn)}`,
-      });
-    }
-  }
-  return salida;
 }
 
 function desdeCortes(cortes: Corte[]): Notificacion[] {
@@ -156,9 +162,13 @@ export function Notificaciones() {
 
   const flota = useQuery({ queryKey: CLAVE_FLOTA, queryFn: () => traerFlota({ redirigir401: false }), refetchInterval: 30_000 });
   const hoy = fechaHoyLocal();
-  const jornadas = useQuery({
-    queryKey: ['notificaciones', 'jornadas', hoy],
-    queryFn: () => traerJornadasFlota(inicioDeDia(hoy), finDeDia(hoy), undefined, { redirigir401: false }),
+  // Con el canal en vivo abierto se actualiza al instante; esto es el respaldo.
+  const eventos = useQuery({
+    queryKey: ['notificaciones', 'eventos', hoy],
+    queryFn: () =>
+      api.get<{ datos: EventoJornada[] }>(`/api/v1/eventos${consulta({ desde: inicioDeDia(hoy), hasta: finDeDia(hoy) })}`, {
+        redirigir401: false,
+      }),
     refetchInterval: 60_000,
   });
 
@@ -188,10 +198,10 @@ export function Notificaciones() {
 
   const lista = useMemo(
     () =>
-      [...desdeJornadas(jornadas.data?.datos ?? []), ...desdeCortes(cortes)].sort(
+      [...desdeEventos(eventos.data?.datos ?? []), ...desdeCortes(cortes)].sort(
         (a, b) => ms(b.instante) - ms(a.instante),
       ),
-    [jornadas.data, cortes],
+    [eventos.data, cortes],
   );
   const nuevas = lista.filter((n) => ms(n.instante) > leido).length;
 
