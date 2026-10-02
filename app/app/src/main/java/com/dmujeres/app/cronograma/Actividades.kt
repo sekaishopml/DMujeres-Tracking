@@ -6,6 +6,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import com.dmujeres.app.DmujeresApi
 import com.dmujeres.app.PositionProvider
+import com.dmujeres.app.R
 import com.dmujeres.app.StatusActivity
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
@@ -168,10 +169,26 @@ object Actividades {
     @Synchronized
     fun guardarVarias(context: Context, actividades: List<Actividad>) {
         val ids = actividades.map { it.clientId }.toSet()
-        val lista = todas(context).filter { it.clientId !in ids }.toMutableList()
+        val previas = todas(context).associateBy { it.clientId }
+        avisarConsola(context, actividades, previas)
+        val lista = previas.values.filter { it.clientId !in ids }.toMutableList()
         actividades.forEach { lista.add(it.copy(pendiente = true)) }
         guardarTodas(context, lista)
         sincronizar(context)
+    }
+
+    /** Inicio (nueva sin hora de fin) y fin (recibe su hora de fin) a la consola. */
+    private fun avisarConsola(context: Context, actividades: List<Actividad>, previas: Map<String, Actividad>) {
+        actividades.filter { !it.eliminada }.forEach { a ->
+            val antes = previas[a.clientId]
+            val nombre = a.tipo.etiqueta + (a.lugar?.let { " · $it" } ?: "")
+            when {
+                antes == null && a.horaFin == null ->
+                    StatusActivity.addMessage(context.getString(R.string.console_act_inicio_fmt, nombre))
+                antes != null && antes.horaFin == null && a.horaFin != null ->
+                    StatusActivity.addMessage(context.getString(R.string.console_act_fin_fmt, nombre))
+            }
+        }
     }
 
     @Synchronized

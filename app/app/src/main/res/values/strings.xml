@@ -321,14 +321,16 @@ Se registrará el cierre en el panel.</string>
 
   <!-- Consola 2.2 -->
   <string name="console_title">Consola del equipo</string>
-  <string name="console_subtitle_fmt">DMujeres Tracking %1$s</string>
-  <string name="console_activity">ACTIVIDAD RECIENTE</string>
+  <string name="console_subtitle_fmt">Versión %1$s</string>
+  <string name="console_activity">En vivo</string>
   <string name="console_clear">Limpiar</string>
   <string name="console_empty">Aún no hay actividad registrada.</string>
   <string name="console_journey_open_fmt">En jornada desde las %1$s</string>
   <string name="console_journey_closed">Jornada no iniciada</string>
   <string name="console_gps">GPS</string>
-  <string name="console_last_fix">Ubicación</string>
+  <string name="console_act_inicio_fmt">Inició actividad: %1$s</string>
+  <string name="console_act_fin_fmt">Finalizó actividad: %1$s</string>
+  <string name="console_last_fix">Último punto</string>
   <string name="console_network">Conexión</string>
   <string name="console_pending">Pendientes</string>
   <string name="console_battery">Batería</string>
@@ -378,7 +380,6 @@ Se registrará el cierre en el panel.</string>
   <string name="crono_home_abierta_fmt">Desde las %1$s · lleva %2$s</string>
   <string name="crono_home_rango_fmt">Hasta las %1$s</string>
   <string name="crono_home_sigue_fmt">Sigue a las %1$s: %2$s</string>
-  <string name="crono_finalizada">Actividad finalizada</string>
   <string name="crono_cancelar">Cancelar</string>
   <string name="crono_eliminar">Eliminar</string>
   <string name="crono_error_lugar">Escribe el lugar de la visita.</string>

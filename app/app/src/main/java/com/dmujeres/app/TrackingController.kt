@@ -36,7 +36,7 @@ import com.dmujeres.app.sync.UploadQueue
  * Única autoridad del tracking (§3): captura, máquina de estados, cola y
  * recuperación pasan por aquí. Ningún otro componente manda sobre la cadencia.
  */
-private const val CONSOLE_FIX_GAP_MS = 60_000L
+private const val CONSOLE_FIX_GAP_MS = 20_000L
 
 class TrackingController(private val context: Context) :
     PositionListener, NetworkHandler, MotionMonitor.TurnListener, UploadQueue.Listener {

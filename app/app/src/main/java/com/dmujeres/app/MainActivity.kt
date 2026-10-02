@@ -541,7 +541,6 @@ class MainActivity : AppCompatActivity() {
             }
             val fin = maxOf(horaActual, hc.sumar(abierta.hora, 1))
             actividades.guardar(this, abierta.copy(horaFin = fin))
-            Toast.makeText(this, R.string.crono_finalizada, Toast.LENGTH_SHORT).show()
             refreshCronograma()
         }
         val pendientes = actividades.pendientes(this)

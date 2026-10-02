@@ -24,6 +24,7 @@
 
     <TextView
         android:id="@+id/update_title"
+        android:translationY="28dp"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="28dp"
@@ -36,6 +37,7 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="10dp"
         android:gravity="bottom"
+        android:translationY="28dp"
         android:orientation="horizontal">
 
         <com.dmujeres.app.Odometro
@@ -56,6 +58,7 @@
 
     <ProgressBar
         android:id="@+id/update_progress"
+        android:translationY="28dp"
         style="?android:attr/progressBarStyleHorizontal"
         android:layout_width="match_parent"
         android:layout_height="4dp"
@@ -65,6 +68,7 @@
 
     <TextView
         android:id="@+id/update_status"
+        android:translationY="28dp"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="12dp"
@@ -81,6 +85,7 @@
 
     <Button
         android:id="@+id/update_retry"
+        android:translationY="28dp"
         android:layout_width="wrap_content"
         android:layout_height="40dp"
         android:layout_marginTop="18dp"

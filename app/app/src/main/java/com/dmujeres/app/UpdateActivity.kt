@@ -42,6 +42,7 @@ class UpdateActivity : AppCompatActivity() {
         retry = findViewById(R.id.update_retry)
         odometro = findViewById(R.id.update_odometro)
         odometro.setValor(0)
+        pantalla = java.lang.ref.WeakReference(this)
         val version = intent.getStringExtra(EXTRA_VERSION).orEmpty()
         if (version.isNotBlank()) {
             findViewById<TextView>(R.id.update_title).text = getString(R.string.update_title_fmt, version)
@@ -94,12 +95,17 @@ class UpdateActivity : AppCompatActivity() {
         }
         // Una sola descarga a la vez: volver a abrir la pantalla (o tocar
         // Reintentar) mientras baja escribía dos veces el mismo archivo.
-        if (!downloading.compareAndSet(false, true)) return
+        if (!downloading.compareAndSet(false, true)) {
+            // Ya baja (la pantalla se volvió a abrir o se giró): se retoma el avance.
+            mostrarAvance(ultimoAvance)
+            return
+        }
         retry.visibility = Button.GONE
         progress.visibility = ProgressBar.VISIBLE
         progress.alpha = 1f
         pulso?.cancel()
         status.text = getString(R.string.update_downloading)
+        ultimoAvance = 0
         mostrarAvance(0)
         Thread {
             try {
@@ -173,7 +179,8 @@ class UpdateActivity : AppCompatActivity() {
                         // porcentaje.
                         if (percent >= 0 && percent != lastPercent) {
                             lastPercent = percent
-                            runOnUiThread { if (!isFinishing && !isDestroyed) mostrarAvance(percent) }
+                            ultimoAvance = percent
+                            enPantalla { it.mostrarAvance(percent) }
                         }
                     }
                 }
@@ -192,7 +199,7 @@ class UpdateActivity : AppCompatActivity() {
                 showError()
                 return
             }
-            runOnUiThread { if (!isFinishing && !isDestroyed) faseInstalacion() }
+            enPantalla { it.faseInstalacion() }
             install(target)
         } catch (e: Exception) {
             Log.w(TAG, "Descarga de actualización falló", e)
@@ -202,13 +209,12 @@ class UpdateActivity : AppCompatActivity() {
 
     private fun install(file: File) {
         val uri = FileProvider.getUriForFile(this, packageName + ".fileprovider", file)
-        runOnUiThread {
-            val intent = Intent(Intent.ACTION_VIEW)
-                .setDataAndType(uri, "application/vnd.android.package-archive")
-                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
-            startActivity(intent)
-            finish()
-        }
+        val intent = Intent(Intent.ACTION_VIEW)
+            .setDataAndType(uri, "application/vnd.android.package-archive")
+            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+        // Con el contexto de la app: la pantalla que empezó la descarga pudo cerrarse.
+        applicationContext.startActivity(intent)
+        enPantalla { it.finish() }
     }
 
     private fun showError() {
@@ -216,12 +222,11 @@ class UpdateActivity : AppCompatActivity() {
         // a salir al abrir la app o al minuto siguiente, mientras la versión
         // publicada sea mayor. La descarga a medias se reemplaza en el próximo
         // intento.
-        runOnUiThread {
-            if (isFinishing || isDestroyed) return@runOnUiThread
-            pulso?.cancel()
-            progress.alpha = 1f
-            status.text = getString(R.string.update_download_failed)
-            retry.visibility = Button.VISIBLE
+        enPantalla {
+            it.pulso?.cancel()
+            it.progress.alpha = 1f
+            it.status.text = it.getString(R.string.update_download_failed)
+            it.retry.visibility = Button.VISIBLE
         }
     }
 
@@ -241,6 +246,15 @@ class UpdateActivity : AppCompatActivity() {
     companion object {
         private const val TAG = "UpdateActivity"
         private val downloading = java.util.concurrent.atomic.AtomicBoolean(false)
+        // La descarga sigue en su hilo aunque la pantalla se recree: el avance
+        // va siempre a la que está abierta.
+        @Volatile private var pantalla = java.lang.ref.WeakReference<UpdateActivity>(null)
+        @Volatile private var ultimoAvance = 0
+
+        private fun enPantalla(accion: (UpdateActivity) -> Unit) {
+            val actual = pantalla.get() ?: return
+            actual.runOnUiThread { if (!actual.isFinishing && !actual.isDestroyed) accion(actual) }
+        }
         private const val APK_NAME = "dmujeres-update.apk"
         const val EXTRA_URL = "update_url"
         const val EXTRA_SHA256 = "update_sha256"

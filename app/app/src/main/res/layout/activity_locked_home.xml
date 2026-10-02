@@ -40,7 +40,7 @@
     <Space
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_weight="0.15" />
+        android:layout_weight="0.3" />
 
     <ImageView
         android:layout_width="170dp"
@@ -54,7 +54,7 @@
         android:id="@+id/status_pill"
         android:layout_width="match_parent"
         android:layout_height="44dp"
-        android:layout_marginTop="72dp"
+        android:layout_marginTop="96dp"
         android:background="@drawable/bg_pill_red"
         android:gravity="center"
         android:orientation="horizontal"

@@ -32,9 +32,8 @@ import java.util.LinkedList
 import java.util.Locale
 
 /**
- * Consola del teléfono: el estado de un vistazo (tarjeta de color y seis
- * indicadores que se actualizan cada 5 s) y la actividad reciente en una
- * línea de tiempo.
+ * Consola del teléfono: el estado en una línea, seis datos que se actualizan
+ * cada 5 s y lo que va pasando en vivo, lo más nuevo arriba.
  */
 class StatusActivity : AppCompatActivity() {
 
@@ -46,7 +45,9 @@ class StatusActivity : AppCompatActivity() {
             handler.postDelayed(this, REFRESH_MS)
         }
     }
-    private val onMessages: () -> Unit = { handler.post { renderMessages() } }
+    private val onMessages: () -> Unit = { handler.post { mostrarNuevos() } }
+    // Último mensaje ya dibujado: solo se agregan los nuevos, sin redibujar todo.
+    private var dibujados = -1L
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -56,12 +57,6 @@ class StatusActivity : AppCompatActivity() {
         findViewById<TextView>(R.id.console_subtitle).text =
             getString(R.string.console_subtitle_fmt, BuildConfig.VERSION_NAME)
         findViewById<View>(R.id.console_clear).setOnClickListener { clearMessages() }
-        tile(R.id.tile_gps, R.drawable.ds_ic_location, R.string.console_gps)
-        tile(R.id.tile_fix, R.drawable.ds_ic_clock, R.string.console_last_fix)
-        tile(R.id.tile_net, R.drawable.ds_ic_signal, R.string.console_network)
-        tile(R.id.tile_pending, R.drawable.ds_ic_queue, R.string.console_pending)
-        tile(R.id.tile_battery, R.drawable.ds_ic_battery, R.string.console_battery)
-        tile(R.id.tile_sync, R.drawable.ds_ic_cloud, R.string.console_sync)
     }
 
     override fun onResume() {
@@ -78,15 +73,8 @@ class StatusActivity : AppCompatActivity() {
         handler.removeCallbacks(ticker)
     }
 
-    private fun tile(id: Int, icon: Int, label: Int) {
-        val view = findViewById<View>(id) ?: return
-        view.findViewById<ImageView>(R.id.tile_icon).setImageResource(icon)
-        view.findViewById<TextView>(R.id.tile_label).setText(label)
-    }
-
     private fun setTile(id: Int, value: String, colorRes: Int = R.color.text_primary) {
-        val view = findViewById<View>(id) ?: return
-        view.findViewById<TextView>(R.id.tile_value).apply {
+        findViewById<TextView>(id)?.apply {
             text = value
             setTextColor(getColor(colorRes))
         }
@@ -101,13 +89,13 @@ class StatusActivity : AppCompatActivity() {
                 .isProviderEnabled(android.location.LocationManager.GPS_PROVIDER)
         }.getOrDefault(true)
         val failing = ConnectionState.isFailing()
-        val (bg, label) = when {
-            !gpsOn -> R.drawable.ds_status_off to getString(R.string.pill_location_off)
-            !open -> R.drawable.ds_status_idle to getString(R.string.pill_disabled)
-            !running || failing -> R.drawable.ds_status_warn to getString(R.string.pill_no_connection)
-            else -> R.drawable.ds_status_ok to getString(R.string.pill_online)
+        val (color, label) = when {
+            !gpsOn -> R.color.primary to getString(R.string.pill_location_off)
+            !open -> R.color.text_tertiary to getString(R.string.pill_disabled)
+            !running || failing -> R.color.warn to getString(R.string.pill_no_connection)
+            else -> R.color.ok to getString(R.string.pill_online)
         }
-        findViewById<View>(R.id.status_card).setBackgroundResource(bg)
+        findViewById<ImageView>(R.id.status_dot).setColorFilter(getColor(color))
         findViewById<TextView>(R.id.status_state).text = label
         findViewById<TextView>(R.id.status_journey).text = if (open) {
             getString(R.string.console_journey_open_fmt, DmujeresApi.journeyStartedAtLabel(this))
@@ -150,31 +138,49 @@ class StatusActivity : AppCompatActivity() {
         if (isFinishing || isDestroyed) return
         val list = findViewById<LinearLayout>(R.id.console_list) ?: return
         list.removeAllViews()
-        val snapshot = synchronized(messages) { messages.toList() }
-        val inflater = LayoutInflater.from(this)
+        val (snapshot, ultimo) = synchronized(messages) { messages.toList() to secuencia }
+        dibujados = ultimo
         if (snapshot.isEmpty()) {
-            val empty = inflater.inflate(R.layout.item_console, list, false)
-            empty.findViewById<TextView>(R.id.console_time).visibility = View.GONE
-            empty.findViewById<TextView>(R.id.console_text).apply {
-                setText(R.string.console_empty)
-                setTextColor(getColor(R.color.text_tertiary))
-            }
-            list.addView(empty)
+            list.addView(fila(getString(R.string.console_empty), vacia = true))
             return
         }
-        snapshot.forEachIndexed { index, entry ->
-            if (index > 0) {
-                list.addView(View(this).apply {
-                    layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 1)
-                    setBackgroundColor(getColor(R.color.line))
-                })
-            }
-            val row = inflater.inflate(R.layout.item_console, list, false)
-            val cut = entry.indexOf(" - ")
-            row.findViewById<TextView>(R.id.console_time).text = if (cut > 0) entry.substring(0, cut) else ""
-            row.findViewById<TextView>(R.id.console_text).text = if (cut > 0) entry.substring(cut + 3) else entry
-            list.addView(row)
+        snapshot.forEach { list.addView(fila(it)) }
+    }
+
+    /** Agrega arriba solo lo nuevo, con una entrada suave de arriba hacia abajo. */
+    private fun mostrarNuevos() {
+        if (isFinishing || isDestroyed) return
+        val list = findViewById<LinearLayout>(R.id.console_list) ?: return
+        val (snapshot, ultimo) = synchronized(messages) { messages.toList() to secuencia }
+        val nuevos = (ultimo - dibujados).toInt()
+        if (snapshot.isEmpty() || dibujados < 0 || nuevos <= 0 || nuevos >= LIMIT ||
+            (list.childCount == 1 && list.getChildAt(0).tag == VACIA)
+        ) {
+            renderMessages()
+            return
         }
+        dibujados = ultimo
+        for (i in nuevos - 1 downTo 0) {
+            val row = fila(snapshot[i])
+            list.addView(row, 0)
+            row.alpha = 0f
+            row.translationY = -24f * resources.displayMetrics.density
+            row.animate().alpha(1f).translationY(0f).setDuration(260)
+                .setInterpolator(android.view.animation.DecelerateInterpolator()).start()
+        }
+        while (list.childCount > LIMIT) list.removeViewAt(list.childCount - 1)
+    }
+
+    private fun fila(entry: String, vacia: Boolean = false): View {
+        val row = LayoutInflater.from(this).inflate(R.layout.item_console, findViewById(R.id.console_list), false)
+        val cut = entry.indexOf(" - ")
+        row.findViewById<TextView>(R.id.console_time).text = if (cut > 0 && !vacia) entry.substring(0, cut) else ""
+        row.findViewById<TextView>(R.id.console_text).apply {
+            text = if (cut > 0 && !vacia) entry.substring(cut + 3) else entry
+            if (vacia) setTextColor(getColor(R.color.text_tertiary))
+        }
+        if (vacia) row.tag = VACIA
+        return row
     }
 
     companion object {
@@ -183,6 +189,9 @@ class StatusActivity : AppCompatActivity() {
         private const val PREFS = "statusConsole"
         private const val KEY = "messages"
         private val messages = LinkedList<String>()
+        private const val VACIA = "vacia"
+        // Cuenta los mensajes agregados (no baja al recortar): dice cuántos son nuevos.
+        private var secuencia = 0L
         private val listeners: MutableSet<() -> Unit> = java.util.Collections.synchronizedSet(HashSet())
 
         /** Contexto de aplicación para persistir la consola entre arranques. */
@@ -228,6 +237,7 @@ class StatusActivity : AppCompatActivity() {
             val time = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
             synchronized(messages) {
                 messages.addFirst("$time - $originalMessage")
+                secuencia++
                 while (messages.size > LIMIT) messages.removeLast()
             }
             persist()
@@ -235,7 +245,10 @@ class StatusActivity : AppCompatActivity() {
         }
 
         fun clearMessages() {
-            synchronized(messages) { messages.clear() }
+            synchronized(messages) {
+                messages.clear()
+                secuencia++
+            }
             persist()
             notifyListeners()
         }
