@@ -371,6 +371,9 @@ Se registrará el cierre en el panel.</string>
   <string name="crono_nueva">Nueva actividad</string>
   <string name="crono_editar">Editar actividad</string>
   <string name="crono_guardar">Guardar</string>
+  <string name="crono_iniciar">Iniciar actividad</string>
+  <string name="crono_finalizar">Finalizar</string>
+  <string name="crono_finalizada">Actividad finalizada</string>
   <string name="crono_cancelar">Cancelar</string>
   <string name="crono_eliminar">Eliminar</string>
   <string name="crono_error_lugar">Escribe el lugar de la visita.</string>

@@ -310,6 +310,11 @@ class ActividadActivity : AppCompatActivity() {
         val resumen = findViewById<TextView>(R.id.act_resumen)
         val d = desde.leer()
         val h = hasta.leer()
+        // Nueva, de hoy y sin hora de fin: se inicia ahora y se finaliza desde
+        // el pie de la pantalla principal.
+        findViewById<TextView>(R.id.act_guardar).setText(
+            if (existente == null && fecha == hoy() && h == null) R.string.crono_iniciar else R.string.crono_guardar,
+        )
         val tramo = tramoElegido()
         when {
             d == null || (h == null && !hasta.vacio()) -> {

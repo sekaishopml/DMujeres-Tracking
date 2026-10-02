@@ -522,6 +522,20 @@ class MainActivity : AppCompatActivity() {
             siguiente != null -> getString(R.string.crono_home_siguiente_hora_fmt, hc.legible(siguiente.hora), nombre(siguiente))
             else -> getString(R.string.crono_home_terminado_fmt, delDia.size)
         }
+        // Actividad iniciada que sigue abierta: se finaliza ahí mismo, sin entrar
+        // al cronograma. El fin nunca queda antes del minuto siguiente al inicio.
+        val abierta = enCurso?.takeIf { it.horaFin == null || it.horaFin > horaActual }
+        findViewById<View>(R.id.crono_flecha)?.visibility = if (abierta == null) View.VISIBLE else View.GONE
+        findViewById<TextView>(R.id.crono_finalizar)?.apply {
+            visibility = if (abierta == null) View.GONE else View.VISIBLE
+            setOnClickListener {
+                if (abierta == null) return@setOnClickListener
+                val fin = maxOf(horaActual, hc.sumar(abierta.hora, 1))
+                com.dmujeres.app.cronograma.Actividades.guardar(this@MainActivity, abierta.copy(horaFin = fin))
+                Toast.makeText(this@MainActivity, R.string.crono_finalizada, Toast.LENGTH_SHORT).show()
+                refreshCronograma()
+            }
+        }
         val pendientes = com.dmujeres.app.cronograma.Actividades.pendientes(this)
         val sync = com.dmujeres.app.cronograma.Actividades.sincronizadoEn(this)
         findViewById<TextView>(R.id.crono_sync_home)?.text = when {
