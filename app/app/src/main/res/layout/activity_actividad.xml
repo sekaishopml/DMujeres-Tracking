@@ -66,11 +66,16 @@
             android:orientation="vertical"
             android:padding="16dp">
 
-            <!-- Tipo -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:background="@drawable/ds_surface"
+                android:orientation="vertical">
+
+            <!-- Tipo -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
                 android:orientation="vertical"
                 android:padding="14dp">
 
@@ -100,10 +105,17 @@
                 android:id="@+id/act_horario"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
-                android:background="@drawable/ds_surface"
-                android:orientation="vertical"
-                android:padding="14dp">
+                                android:orientation="vertical"
+                android:paddingStart="14dp"
+                android:paddingEnd="14dp"
+                android:paddingBottom="14dp">
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:layout_marginBottom="14dp"
+                    android:background="@color/line" />
+
 
                 <LinearLayout
                     android:layout_width="match_parent"
@@ -246,10 +258,17 @@
                 android:id="@+id/act_lugar_card"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
-                android:background="@drawable/ds_surface"
-                android:orientation="vertical"
-                android:padding="14dp">
+                                android:orientation="vertical"
+                android:paddingStart="14dp"
+                android:paddingEnd="14dp"
+                android:paddingBottom="14dp">
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:layout_marginBottom="14dp"
+                    android:background="@color/line" />
+
 
                 <TextView
                     style="@style/CronoEtiqueta"
@@ -258,7 +277,7 @@
                 <AutoCompleteTextView
                     android:id="@+id/act_lugar"
                     android:layout_width="match_parent"
-                    android:layout_height="50dp"
+                    android:layout_height="48dp"
                     android:layout_marginTop="8dp"
                     android:background="@drawable/ds_field"
                     android:completionThreshold="1"
@@ -274,7 +293,7 @@
                     android:id="@+id/act_lugares_titulo"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="12dp"
+                    android:layout_marginTop="10dp"
                     android:text="@string/crono_visitados_antes"
                     android:textColor="@color/text_secondary"
                     android:textSize="12sp" />
@@ -298,10 +317,16 @@
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
-                android:background="@drawable/ds_surface"
                 android:orientation="vertical"
-                android:padding="14dp">
+                android:paddingStart="14dp"
+                android:paddingEnd="14dp"
+                android:paddingBottom="14dp">
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:layout_marginBottom="14dp"
+                    android:background="@color/line" />
 
                 <TextView
                     android:id="@+id/act_nota_label"
@@ -317,11 +342,13 @@
                     android:gravity="top"
                     android:hint="@string/crono_nota_hint"
                     android:inputType="textCapSentences|textMultiLine"
-                    android:maxLines="4"
-                    android:minHeight="72dp"
+                    android:maxLines="3"
+                    android:minHeight="56dp"
                     android:padding="14dp"
                     android:textColor="@color/text_primary"
                     android:textSize="15sp" />
+            </LinearLayout>
+
             </LinearLayout>
 
             <TextView

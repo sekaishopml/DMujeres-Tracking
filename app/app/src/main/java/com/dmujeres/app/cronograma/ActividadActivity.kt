@@ -212,7 +212,7 @@ class ActividadActivity : AppCompatActivity() {
                 setPadding(dp(4), 0, dp(4), 0)
                 setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
                 setBackgroundResource(R.drawable.ds_chip_tipo)
-                layoutParams = LinearLayout.LayoutParams(0, dp(44), 1f).apply {
+                layoutParams = LinearLayout.LayoutParams(0, dp(40), 1f).apply {
                     if (i % 3 != 2) marginEnd = dp(6)
                 }
                 setOnClickListener {

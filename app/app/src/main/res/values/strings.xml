@@ -372,7 +372,12 @@ Se registrará el cierre en el panel.</string>
   <string name="crono_editar">Editar actividad</string>
   <string name="crono_guardar">Guardar</string>
   <string name="crono_iniciar">Iniciar actividad</string>
-  <string name="crono_finalizar">Finalizar</string>
+  <string name="crono_finalizar">Finalizar actividad</string>
+  <string name="crono_home_titulo">Actividades de hoy</string>
+  <string name="crono_home_ninguna">Sin actividad en curso</string>
+  <string name="crono_home_abierta_fmt">Desde las %1$s · lleva %2$s</string>
+  <string name="crono_home_rango_fmt">Hasta las %1$s</string>
+  <string name="crono_home_sigue_fmt">Sigue a las %1$s: %2$s</string>
   <string name="crono_finalizada">Actividad finalizada</string>
   <string name="crono_cancelar">Cancelar</string>
   <string name="crono_eliminar">Eliminar</string>
@@ -394,6 +399,7 @@ Se registrará el cierre en el panel.</string>
   <string name="crono_home_siguiente_fmt">Hoy %1$d · siguiente %2$s %3$s</string>
   <string name="crono_home_total_fmt">Hoy %1$d actividades registradas</string>
   <string name="crono_sync_at_fmt">Sincronizado a las %1$s</string>
+  <string name="crono_sync_pend_corto_fmt">%1$d por enviar</string>
   <string name="crono_sync_nunca">Aún sin sincronizar</string>
   <string name="crono_que_actividad">¿Qué actividad?</string>
   <string name="crono_horario">Horario</string>

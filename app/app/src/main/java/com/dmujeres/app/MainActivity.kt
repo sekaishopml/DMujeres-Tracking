@@ -503,43 +503,51 @@ class MainActivity : AppCompatActivity() {
 
     private fun refreshCronograma() {
         val resumen = findViewById<TextView>(R.id.crono_resumen) ?: return
+        val detalle = findViewById<TextView>(R.id.crono_detalle)
+        val accion = findViewById<TextView>(R.id.crono_accion)
         val zona = java.util.TimeZone.getTimeZone("America/Guayaquil")
         val ahora = java.util.Calendar.getInstance(zona)
         val hoy = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).apply { timeZone = zona }.format(ahora.time)
         val horaActual = String.format(java.util.Locale.US, "%02d:%02d", ahora.get(java.util.Calendar.HOUR_OF_DAY), ahora.get(java.util.Calendar.MINUTE))
-        val delDia = com.dmujeres.app.cronograma.Actividades.delDia(this, hoy)
-        // Lo que está pasando ahora y, si no hay nada en curso, lo que sigue.
+        val actividades = com.dmujeres.app.cronograma.Actividades
+        val delDia = actividades.delDia(this, hoy)
         val hc = com.dmujeres.app.cronograma.HoraCronograma
         val enCurso = hc.enCurso(delDia, horaActual, { it.hora }, { it.horaFin })
         val siguiente = hc.siguiente(delDia, horaActual) { it.hora }
+        // Solo una actividad iniciada sin hora de fin se finaliza desde aquí; al
+        // finalizarla recibe su hora de fin y deja de estar abierta.
+        val abierta = enCurso?.takeIf { it.horaFin == null && it.hora <= horaActual }
         fun nombre(a: com.dmujeres.app.cronograma.Actividad) =
             a.tipo.etiqueta + (a.lugar?.let { " · $it" } ?: "")
-        resumen.text = when {
+        resumen.text = if (enCurso != null) nombre(enCurso) else getString(R.string.crono_home_ninguna)
+        detalle.text = when {
+            abierta != null -> getString(
+                R.string.crono_home_abierta_fmt,
+                hc.legible(abierta.hora),
+                hc.duracion(hc.aMinutos(horaActual) - hc.aMinutos(abierta.hora)),
+            )
+            enCurso?.horaFin != null -> getString(R.string.crono_home_rango_fmt, hc.legible(enCurso.horaFin))
+            siguiente != null -> getString(R.string.crono_home_sigue_fmt, hc.legible(siguiente.hora), nombre(siguiente))
             delDia.isEmpty() -> getString(R.string.crono_home_vacio)
-            enCurso != null && enCurso.horaFin != null ->
-                getString(R.string.crono_home_en_curso_fmt, nombre(enCurso), hc.legible(enCurso.horaFin))
-            enCurso != null -> getString(R.string.crono_home_en_curso_sin_fin_fmt, nombre(enCurso), hc.legible(enCurso.hora))
-            siguiente != null -> getString(R.string.crono_home_siguiente_hora_fmt, hc.legible(siguiente.hora), nombre(siguiente))
             else -> getString(R.string.crono_home_terminado_fmt, delDia.size)
         }
-        // Actividad iniciada que sigue abierta: se finaliza ahí mismo, sin entrar
-        // al cronograma. El fin nunca queda antes del minuto siguiente al inicio.
-        val abierta = enCurso?.takeIf { it.horaFin == null || it.horaFin > horaActual }
-        findViewById<View>(R.id.crono_flecha)?.visibility = if (abierta == null) View.VISIBLE else View.GONE
-        findViewById<TextView>(R.id.crono_finalizar)?.apply {
-            visibility = if (abierta == null) View.GONE else View.VISIBLE
-            setOnClickListener {
-                if (abierta == null) return@setOnClickListener
-                val fin = maxOf(horaActual, hc.sumar(abierta.hora, 1))
-                com.dmujeres.app.cronograma.Actividades.guardar(this@MainActivity, abierta.copy(horaFin = fin))
-                Toast.makeText(this@MainActivity, R.string.crono_finalizada, Toast.LENGTH_SHORT).show()
-                refreshCronograma()
+        accion.setText(if (abierta != null) R.string.crono_finalizar else R.string.crono_iniciar)
+        accion.setBackgroundResource(if (abierta != null) R.drawable.ds_button_primary else R.drawable.ds_boton_blanco)
+        accion.setTextColor(getColor(if (abierta != null) R.color.white else R.color.navy))
+        accion.setOnClickListener {
+            if (abierta == null) {
+                startActivity(Intent(this, com.dmujeres.app.cronograma.ActividadActivity::class.java))
+                return@setOnClickListener
             }
+            val fin = maxOf(horaActual, hc.sumar(abierta.hora, 1))
+            actividades.guardar(this, abierta.copy(horaFin = fin))
+            Toast.makeText(this, R.string.crono_finalizada, Toast.LENGTH_SHORT).show()
+            refreshCronograma()
         }
-        val pendientes = com.dmujeres.app.cronograma.Actividades.pendientes(this)
-        val sync = com.dmujeres.app.cronograma.Actividades.sincronizadoEn(this)
+        val pendientes = actividades.pendientes(this)
+        val sync = actividades.sincronizadoEn(this)
         findViewById<TextView>(R.id.crono_sync_home)?.text = when {
-            pendientes > 0 -> getString(R.string.crono_sync_pend_fmt, pendientes)
+            pendientes > 0 -> getString(R.string.crono_sync_pend_corto_fmt, pendientes)
             sync > 0 -> getString(R.string.crono_sync_at_fmt, java.text.SimpleDateFormat("HH:mm", java.util.Locale.US).apply { timeZone = zona }.format(java.util.Date(sync)))
             else -> getString(R.string.crono_sync_nunca)
         }
