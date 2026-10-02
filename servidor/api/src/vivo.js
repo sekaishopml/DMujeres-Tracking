@@ -118,3 +118,6 @@ export async function abrirVivo(ctx) {
   clearInterval(revision);
   clientes.delete(cliente);
 }
+
+// Paneles con el canal abierto ahora (para el resumen de Sistema).
+export const panelesEnVivo = () => clientes.size;

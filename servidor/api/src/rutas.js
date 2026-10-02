@@ -18,6 +18,7 @@ import * as roles from './roles.js';
 import * as salud from './salud.js';
 import * as usuarios from './usuarios.js';
 import * as vivo from './vivo.js';
+import * as consola from './consola.js';
 
 export const DEFINICIONES = [
   { metodo: 'POST', ruta: '/api/v1/auth/login', publica: true, manejar: auth.iniciarSesion },
@@ -31,6 +32,7 @@ export const DEFINICIONES = [
   { metodo: 'GET', ruta: '/api/v1/journeys', manejar: jornadas.listarJornadasFlota },
   { metodo: 'GET', ruta: '/api/v1/positions/live', manejar: posiciones.listarPosicionesVivas },
   { metodo: 'GET', ruta: '/api/v1/vivo', manejar: vivo.abrirVivo },
+  { metodo: 'POST', ruta: '/api/v1/consola', manejar: consola.ejecutarConsola },
   { metodo: 'GET', ruta: '/api/v1/replay', manejar: replay.listarReplayDisponible },
   { metodo: 'GET', ruta: '/api/v1/replay/:deviceId', manejar: replay.obtenerReplay },
   { metodo: 'GET', ruta: '/api/v1/reports/trips', manejar: reportes.listarViajes },

@@ -13,9 +13,25 @@ import type { Disponibilidad, Salud, Version } from '@/dominio/admin';
 import { GUION, bateria, fechaHora, hace } from '@/dominio/formatoBase';
 import { mensajeError } from '@/dominio/errores';
 import Persona from '@/componentes/reportes/Persona';
-import { TarjetaDato, TarjetaServicio } from '@/componentes/sistema/TarjetaServicio';
-import type { EstadoServicio } from '@/componentes/sistema/TarjetaServicio';
 import HistorialSalud from '@/componentes/sistema/HistorialSalud';
+import Consola, { ejecutarComando } from '@/componentes/sistema/Consola';
+import { cn } from '@/lib/cn';
+
+type EstadoServicio = 'ok' | 'error' | 'desconocido';
+const PUNTO: Record<EstadoServicio, string> = { ok: 'bg-movimiento', error: 'bg-peligro', desconocido: 'bg-deshabilitado' };
+
+// Cifras del resumen (comando "resumen" de la consola) con su nombre legible.
+const CIFRAS: [string, string][] = [
+  ['equipos', 'Equipos'],
+  ['reportando_15min', 'Reportando (15 min)'],
+  ['jornadas_abiertas', 'Jornadas abiertas'],
+  ['puntos_hoy', 'Puntos hoy'],
+  ['puntos_5min', 'Puntos últimos 5 min'],
+  ['ultimo_recibido', 'Último punto recibido'],
+  ['eventos_hoy', 'Eventos hoy'],
+  ['pendientes_telefonos', 'Pendientes en teléfonos'],
+  ['paneles_en_vivo', 'Paneles en vivo'],
+];
 
 // Sondeo de salud: suficiente para detectar caídas sin castigar al servidor.
 const INTERVALO_MS = 15_000;
@@ -84,6 +100,12 @@ export default function Sistema() {
     enabled: administrador,
     refetchInterval: INTERVALO_MS,
   });
+  const resumen = useQuery({
+    queryKey: ['sistema', 'resumen'],
+    queryFn: () => ejecutarComando('resumen'),
+    enabled: administrador,
+    refetchInterval: INTERVALO_MS,
+  });
   const flota = useQuery({ queryKey: CLAVE_FLOTA, queryFn: () => traerFlota(), staleTime: 60_000, enabled: administrador });
 
   const nombres = useMemo(() => new Map((flota.data?.datos ?? []).map((d) => [d.id, d])), [flota.data]);
@@ -114,7 +136,7 @@ export default function Sistema() {
   const filas = equipos.data?.datos ?? [];
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       {listoFalla && (
         <div role="alert" className="rounded-tarjeta border border-peligro/20 bg-peligro-suave px-4 py-3 text-[13px] text-peligro">
           <p className="font-semibold">Servicio con problemas</p>
@@ -132,23 +154,43 @@ export default function Sistema() {
       )}
       {salud.error && <ErrorCarga mensaje={mensajeError(salud.error)} alReintentar={() => salud.refetch()} />}
 
-      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
-        <TarjetaServicio nombre="API" estado={estadoApi} significado={SIGNIFICADO.proceso[estadoApi]} />
-        <TarjetaServicio nombre="Base de datos" estado={estadoBd} significado={SIGNIFICADO.baseDatos[estadoBd]} />
-        <TarjetaServicio nombre="Motor de seguimiento" estado={estadoTracking} significado={SIGNIFICADO.tracking[estadoTracking]} />
-      </div>
+      <Tarjeta className="px-5 py-4">
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-[13px]">
+          <span className="inline-flex items-center gap-2" title={SIGNIFICADO.proceso[estadoApi]}>
+            <span className={cn('size-2 rounded-full', PUNTO[estadoApi])} />
+            <b className="font-semibold text-marino-900">API</b>
+          </span>
+          <span className="inline-flex items-center gap-2" title={SIGNIFICADO.baseDatos[estadoBd]}>
+            <span className={cn('size-2 rounded-full', PUNTO[estadoBd])} />
+            <b className="font-semibold text-marino-900">Base de datos</b>
+          </span>
+          <span className="inline-flex items-center gap-2" title={SIGNIFICADO.tracking[estadoTracking]}>
+            <span className={cn('size-2 rounded-full', PUNTO[estadoTracking])} />
+            <b className="font-semibold text-marino-900">Seguimiento</b>
+          </span>
+          <span className="ml-auto text-[12px] text-texto-3">
+            Comprobado {hace(listo.data?.comprobadoEn ?? (salud.dataUpdatedAt ? new Date(salud.dataUpdatedAt).toISOString() : null))}
+          </span>
+        </div>
+        <p className="mt-2 text-[12px] text-texto-2">
+          Panel {__VERSION_PANEL__} · Servicio {version.data?.version ?? GUION} · Esquema {version.data?.versionEsquema ?? GUION} ·
+          Commit <span className="font-mono">{version.data?.commit ?? GUION}</span> · Construido {fechaHora(version.data?.construidoEn)}
+        </p>
+        <dl className="mt-3 grid grid-cols-2 gap-x-6 gap-y-2 border-t border-borde pt-3 sm:grid-cols-3 xl:grid-cols-9">
+          {CIFRAS.map(([clave, texto]) => {
+            const i = resumen.data?.columnas.indexOf(clave) ?? -1;
+            const valor = i >= 0 ? resumen.data?.filas[0]?.[i] : null;
+            return (
+              <div key={clave}>
+                <dt className="text-[11.5px] text-texto-3">{texto}</dt>
+                <dd className="text-[15px] font-semibold text-marino-900 cifras">{valor == null ? GUION : String(valor)}</dd>
+              </div>
+            );
+          })}
+        </dl>
+      </Tarjeta>
 
-      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-5">
-        <TarjetaDato etiqueta="Versión del panel">{__VERSION_PANEL__}</TarjetaDato>
-        <TarjetaDato etiqueta="Versión del servicio">{version.data?.version ?? GUION}</TarjetaDato>
-        <TarjetaDato etiqueta="Versión de la base de datos">{version.data?.versionEsquema ?? GUION}</TarjetaDato>
-        <TarjetaDato etiqueta="Commit" mono>{version.data?.commit ?? GUION}</TarjetaDato>
-        <TarjetaDato etiqueta="Construido en">{fechaHora(version.data?.construidoEn)}</TarjetaDato>
-      </div>
-      <p className="text-[12px] text-texto-3">
-        Última comprobación: {fechaHora(listo.data?.comprobadoEn)}
-        {salud.dataUpdatedAt > 0 && ` · Consultado ${hace(new Date(salud.dataUpdatedAt).toISOString())}`}
-      </p>
+      <Consola />
 
       <Tarjeta>
         <CabeceraTarjeta titulo="Salud de los equipos" detalle={equipos.data ? `${filas.length} equipos` : undefined} />

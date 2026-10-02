@@ -2,11 +2,14 @@
 .inicio-lista {
   overflow-y: auto;
   scrollbar-width: thin;
-  scrollbar-color: var(--color-marino-300) transparent;
+  scrollbar-color: transparent transparent;
   overscroll-behavior: contain;
 }
 .inicio-lista::-webkit-scrollbar { width: 6px; }
-.inicio-lista::-webkit-scrollbar-thumb { background: var(--color-marino-300); border-radius: 999px; }
+.inicio-lista::-webkit-scrollbar-thumb { background: transparent; border-radius: 999px; }
+/* La barra solo aparece con el mouse encima. */
+.inicio-lista:hover { scrollbar-color: var(--color-marino-300) transparent; }
+.inicio-lista:hover::-webkit-scrollbar-thumb { background: var(--color-marino-300); }
 .inicio-lista::-webkit-scrollbar-thumb:hover { background: var(--color-marca); }
 @keyframes inicio-entrar {
   from { opacity: 0; transform: translateY(-8px); }
@@ -19,8 +22,10 @@
 }
 @media (prefers-reduced-motion: reduce) { .inicio-fila { animation: none; } }
 /* Desplazamiento interno con la barra de la marca (tabla de Inicio). */
-.inicio-scroll { scrollbar-width: thin; scrollbar-color: var(--color-marino-300) transparent; }
+.inicio-scroll { scrollbar-width: thin; scrollbar-color: transparent transparent; }
 .inicio-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
-.inicio-scroll::-webkit-scrollbar-thumb { background: var(--color-marino-300); border-radius: 999px; }
+.inicio-scroll::-webkit-scrollbar-thumb { background: transparent; border-radius: 999px; }
+.inicio-scroll:hover { scrollbar-color: var(--color-marino-300) transparent; }
+.inicio-scroll:hover::-webkit-scrollbar-thumb { background: var(--color-marino-300); }
 /* En pantallas chicas las tarjetas no tienen alto fijo: la lista se limita. */
 @media (max-width: 1023px) { .inicio-lista { max-height: 300px; } }
