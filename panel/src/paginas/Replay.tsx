@@ -53,13 +53,14 @@ function IntegridadRecorrido({
   reconstruidos: TramoReconstruido[];
   calidad?: ReplayCalidad;
 }) {
-  const minutosSinSenal = Math.round(huecos.reduce((suma, hueco) => suma + hueco.duracionSegundos, 0) / 60);
+  const cortes = huecos.filter((hueco) => hueco.motivo !== 'FUERA_DE_JORNADA');
+  const minutosSinSenal = Math.round(cortes.reduce((suma, hueco) => suma + hueco.duracionSegundos, 0) / 60);
   const estimados = reconstruidos.filter((tramo) => tramo.metodo === 'ESTIMATED').length;
   const apartados = (calidad?.descartadasFueraDeZona ?? 0) + (calidad?.descartadasSalto ?? 0);
   const sinSenal =
-    huecos.length === 0
+    cortes.length === 0
       ? 'sin cortes de señal'
-      : `${huecos.length} ${huecos.length === 1 ? 'corte' : 'cortes'} de señal (${formatoMinutos(minutosSinSenal)})`;
+      : `${cortes.length} ${cortes.length === 1 ? 'corte' : 'cortes'} de señal (${formatoMinutos(minutosSinSenal)})`;
   return (
     <section className="replay-integridad" aria-label="Integridad del recorrido">
       <p>

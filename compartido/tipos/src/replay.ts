@@ -1,7 +1,7 @@
 import type { Dispositivo } from "./fleet";
 import type { Posicion } from "./positions";
 
-export type MotivoHueco = "SIN_SENAL" | "SIN_DATOS" | "PAUSA" | "APAGADO";
+export type MotivoHueco = "SIN_SENAL" | "SIN_DATOS" | "PAUSA" | "APAGADO" | "FUERA_DE_JORNADA";
 
 export interface Hueco {
   desde: string;

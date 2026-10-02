@@ -6,7 +6,7 @@ import { aDispositivo, aPosicion } from './dto.js';
 import { datosInvalidos, noEncontrado } from './errores.js';
 import { leerOrden, leerPaginacion, leerRango, respuestaJson } from './http.js';
 import { PREDICADO_PERMISO, SELECT_DISPOSITIVO, buscarDispositivo, permisoDe } from './flota.js';
-import { calcularHuecos, resumirRecorrido } from './geo.js';
+import { calcularHuecos, resumirRecorrido, sumarDistanciasKm } from './geo.js';
 import { reconstruirTramos } from './ruteo.js';
 import { depurarPosiciones } from './depuracion.js';
 
@@ -104,7 +104,12 @@ export async function obtenerReplay(ctx) {
             p.velocidad_kmh, p.rumbo_grados, p.precision_m,
             coalesce(p.bateria_pct, (p.atributos->>'batteryLevel')::real) AS bateria_pct,
             coalesce(p.fijado_en, p.registrado_en) AS registrado_en,
-            p.recibido_en, p.valida
+            p.recibido_en, p.valida,
+            (SELECT j.id FROM operations.dmt_jornada j
+              WHERE j.dispositivo_id = p.dispositivo_id AND j.estado <> 'anulada'
+                AND coalesce(p.fijado_en, p.registrado_en) >= j.inicio_en
+                AND coalesce(p.fijado_en, p.registrado_en) <= coalesce(j.fin_en, now())
+              ORDER BY j.inicio_en DESC LIMIT 1) AS jornada_id
      FROM tracking.dmt_posicion p
      WHERE p.dispositivo_id = $1
        AND p.registrado_en >= $4 AND p.registrado_en < $5
@@ -121,15 +126,53 @@ export async function obtenerReplay(ctx) {
   if (rows.length > LIMITE_POSICIONES_REPLAY) {
     throw datosInvalidos('La ventana tiene demasiadas posiciones; reduzca el rango horario.');
   }
-  const { conservadas: posiciones, calidad } = depurarPosiciones(rows.map(aPosicion));
+  // Solo se traza dentro de una jornada: fuera de ella la app manda puntos de
+  // presencia, espaciados y poco precisos, que no son un recorrido.
+  const jornadaDe = new Map();
+  const enJornada = rows.filter((fila) => fila.jornada_id != null);
+  for (const fila of enJornada) jornadaDe.set(Number(fila.id), String(fila.jornada_id));
+  if (enJornada.length === 0) {
+    throw noEncontrado('No hubo jornada en la ventana pedida: sin jornada no se traza recorrido.');
+  }
+  const { conservadas: posiciones, calidad } = depurarPosiciones(enJornada.map(aPosicion));
   if (posiciones.length === 0) {
     throw noEncontrado('No hay recorrido válido del dispositivo en la ventana pedida.');
   }
-  const huecos = calcularHuecos(posiciones);
-  // Tramos reconstruidos por calles (huecos o puntos muy separados). El panel
-  // los dibuja por capas REAL/MATCHED/ESTIMATED. `estimados` queda por
-  // compatibilidad con la forma anterior.
-  const reconstruidos = await reconstruirTramos(posiciones, ctx.signal);
+  // Cada jornada se reconstruye por separado: entre dos jornadas no se inventa
+  // un trayecto; ese tramo va como hueco FUERA_DE_JORNADA y el panel no lo dibuja.
+  const grupos = [];
+  for (const posicion of posiciones) {
+    const jornada = jornadaDe.get(posicion.id);
+    if (grupos.length === 0 || grupos.at(-1).jornada !== jornada) grupos.push({ jornada, posiciones: [] });
+    grupos.at(-1).posiciones.push(posicion);
+  }
+  const huecos = [];
+  const reconstruidos = [];
+  for (let i = 0; i < grupos.length; i += 1) {
+    const grupo = grupos[i].posiciones;
+    if (i > 0) {
+      const anterior = grupos[i - 1].posiciones.at(-1);
+      huecos.push({
+        desde: anterior.registradoEn,
+        hasta: grupo[0].registradoEn,
+        duracionSegundos: Math.round((new Date(grupo[0].registradoEn) - new Date(anterior.registradoEn)) / 1000),
+        motivo: 'FUERA_DE_JORNADA',
+      });
+    }
+    huecos.push(...calcularHuecos(grupo));
+    reconstruidos.push(...(await reconstruirTramos(grupo, ctx.signal)));
+  }
+  huecos.sort((a, b) => new Date(a.desde) - new Date(b.desde));
+  const sinSenal = huecos.filter((h) => h.motivo !== 'FUERA_DE_JORNADA').length;
+  const resumen = resumirRecorrido(posiciones, sinSenal);
+  if (grupos.length > 1) {
+    // Distancia y tiempo solo dentro de las jornadas, sin el salto entre ellas.
+    const km = grupos.reduce((t, g) => t + sumarDistanciasKm(g.posiciones, { omitirImposibles: true }), 0);
+    const min = grupos.reduce((t, g) => t + (new Date(g.posiciones.at(-1).registradoEn) - new Date(g.posiciones[0].registradoEn)) / 60000, 0);
+    resumen.distanciaKm = Math.round(km * 1000) / 1000;
+    resumen.duracionMin = Math.round(min * 10) / 10;
+    resumen.velocidadPromedioKmh = min > 0 ? Math.round((km / min) * 600) / 10 : null;
+  }
   respuestaJson(ctx.res, 200, {
     dispositivo: aDispositivo(dispositivo, ctx.usuario),
     desde: rango.desde.toISOString(),
@@ -137,7 +180,7 @@ export async function obtenerReplay(ctx) {
     posiciones,
     huecos,
     reconstruidos,
-    resumen: resumirRecorrido(posiciones, huecos.length),
+    resumen,
     calidad,
     generadoEn: new Date().toISOString(),
   });

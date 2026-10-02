@@ -780,6 +780,10 @@ export function segmentosDeRecorrido(
       .filter((hueco) => !paresReconstruidos.has(`${hueco.desde}|${hueco.hasta}`))
       .map((hueco) => `${hueco.desde}|${hueco.hasta}`),
   );
+  // Entre dos jornadas no hay recorrido: ese tramo no se dibuja.
+  const fueraDeJornada = new Set(
+    huecos.filter((hueco) => hueco.motivo === 'FUERA_DE_JORNADA').map((hueco) => `${hueco.desde}|${hueco.hasta}`),
+  );
   const segmentos: SegmentoRecorrido[] = [];
   // Las rectas del medio de un tramo ajustado a la vía no se dibujan. El modo
   // (vehículo, caminata, quieto) se calcula una vez para todo el recorrido.
@@ -813,6 +817,7 @@ export function segmentosDeRecorrido(
     // El tramo reconstruido ya dibuja este par: la recta quedaría encima del
     // trazado con otro estilo y se vería doble.
     if (paresReconstruidos.has(`${anterior.registradoEn}|${actual.registradoEn}`)) continue;
+    if (fueraDeJornada.has(`${anterior.registradoEn}|${actual.registradoEn}`)) continue;
     // Tramo MATCHED: su trazado es la única línea de esa parte. Las rectas que
     // entran y salen sí se dibujan y empalman con su inicio y su fin.
     if (
