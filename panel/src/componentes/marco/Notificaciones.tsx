@@ -5,14 +5,13 @@ import { BatteryWarning, Bell, CirclePlay, CircleStop, SignalHigh, WifiOff } fro
 import type { Dispositivo } from '@contratos';
 import { CLAVE_FLOTA, traerFlota } from '@/dominio/datos';
 import { api, consulta } from '@/lib/api';
-import { claveEstado } from '@/dominio/estado';
 import { hace, hora } from '@/dominio/formatoBase';
 import { fechaHoyLocal, finDeDia, inicioDeDia } from '@/dominio/rango';
 import { cn } from '@/lib/cn';
 
 // Notificaciones del día, solo lo que la supervisión necesita:
 //  - quién empezó y quién terminó la jornada;
-//  - a quién se le apagó el teléfono o se quedó sin señal, y por qué: con 5 %
+//  - a quién en jornada se le cortó el envío (30 min sin puntos), y por qué: con 5 %
 //    de batería o menos se atribuye a la batería; si no, se dice que se apagó
 //    o perdió cobertura (la app no avisa de un apagado manual, así que no se
 //    afirma);
@@ -45,6 +44,8 @@ interface Corte {
 const CLAVE_CORTES = 'dmj.panel.cortes';
 const CLAVE_LEIDO = 'dmj.panel.avisosLeidos';
 const BATERIA_AGOTADA_PCT = 5;
+// En jornada, 30 min sin ningún punto ya es un corte (el estado "sin señal" llega recién a los 60).
+const SIN_PUNTOS_MS = 30 * 60_000;
 
 function leer<T>(clave: string, porDefecto: T): T {
   try {
@@ -73,7 +74,8 @@ function actualizarCortes(previos: Corte[], equipos: Dispositivo[]): Corte[] {
   for (const equipo of equipos) {
     if (!equipo.habilitado) continue;
     const abierto = lista.find((c) => c.idPublico === equipo.idPublico && c.recuperada == null);
-    const sinSenal = claveEstado(equipo) === 'sinSenal' && equipo.jornadaActiva;
+    const sinSenal =
+      equipo.jornadaActiva && equipo.ultimaConexion != null && Date.now() - ms(equipo.ultimaConexion) > SIN_PUNTOS_MS;
     if (sinSenal && !abierto && equipo.ultimaConexion) {
       if (!lista.some((c) => c.idPublico === equipo.idPublico && c.desde === equipo.ultimaConexion)) {
         lista.push({
@@ -141,7 +143,7 @@ function desdeCortes(cortes: Corte[]): Notificacion[] {
       nombre: c.nombre,
       // Una recuperación reciente vuelve a subir la notificación y cuenta como nueva.
       instante: c.recuperada ?? c.desde,
-      titulo: porBateria ? 'Teléfono apagado por batería agotada' : 'Teléfono apagado o sin señal',
+      titulo: porBateria ? 'Teléfono apagado por batería agotada' : 'Dejó de enviar ubicación en jornada',
       detalle: porBateria
         ? `Último reporte a las ${hora(c.desde)} con ${Math.round(c.bateria ?? 0)} % de batería`
         : `Último reporte a las ${hora(c.desde)}${c.bateria != null ? ` con ${Math.round(c.bateria)} % de batería` : ''}`,
