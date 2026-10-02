@@ -212,9 +212,18 @@ class UpdateActivity : AppCompatActivity() {
         val intent = Intent(Intent.ACTION_VIEW)
             .setDataAndType(uri, "application/vnd.android.package-archive")
             .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
-        // Con el contexto de la app: la pantalla que empezó la descarga pudo cerrarse.
-        applicationContext.startActivity(intent)
-        enPantalla { it.finish() }
+        // Desde la pantalla visible: varios Android bloquean sin aviso el
+        // instalador abierto con el contexto de la app (había que tocar dos
+        // veces). Solo si la pantalla ya se cerró se usa el de la app.
+        val actual = pantalla.get()
+        if (actual == null || actual.isFinishing || actual.isDestroyed) {
+            applicationContext.startActivity(intent)
+            return
+        }
+        actual.runOnUiThread {
+            actual.startActivity(intent)
+            actual.finish()
+        }
     }
 
     private fun showError() {
