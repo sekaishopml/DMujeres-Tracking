@@ -2,7 +2,6 @@ package com.dmujeres.app.cronograma
 
 import android.content.Context
 import android.content.Intent
-import android.graphics.Typeface
 import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
@@ -211,8 +210,7 @@ class ActividadActivity : AppCompatActivity() {
                 gravity = Gravity.CENTER
                 maxLines = 2
                 setPadding(dp(4), 0, dp(4), 0)
-                setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
-                setTypeface(typeface, Typeface.BOLD)
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
                 setBackgroundResource(R.drawable.ds_chip_tipo)
                 layoutParams = LinearLayout.LayoutParams(0, dp(44), 1f).apply {
                     if (i % 3 != 2) marginEnd = dp(6)

@@ -147,7 +147,6 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:letterSpacing="0.06"
                     android:text="@string/console_activity"
                     android:textColor="@color/text_tertiary"
                     android:textSize="11sp"

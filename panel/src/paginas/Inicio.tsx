@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react';
-import type { CSSProperties } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { FileText, Map as MapaIcono, Route } from 'lucide-react';
@@ -288,30 +287,19 @@ export default function Inicio() {
 
       {flota.data && (
         <>
-          {/* Lo que importa hoy: quién está en jornada y qué pasó (eventos de la
-              app + actividades subidas al cronograma). */}
-          {/* Fila de arriba, compacta y de alto fijo: lo que hay que mirar primero. */}
-          <div className="grid flex-none gap-4 md:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_340px] xl:h-[156px]">
-            <EnJornada
-              personas={equipos.filter((e) => e.jornadaActiva)}
-              total={equipos.length}
-              jornadas={jornadaPorPersona}
-              hoy={hoy}
-              alVerTodas={() => {
-                setFiltro('jornada');
-                document.getElementById('tabla-personas')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-              }}
-            />
-            <ContadorEventos eventos={eventos.data ?? null} />
-            <ParaRevisar revisar={revisar} />
-          </div>
+          <Resumen
+            personas={equipos.filter((e) => e.jornadaActiva)}
+            total={equipos.length}
+            jornadas={jornadaPorPersona}
+            hoy={hoy}
+            eventos={eventos.data ?? null}
+            alVerTodas={() => setFiltro('jornada')}
+          />
 
-          {/* Fila de abajo: ocupa el resto de la pantalla; cada tarjeta se
-              desplaza por dentro y la página no. */}
           <div className="grid gap-4 lg:min-h-0 lg:flex-1 xl:grid-cols-[minmax(0,1fr)_340px]">
             <Tarjeta className="flex min-w-0 flex-col overflow-hidden lg:min-h-0" id="tabla-personas">
               <div className="flex flex-wrap items-center gap-2 px-4 pt-3.5 pb-2.5">
-                <h2 className="mr-auto text-[15px] font-semibold">Personas · hoy</h2>
+                <h2 className="mr-auto text-[15px] font-semibold">Personal</h2>
                 <div className="flex flex-wrap gap-1" role="group" aria-label="Filtrar personas">
                   {FILTROS.map((f) => (
                     <button
@@ -341,7 +329,7 @@ export default function Inicio() {
               <div className="inicio-scroll min-h-0 flex-1 overflow-auto max-lg:max-h-[560px]">
                 <table className="w-full min-w-[820px] text-[13px]">
                   <thead className="sticky top-0 z-[2]">
-                    <tr className="border-y border-borde bg-marino-50 text-left text-[10.5px] font-semibold tracking-[0.06em] text-texto-3 uppercase">
+                    <tr className="border-y border-borde bg-marino-50 text-left text-[12px] font-medium text-texto-2">
                       <th className="px-4 py-2">Persona</th>
                       <th className="px-3 py-2">Estado</th>
                       <th className="px-3 py-2">Jornada</th>
@@ -377,7 +365,10 @@ export default function Inicio() {
               </div>
             </Tarjeta>
 
-            <LineaDeTiempo eventos={eventos.data ?? null} />
+            <div className="flex min-w-0 flex-col gap-4 lg:min-h-0">
+              <ParaRevisar revisar={revisar} />
+              <LineaDeTiempo eventos={eventos.data ?? null} />
+            </div>
           </div>
         </>
       )}
@@ -385,8 +376,6 @@ export default function Inicio() {
   );
 }
 
-
-// Barra proporcional de la flota por estado, con la cuenta escrita al lado.
 
 function FilaPersona({
   equipo,
@@ -554,103 +543,63 @@ function InicioEsqueleto() {
 }
 
 // Quién está en jornada ahora y desde cuándo. Es la cifra que manda.
-function EnJornada({
+
+// Resumen del día en una sola franja: quién trabaja ahora y qué pasó hoy.
+function Resumen({
   personas,
   total,
   jornadas,
   hoy,
+  eventos,
   alVerTodas,
 }: {
   personas: Dispositivo[];
   total: number;
   jornadas: Map<string, { inicioEn: string; finEn: string | null }>;
   hoy: string;
+  eventos: RespuestaEventos | null;
   alVerTodas: () => void;
 }) {
-  const visibles = [...personas].sort((a, b) =>
-    (jornadas.get(a.idPublico)?.inicioEn ?? '').localeCompare(jornadas.get(b.idPublico)?.inicioEn ?? ''),
-  );
-  // Cómo están quienes trabajan ahora.
-  const partes = [
-    { clave: 'enLinea', texto: 'en ruta', clase: 'bg-movimiento', n: personas.filter((p) => claveEstado(p) === 'enLinea').length },
-    { clave: 'detenido', texto: 'detenidas', clase: 'bg-detenido', n: personas.filter((p) => claveEstado(p) === 'detenido').length },
-    {
-      clave: 'sinSenal',
-      texto: 'sin señal',
-      clase: 'bg-sin-senal',
-      n: personas.filter((p) => ['sinSenal', 'desconocido'].includes(claveEstado(p))).length,
-    },
-  ];
-  const sinIniciar = total - personas.length;
-  // Primera entrada de hoy (jornadas que empezaron hoy).
-  const entradasHoy = visibles
+  const enRuta = personas.filter((p) => claveEstado(p) === 'enLinea').length;
+  const detenidas = personas.filter((p) => claveEstado(p) === 'detenido').length;
+  const sinSenal = personas.length - enRuta - detenidas;
+  const primera = personas
     .map((p) => jornadas.get(p.idPublico)?.inicioEn)
     .filter((v): v is string => Boolean(v) && fechaLocal(v!) === hoy)
-    .sort();
+    .sort()[0];
+  const cifra = (n: number | undefined) => (eventos == null ? GUION : (n ?? 0));
+  const alertas = eventos?.conteo.alerta ?? 0;
   return (
-    <Tarjeta className="flex flex-col p-4">
-      <div className="flex items-center gap-2">
-        <span className="relative flex size-2.5">
-          {personas.length > 0 && <span className="absolute inset-0 animate-ping rounded-full bg-movimiento/60 motion-reduce:hidden" />}
-          <span className={cn('relative size-2.5 rounded-full', personas.length > 0 ? 'bg-movimiento' : 'bg-deshabilitado')} />
+    <Tarjeta className="flex flex-none flex-wrap items-center gap-x-8 gap-y-3 px-5 py-4">
+      <button type="button" onClick={alVerTodas} className="cursor-pointer text-left">
+        <span className="block text-[13px] text-texto-2">En jornada</span>
+        <span className="text-[26px] leading-tight font-semibold text-marino-900 cifras">
+          {personas.length} <span className="text-[15px] font-normal text-texto-3">de {total}</span>
         </span>
-        <h2 className="text-[13px] font-semibold text-texto-2">En jornada ahora</h2>
-        {entradasHoy.length > 0 && (
-          <span className="ml-auto text-[11.5px] text-texto-3 cifras">Primera entrada {hora(entradasHoy[0])}</span>
-        )}
-      </div>
-      <div className="mt-1 flex items-end gap-3">
-        <p className="font-display leading-none text-marino-900 cifras">
-          <span className="inicio-aparecer text-[34px] font-semibold">{personas.length}</span>
-          <span className="ml-1 text-[14px] text-texto-3">de {total}</span>
-        </p>
-        {visibles.length > 0 && (
-          <div className="mb-0.5 ml-auto flex items-center">
-            <ul className="flex -space-x-2">
-              {visibles.slice(0, 6).map((p) => {
-                const j = jornadas.get(p.idPublico);
-                const texto = `${p.nombre}${j ? ` · desde ${inicioJornada(j.inicioEn, hoy).replace(/^Ayer/, 'ayer')}` : ''}`;
-                return (
-                  <li key={p.id}>
-                    <Link
-                      to={`/replay${consulta({ dispositivo: p.idPublico, desde: hoy, hasta: hoy })}`}
-                      title={`${texto}. Ver su recorrido de hoy.`}
-                      aria-label={texto}
-                      className="block rounded-full ring-2 ring-superficie transition-transform hover:z-10 hover:-translate-y-0.5"
-                    >
-                      <Avatar nombre={p.nombre} tamano="sm" />
-                    </Link>
-                  </li>
-                );
-              })}
-            </ul>
-            <button type="button" onClick={alVerTodas} className="ml-2 cursor-pointer text-[12px] font-semibold text-marino-800 hover:text-marca">
-              {visibles.length > 6 ? `+${visibles.length - 6}` : 'Ver'}
-            </button>
-          </div>
-        )}
-      </div>
-      {/* Barra de toda la plantilla: quienes trabajan, por estado, y quienes faltan. */}
-      <div className="mt-auto pt-2">
-        <div className="flex h-2 overflow-hidden rounded-full bg-fondo" aria-hidden="true">
-          {total > 0 &&
-            partes.map((p) =>
-              p.n > 0 ? <span key={p.clave} className={cn('transition-[width] duration-500', p.clase)} style={{ width: `${(p.n / total) * 100}%` }} /> : null,
-            )}
+      </button>
+      <p className="text-[13px] leading-relaxed text-texto-2">
+        {enRuta} en ruta, {detenidas} {detenidas === 1 ? 'detenida' : 'detenidas'}, {sinSenal} sin señal
+        <br />
+        Primera entrada: {primera ? hora(primera) : GUION}
+      </p>
+      <dl className="ml-auto flex gap-6 text-[13px]">
+        <div>
+          <dt className="text-texto-2">Inicios</dt>
+          <dd className="text-[18px] font-semibold text-marino-900 cifras">{cifra(eventos?.conteo.inicio_jornada)}</dd>
         </div>
-        <p className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[11.5px] text-texto-2">
-          {partes.map((p) => (
-            <span key={p.clave} className="inline-flex items-center gap-1">
-              <span className={cn('size-1.5 rounded-full', p.clase)} />
-              <b className="font-semibold text-marino-900 cifras">{p.n}</b> {p.texto}
-            </span>
-          ))}
-          <span className="inline-flex items-center gap-1 text-texto-3">
-            <span className="size-1.5 rounded-full bg-borde" />
-            <b className="font-semibold cifras">{sinIniciar}</b> sin iniciar
-          </span>
-        </p>
-      </div>
+        <div>
+          <dt className="text-texto-2">Cierres</dt>
+          <dd className="text-[18px] font-semibold text-marino-900 cifras">{cifra(eventos?.conteo.fin_jornada)}</dd>
+        </div>
+        <div>
+          <dt className="text-texto-2">Actividades</dt>
+          <dd className="text-[18px] font-semibold text-marino-900 cifras">{cifra(eventos?.conteo.actividad)}</dd>
+        </div>
+        <div>
+          <dt className="text-texto-2">Alertas</dt>
+          <dd className={cn('text-[18px] font-semibold cifras', alertas > 0 ? 'text-peligro' : 'text-marino-900')}>{cifra(eventos?.conteo.alerta)}</dd>
+        </div>
+      </dl>
     </Tarjeta>
   );
 }
@@ -659,25 +608,25 @@ function EnJornada({
 function ParaRevisar({ revisar }: { revisar: Revision[] }) {
   const urgentes = revisar.filter((r) => r.grave).length;
   return (
-    <Tarjeta className="flex min-h-0 flex-col overflow-hidden md:col-span-2 xl:col-span-1 max-xl:max-h-[220px]">
+    <Tarjeta className="flex max-h-[240px] flex-none flex-col overflow-hidden">
       <div className="flex flex-none items-baseline justify-between px-4 pt-3 pb-1.5">
-        <h2 className="text-[13px] font-semibold text-texto-2">Para revisar</h2>
+        <h2 className="text-[15px] font-semibold">Para revisar</h2>
         <span className={cn('text-[12px] font-semibold cifras', urgentes > 0 ? 'text-peligro' : 'text-texto-3')}>
           {revisar.length}
-          {urgentes > 0 ? ` · ${urgentes} ${urgentes === 1 ? 'urgente' : 'urgentes'}` : ''}
+          {urgentes > 0 ? ` (${urgentes} ${urgentes === 1 ? 'urgente' : 'urgentes'})` : ''}
         </span>
       </div>
       {revisar.length === 0 ? (
         <p className="px-4 pb-3 text-[12.5px] text-texto-2">Nada pendiente: todos reportan y con batería.</p>
       ) : (
         <ul className="inicio-lista min-h-0 flex-1 divide-y divide-borde/70">
-          {revisar.map(({ equipo, motivos, grave }, i) => (
-            <li key={equipo.id} style={{ '--orden': i } as CSSProperties}>
+          {revisar.map(({ equipo, motivos, grave }) => (
+            <li key={equipo.id}>
               <Link to={`/unidad/${equipo.idPublico}`} className="flex items-start gap-2 px-4 py-1.5 transition-colors hover:bg-fondo">
                 <span className={cn('mt-1.5 size-1.5 flex-none rounded-full', grave ? 'bg-peligro' : 'bg-sin-senal')} />
-                <span className="min-w-0 flex-1 truncate text-[12px] leading-snug">
+                <span className="min-w-0 flex-1 truncate text-[13px] leading-snug">
                   <b className="font-semibold text-marino-900">{equipo.nombre}</b>
-                  <span className="text-texto-2"> · {motivos.join(' · ')}</span>
+                  <span className="text-texto-2">: {motivos.join(', ')}</span>
                 </span>
               </Link>
             </li>
@@ -688,96 +637,12 @@ function ParaRevisar({ revisar }: { revisar: Revision[] }) {
   );
 }
 
-// Un solo contador con su ritmo: eventos por hora del día, el último evento y
-// el desglose (inicios, cierres, actividades subidas y alertas).
-function ContadorEventos({ eventos }: { eventos: RespuestaEventos | null }) {
-  const partes: { categoria: CategoriaEvento; texto: string }[] = [
-    { categoria: 'inicio_jornada', texto: 'Inicios' },
-    { categoria: 'fin_jornada', texto: 'Cierres' },
-    { categoria: 'actividad', texto: 'Actividades' },
-    { categoria: 'alerta', texto: 'Alertas' },
-  ];
-  const horaActual = Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'America/Guayaquil', hour: '2-digit', hourCycle: 'h23' }).format(new Date()));
-  const porHora = useMemo(() => {
-    const cuenta = Array.from({ length: 24 }, () => ({ total: 0, alerta: 0 }));
-    for (const e of eventos?.datos ?? []) {
-      const h = Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'America/Guayaquil', hour: '2-digit', hourCycle: 'h23' }).format(new Date(e.en)));
-      cuenta[h].total += 1;
-      if (e.categoria === 'alerta') cuenta[h].alerta += 1;
-    }
-    return cuenta;
-  }, [eventos]);
-  const maximo = Math.max(1, ...porHora.map((h) => h.total));
-  const ultimo = eventos?.datos[0];
-  return (
-    <Tarjeta className="flex flex-col p-4">
-      <div className="flex items-center gap-2">
-        <h2 className="text-[13px] font-semibold text-texto-2">Eventos de hoy</h2>
-        {ultimo && (
-          <span className="ml-auto min-w-0 truncate text-[11.5px] text-texto-3">
-            Último {hora(ultimo.en)} · <b className="font-semibold text-marino-900">{ultimo.nombre}</b> {ultimo.texto.toLowerCase()}
-          </span>
-        )}
-      </div>
-      <div className="mt-1 flex items-end gap-3">
-        {eventos == null ? (
-          <Esqueleto className="h-8 w-14" />
-        ) : (
-          <p key={eventos.total} className="inicio-aparecer font-display text-[34px] leading-none font-semibold text-marino-900 cifras">
-            {eventos.total}
-          </p>
-        )}
-        {/* Eventos por hora (00 a 23); la hora actual resaltada. */}
-        <div className="flex flex-1 flex-col">
-        <div className="flex h-8 items-end gap-[2px]" role="img" aria-label="Eventos por hora de hoy">
-          {porHora.map((h, i) => (
-            <span
-              key={i}
-              title={`${String(i).padStart(2, '0')}:00 · ${h.total} ${h.total === 1 ? 'evento' : 'eventos'}`}
-              className={cn(
-                'flex-1 rounded-t-[2px] transition-[height] duration-500',
-                h.alerta > 0 ? 'bg-peligro' : i === horaActual ? 'bg-marca' : h.total > 0 ? 'bg-marino-700' : 'bg-fondo',
-                i > horaActual && 'opacity-40',
-              )}
-              style={{ height: h.total > 0 ? `${Math.max(14, (h.total / maximo) * 100)}%` : '3px' }}
-            />
-          ))}
-        </div>
-        <div className="mt-0.5 flex justify-between text-[9.5px] text-texto-3 cifras" aria-hidden="true">
-          <span>00</span>
-          <span>06</span>
-          <span>12</span>
-          <span>18</span>
-          <span>23</span>
-        </div>
-        </div>
-      </div>
-      <dl className="mt-auto grid grid-cols-4 gap-x-2 pt-2">
-        {partes.map((p) => {
-          const n = eventos?.conteo[p.categoria] ?? null;
-          return (
-            <div key={p.categoria} className="border-l-2 border-borde pl-2">
-              <dt className="flex items-center gap-1 truncate text-[10.5px] text-texto-3">
-                <span className={cn('size-1.5 rounded-full', COLOR_EVENTO[p.categoria])} />
-                {p.texto}
-              </dt>
-              <dd className={cn('text-[15px] font-semibold cifras', p.categoria === 'alerta' && (n ?? 0) > 0 ? 'text-peligro' : 'text-marino-900')}>
-                {n == null ? <Esqueleto className="mt-1 h-4 w-8" /> : n}
-              </dd>
-            </div>
-          );
-        })}
-      </dl>
-    </Tarjeta>
-  );
-}
-
 // Línea de tiempo del día, lo más reciente arriba; cada evento con su color.
 function LineaDeTiempo({ eventos }: { eventos: RespuestaEventos | null }) {
   return (
     <Tarjeta className="flex min-w-0 flex-col overflow-hidden lg:min-h-0">
       <div className="flex items-baseline justify-between px-4 pt-3.5 pb-2">
-        <h2 className="text-[15px] font-semibold">Línea de tiempo de hoy</h2>
+        <h2 className="text-[15px] font-semibold">Lo último de hoy</h2>
         <Link to="/reportes" className="text-[12px] font-medium text-texto-2 hover:text-marca">
           Cronograma
         </Link>
@@ -789,12 +654,12 @@ function LineaDeTiempo({ eventos }: { eventos: RespuestaEventos | null }) {
       ) : (
         <ol className="inicio-lista relative min-h-0 flex-1 pb-2 before:absolute before:top-1 before:bottom-3 before:left-[68px] before:w-px before:bg-borde">
           {eventos.datos.slice(0, 80).map((e, i) => (
-            <li key={`${e.en}-${e.dispositivoId}-${i}`} className="relative flex items-start gap-3 px-4 py-1.5" style={{ '--orden': i } as CSSProperties}>
+            <li key={`${e.en}-${e.dispositivoId}-${i}`} className="relative flex items-start gap-3 px-4 py-1.5">
               <span className="w-10 flex-none pt-px text-right text-[12px] font-semibold text-marino-900 cifras">{hora(e.en)}</span>
               <span className={cn('relative z-[1] mt-1.5 size-2 flex-none rounded-full ring-2 ring-superficie', COLOR_EVENTO[e.categoria])} />
               <span className="min-w-0 flex-1 leading-snug">
                 <span className="block truncate text-[13px] text-marino-900">
-                  <b className="font-semibold">{e.nombre}</b> · {e.texto}
+                  <b className="font-semibold">{e.nombre}</b>: {e.texto.toLowerCase()}
                 </span>
                 {e.detalle && <span className="block truncate text-[11.5px] text-texto-3">{e.detalle}</span>}
               </span>

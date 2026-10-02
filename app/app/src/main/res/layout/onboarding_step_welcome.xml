@@ -15,7 +15,6 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:letterSpacing="0.08"
             android:text="@string/welcome_overline"
             android:textColor="@color/primary"
             android:textSize="11sp"
