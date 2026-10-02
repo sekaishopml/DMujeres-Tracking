@@ -17,6 +17,8 @@ export interface Dispositivo {
   estado: EstadoDispositivo;
   ultimaConexion: string | null;
   versionApp: string | null;
+  /** `ios` usa Traccar Client (sin app propia: sin versión ni cronograma). */
+  plataforma: "android" | "ios";
   jornadaActiva: boolean;
   bateriaPct: number | null;
   cargando: boolean | null;

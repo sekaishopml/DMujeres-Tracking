@@ -47,6 +47,7 @@ function limitesMesUtc(fecha) {
 // eso el reloj del teléfono está mal y el punto se marca como inválido.
 const VENTANA_CAPTURA_MS_ATRAS = 30 * 24 * 60 * 60 * 1000;
 const VENTANA_CAPTURA_MS_ADELANTE = 24 * 60 * 60 * 1000;
+const MAX_ATRASO_INICIO_IOS_MS = 30 * 60 * 1000;
 
 export function fechaCapturaValida(fecha, ahoraMs = Date.now()) {
   if (!(fecha instanceof Date) || Number.isNaN(fecha.getTime())) return false;
@@ -327,6 +328,10 @@ export class Almacen {
         [dispositivoId, posicion.registradoEn, posicionId],
       );
       await conexion.query('COMMIT');
+      // El punto ya quedó guardado: si falla la jornada no se pide reenviarlo.
+      await this.#abrirJornadaIos(dispositivoId, posicion).catch((error) => {
+        this.#log?.warn(`jornada ios fallo dispositivo=${dispositivoId}: ${error.message}`);
+      });
       return { posicionId };
     } catch (error) {
       await conexion.query('ROLLBACK').catch(() => {});
@@ -787,15 +792,41 @@ export class Almacen {
     return String(resultado.rows[0].id);
   }
 
+  // Traccar Client de iOS no avisa inicio ni fin de jornada: la abre su primer
+  // punto reciente (los viejos que llegan del búfer no abren nada).
+  async #abrirJornadaIos(dispositivoId, posicion) {
+    const inicioEn = new Date(posicion.registradoEn);
+    if (Date.now() - inicioEn.getTime() > MAX_ATRASO_INICIO_IOS_MS) return;
+    const { rowCount } = await this.#pool.query(
+      `SELECT 1 FROM tracking.dmt_dispositivo d
+        WHERE d.id = $1 AND d.atributos->>'plataforma' = 'ios'
+          AND NOT EXISTS (SELECT 1 FROM operations.dmt_jornada j
+                           WHERE j.dispositivo_id = d.id AND j.estado = 'abierta')`,
+      [dispositivoId],
+    );
+    if (rowCount === 0) return;
+    const journeyId = inicioEn.getTime();
+    await this.abrirJornada({
+      dispositivoId,
+      journeyId,
+      bateriaInicio: posicion.bateria ?? null,
+      atributosJornada: { journeyId, origen: 'ios' },
+      parcheDispositivo: { 'mobile.journeyId': journeyId },
+      inicioEn,
+    });
+    this.#log?.info(`jornada ios abierta dispositivo=${dispositivoId} journey=${journeyId}`);
+  }
+
   /**
    * Revisa las jornadas al arrancar y cada hora:
    *  1. Crea la jornada de los equipos que la iniciaron con el servidor caído.
    *     El journeyId de la app es la hora de inicio, así que no se inventa.
    *  2. Cierra las jornadas abiertas que llevan más de `horasTimeout` sin
-   *     actividad.
+   *     actividad (`horasTimeoutIos` en iPhone, que no avisa el cierre; ahí
+   *     se registra el cierre como evento).
    * Devuelve cuántas creó y cuántas cerró.
    */
-  async reconciliarJornadas({ horasTimeout = 12 } = {}) {
+  async reconciliarJornadas({ horasTimeout = 12, horasTimeoutIos = 2 } = {}) {
     const creadas = await this.#pool.query(
       `INSERT INTO operations.dmt_jornada (dispositivo_id, usuario_id, inicio_en, estado, atributos)
        SELECT d.id,
@@ -831,6 +862,8 @@ export class Almacen {
     const vencidas = await this.#pool.query(
       `WITH actividad AS (
          SELECT j.id AS jornada_id, j.dispositivo_id,
+                j.atributos->>'journeyId' AS journey_id,
+                (d.atributos->>'plataforma') = 'ios' AS ios,
                 GREATEST(j.inicio_en,
                          coalesce(max(p.registrado_en), j.inicio_en),
                          coalesce(d.ultima_conexion_en, j.inicio_en)) AS ultima
@@ -839,12 +872,12 @@ export class Almacen {
            LEFT JOIN tracking.dmt_posicion p
                   ON p.dispositivo_id = j.dispositivo_id AND p.registrado_en >= j.inicio_en
           WHERE j.estado = 'abierta'
-          GROUP BY j.id, j.dispositivo_id, j.inicio_en, d.ultima_conexion_en
+          GROUP BY j.id, j.dispositivo_id, j.inicio_en, j.atributos, d.ultima_conexion_en, d.atributos
        )
-       SELECT jornada_id, dispositivo_id, ultima
+       SELECT jornada_id, dispositivo_id, journey_id, ios, ultima
          FROM actividad
-        WHERE now() - ultima > make_interval(hours => $1)`,
-      [horasTimeout],
+        WHERE now() - ultima > make_interval(hours => CASE WHEN ios THEN $2 ELSE $1 END)`,
+      [horasTimeout, horasTimeoutIos],
     );
     for (const fila of vencidas.rows) {
       await this.#pool.query(
@@ -869,6 +902,15 @@ export class Almacen {
           WHERE id = $1`,
         [fila.dispositivo_id],
       );
+      if (fila.ios) {
+        await this.#insertarEvento(this.#pool, {
+          dispositivoId: fila.dispositivo_id,
+          tipo: 'mobileJourneyEnded',
+          journeyId: fila.journey_id,
+          bateria: null,
+          ocurridoEn: fila.ultima,
+        });
+      }
       this.#log?.info(`jornada cerrada por timeout dispositivo=${fila.dispositivo_id} jornada=${fila.jornada_id}`);
     }
     return { creadas: creadas.rowCount, cerradas: vencidas.rowCount };

@@ -472,7 +472,7 @@ function FichaPersona({
           <span>
             <span className="block text-texto-3">App</span>
             <span className="flex items-center gap-1.5">
-              <span className="font-semibold text-marino-900">{equipo.versionApp ?? GUION}</span>
+              <span className="font-semibold text-marino-900">{equipo.plataforma === 'ios' ? 'iPhone (Traccar Client)' : (equipo.versionApp ?? GUION)}</span>
               {estadoApp && <span className={cn('rounded-full px-1.5 text-[10.5px] font-semibold', estadoApp.clase)}>{estadoApp.texto}</span>}
             </span>
           </span>

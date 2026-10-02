@@ -466,6 +466,16 @@ export async function crearCuenta(ctx) {
   // Si no se indica, una persona de campo nace con su equipo; una cuenta de
   // administración no (no se rastrea).
   const crearEquipoSolicitado = booleanoOpcional(cuerpo.crearEquipo, 'crearEquipo');
+  // iPhone: el equipo usa Traccar Client y se identifica con el ID que esa
+  // app trae (se copia de su pantalla), no con el usuario.
+  const ios = cuerpo.plataforma === 'ios';
+  if (cuerpo.plataforma != null && !['android', 'ios'].includes(cuerpo.plataforma)) {
+    throw datosInvalidos('plataforma debe ser android o ios.');
+  }
+  const idTraccar = ios ? textoObligatorio(cuerpo.identificadorEquipo, 'identificadorEquipo', 64) : null;
+  if (idTraccar != null && !/^[A-Za-z0-9._-]+$/.test(idTraccar)) {
+    throw datosInvalidos('El ID del iPhone solo admite letras, números, punto, guion y guion bajo.');
+  }
   const credencial = crearCredencial(clave);
 
   const resultado = await enTransaccion(ctx.pool, async (cliente) => {
@@ -515,7 +525,7 @@ export async function crearCuenta(ctx) {
     // persona aparezca en replay/en vivo.
     let equipo = null;
     if (crearEquipo) {
-      const identificador = usuario.toLowerCase();
+      const identificador = (idTraccar ?? usuario).toLowerCase();
       const ocupado = await cliente.query(
         'SELECT 1 FROM tracking.dmt_dispositivo WHERE identificador = $1 LIMIT 1',
         [identificador],
@@ -526,10 +536,10 @@ export async function crearCuenta(ctx) {
       let filaEquipo;
       try {
         const insertado = await cliente.query(
-          `INSERT INTO tracking.dmt_dispositivo (nombre, identificador, habilitado)
-           VALUES ($1, $2, true)
+          `INSERT INTO tracking.dmt_dispositivo (nombre, identificador, habilitado, atributos)
+           VALUES ($1, $2, true, $3::jsonb)
            RETURNING id, id_publico, nombre, identificador`,
-          [nombre, identificador],
+          [nombre, identificador, JSON.stringify({ plataforma: ios ? 'ios' : 'android' })],
         );
         filaEquipo = insertado.rows[0];
       } catch (error) {

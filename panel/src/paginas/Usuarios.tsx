@@ -28,6 +28,7 @@ import { AccionesPagina } from '@/componentes/marco/Marco';
 import { Avatar } from '@/componentes/ui/Avatar';
 import { Boton, BotonIcono } from '@/componentes/ui/Boton';
 import { Campo, Entrada, Selector } from '@/componentes/ui/Campo';
+import { IconoAndroid, IconoApple } from '@/componentes/ui/Plataforma';
 import { Insignia } from '@/componentes/ui/ChipEstado';
 import { Dialogo } from '@/componentes/ui/Dialogo';
 import { Cargando, ErrorCarga, Vacio } from '@/componentes/ui/Estados';
@@ -92,6 +93,9 @@ type Modal =
   | { modo: 'ajustes'; usuario: UsuarioPlataforma };
 
 // En edición la clave vacía significa "no cambiar"; en creación es obligatoria.
+// Receptor OsmAnd al que envía Traccar Client en iPhone.
+const SERVIDOR_IPHONE = 'http://68.168.20.219:5055';
+
 // El guardado nunca manda roles; al crear, el servidor siempre crea su equipo.
 function DialogoCuenta({
   usuario,
@@ -124,12 +128,17 @@ function DialogoCuenta({
       return grupo ? [idTextoGrupo(grupo)] : [];
     }),
   );
+  const [plataforma, setPlataforma] = useState<'android' | 'ios'>('android');
+  const [idIphone, setIdIphone] = useState('');
   const [validacion, setValidacion] = useState('');
 
   function enviar() {
     if (!usuario && !cuenta.trim()) return setValidacion('Escribe el nombre con el que la persona va a entrar.');
     if (!nombre.trim()) return setValidacion('Escribe el nombre completo de la persona.');
     if (!usuario && !clave) return setValidacion('Escribe una contraseña para la cuenta nueva.');
+    if (!usuario && plataforma === 'ios' && !idIphone.trim()) {
+      return setValidacion('Copia el identificador que muestra Traccar Client en el iPhone.');
+    }
     if (clave && clave.length < CLAVE_MINIMA) {
       return setValidacion(`La contraseña debe tener al menos ${CLAVE_MINIMA} caracteres.`);
     }
@@ -142,7 +151,9 @@ function DialogoCuenta({
         nombre: nombre.trim(),
         // El equipo de rastreo se crea siempre junto con la cuenta.
         crearEquipo: true,
+        plataforma,
       };
+      if (plataforma === 'ios') cuerpo.identificadorEquipo = idIphone.trim();
       if (telefono.trim() !== '') cuerpo.telefono = telefono.trim();
       if (cargo.trim() !== '') cuerpo.cargo = cargo.trim();
       if (gruposElegidos.length > 0) cuerpo.grupoIds = gruposElegidos;
@@ -176,6 +187,60 @@ function DialogoCuenta({
       alEnviar={enviar}
       guardando={guardando}
     >
+      {!usuario && (
+        <fieldset>
+          <legend className="mb-1.5 text-[12px] font-semibold text-marino-900">Teléfono de la persona</legend>
+          <div className="grid grid-cols-2 gap-2">
+            {(
+              [
+                { valor: 'android', texto: 'Android', Icono: IconoAndroid },
+                { valor: 'ios', texto: 'iPhone', Icono: IconoApple },
+              ] as const
+            ).map(({ valor, texto, Icono }) => (
+              <button
+                key={valor}
+                type="button"
+                aria-pressed={plataforma === valor}
+                onClick={() => setPlataforma(valor)}
+                className={cn(
+                  'flex h-11 cursor-pointer items-center justify-center gap-2 rounded-control border text-[14px] font-medium transition-colors',
+                  plataforma === valor ? 'border-marca bg-marca/5 text-marino-900' : 'border-borde text-texto-2 hover:border-marino-300',
+                )}
+              >
+                <Icono className="size-5" />
+                {texto}
+              </button>
+            ))}
+          </div>
+        </fieldset>
+      )}
+      {!usuario && plataforma === 'ios' && (
+        <>
+          <Campo
+            etiqueta="Identificador del iPhone"
+            ayuda="El número que aparece en Traccar Client como identificador del dispositivo."
+          >
+            <Entrada
+              value={idIphone}
+              onChange={(evento) => setIdIphone(evento.target.value)}
+              autoComplete="off"
+              inputMode="text"
+              placeholder="Por ejemplo: 482913"
+            />
+          </Campo>
+          <div className="rounded-control bg-marino-50 px-3 py-2.5 text-[12.5px] leading-relaxed text-texto-2">
+            <p className="mb-1 font-semibold text-marino-900">En el iPhone, dentro de Traccar Client:</p>
+            <ol className="list-decimal space-y-0.5 pl-4">
+              <li>
+                Dirección del servidor: <b className="text-marino-900">{SERVIDOR_IPHONE}</b>
+              </li>
+              <li>Precisión alta, intervalo 60 s y, si aparece, latido cada 300 s y detección de parada apagada.</li>
+              <li>En Ajustes del iPhone: ubicación «Siempre» con ubicación exacta, y actualización en segundo plano activada.</li>
+              <li>Encender el seguimiento al empezar el día. La jornada se abre sola con el primer punto y se cierra tras unas 2 h sin puntos.</li>
+            </ol>
+          </div>
+        </>
+      )}
       {!usuario && (
         <Campo etiqueta="Nombre para entrar">
           <Entrada

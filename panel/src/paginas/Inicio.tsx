@@ -6,6 +6,7 @@ import type { Dispositivo, ResumenReporte } from '@contratos';
 import { api, consulta } from '@/lib/api';
 import { cn } from '@/lib/cn';
 import { Avatar } from '@/componentes/ui/Avatar';
+import { IconoApple } from '@/componentes/ui/Plataforma';
 import { Tarjeta } from '@/componentes/ui/Tarjeta';
 import { ErrorCarga, Esqueleto } from '@/componentes/ui/Estados';
 import '@/componentes/inicio/inicio.css';
@@ -467,7 +468,14 @@ function FilaPersona({
           className={cn('cifras', appVieja ? 'font-semibold text-sin-senal' : 'text-texto-2')}
           title={appVieja ? `Desactualizada: la más reciente en la flota es ${versionMasNueva}` : undefined}
         >
-          {equipo.versionApp ?? GUION}
+          {equipo.plataforma === 'ios' ? (
+            <span className="inline-flex items-center gap-1">
+              <IconoApple className="size-3.5" />
+              iPhone
+            </span>
+          ) : (
+            (equipo.versionApp ?? GUION)
+          )}
         </span>
       </td>
       <td className="px-3 py-2">
