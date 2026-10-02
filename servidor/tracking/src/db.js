@@ -176,7 +176,14 @@ export class Almacen {
        RETURNING id`,
       [dispositivoId, tipo, marca, JSON.stringify(atributos)],
     );
+    if (insertado.rowCount > 0) await this.#avisar(conexion, 'e', dispositivoId);
     return insertado.rowCount > 0;
+  }
+
+  // Aviso al panel en vivo (lo escucha la API). Dentro de una transacción
+  // sale recién al confirmarla.
+  async #avisar(conexion, tipo, dispositivoId) {
+    await conexion.query("SELECT pg_notify('dmt_vivo', $1)", [`${tipo}:${dispositivoId}`]);
   }
 
   async #fusionarAtributos(conexion, dispositivoId, parche) {
@@ -327,6 +334,7 @@ export class Almacen {
             AND (ultima_conexion_en IS NULL OR $2 >= ultima_conexion_en)`,
         [dispositivoId, posicion.registradoEn, posicionId],
       );
+      await this.#avisar(conexion, 'p', dispositivoId);
       await conexion.query('COMMIT');
       // El punto ya quedó guardado: si falla la jornada no se pide reenviarlo.
       await this.#abrirJornadaIos(dispositivoId, posicion).catch((error) => {
@@ -621,6 +629,7 @@ export class Almacen {
          VALUES ($1, $2, $3, $4::jsonb) ON CONFLICT DO NOTHING`,
         [dispositivoId, tipo, ocurridoEn, JSON.stringify(atributos)],
       );
+      await this.#avisar(conexion, 'e', dispositivoId);
       return true;
     } finally {
       conexion.release();
@@ -667,6 +676,7 @@ export class Almacen {
         conCoordenada && Number.isFinite(precisionM) ? precisionM : null, eliminada === true, horaFin ?? null,
       ],
     );
+    await this.#avisar(this.#pool, 'a', dispositivoId);
     return rows[0];
   }
 
@@ -911,6 +921,7 @@ export class Almacen {
           ocurridoEn: fila.ultima,
         });
       }
+      await this.#avisar(this.#pool, 'e', fila.dispositivo_id);
       this.#log?.info(`jornada cerrada por timeout dispositivo=${fila.dispositivo_id} jornada=${fila.jornada_id}`);
     }
     return { creadas: creadas.rowCount, cerradas: vencidas.rowCount };

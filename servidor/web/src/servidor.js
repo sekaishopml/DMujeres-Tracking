@@ -73,6 +73,9 @@ function proxyApi(req, res) {
     res.writeHead(502, { 'Content-Type': 'application/json; charset=utf-8' });
     res.end(JSON.stringify({ error: { codigo: 'SERVICIO_NO_DISPONIBLE', mensaje: 'La API no responde.' } }));
   });
+  // Si el navegador se va (por ejemplo del canal en vivo), se corta también
+  // con la API para no dejar conexiones colgadas.
+  res.on('close', () => solicitud.destroy());
   req.pipe(solicitud);
 }
 

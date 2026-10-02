@@ -1,4 +1,5 @@
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { useVivo } from '@/lib/vivo';
 import { createPortal } from 'react-dom';
 import type { ReactNode } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
@@ -48,6 +49,7 @@ export function AccionesPagina({ children }: { children: ReactNode }) {
 // página, su propósito, la búsqueda de personas, los avisos y la cuenta.
 export default function Marco() {
   const { usuario, cargando, cargar, salir } = useSesion();
+  useVivo(usuario != null);
   const navegar = useNavigate();
   const { pathname } = useLocation();
   const [menuMovil, setMenuMovil] = useState(false);

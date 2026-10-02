@@ -38,11 +38,19 @@ import { bateria, hace, hora, velocidad, GUION } from '@/dominio/formatoBase';
 import { fechaHoyLocal, finDeDia, inicioDeDia, sumarDias } from '@/dominio/rango';
 import { TIPOS, traerCronograma } from '@/dominio/cronograma';
 import { api } from '@/lib/api';
+import { vivoConectado } from '@/lib/vivo';
 import { mensajeError } from '@/dominio/errores';
 import { construirBitacora, resumenBitacora } from '@/dominio/bitacora';
 import { urlExpediente, urlReplay } from '@/dominio/enlaces';
 
+// Con el canal en vivo abierto los puntos llegan solos; la consulta queda
+// de respaldo. Sin canal se vuelve a consultar cada 5 s.
 const REFRESCO_MS = 5000;
+const REFRESCO_CON_VIVO_MS = 30_000;
+const refresco = () => (document.hidden ? false : vivoConectado() ? REFRESCO_CON_VIVO_MS : REFRESCO_MS);
+const DESLIZAR_MS = 1200;
+// Más de ~2 km de golpe no se anima (volvió la señal o cambió de equipo).
+const SALTO_MAXIMO_GRADOS = 0.02;
 const ZOOM_PERSONA = 15.5;
 
 // Filtros: "sin señal" junta SIN_SENAL, SEÑAL_DÉBIL y DESCONOCIDO porque en
@@ -99,6 +107,28 @@ function pintarMarcador(externo: HTMLElement, equipo: Dispositivo, seleccionado:
   externo.style.zIndex = seleccionado ? '2' : '1';
 }
 
+// Lleva el marcador a su nueva posición en un movimiento suave en vez de
+// saltar. Si llega otro punto a mitad de camino, sigue desde donde va.
+const animaciones = new WeakMap<Marker, number>();
+function deslizar(marcador: Marker, lon: number, lat: number) {
+  const desde = marcador.getLngLat();
+  const distancia = Math.abs(desde.lng - lon) + Math.abs(desde.lat - lat);
+  cancelAnimationFrame(animaciones.get(marcador) ?? 0);
+  if (distancia === 0) return;
+  if (document.hidden || distancia > SALTO_MAXIMO_GRADOS || matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    marcador.setLngLat([lon, lat]);
+    return;
+  }
+  const inicio = performance.now();
+  const paso = (ahora: number) => {
+    const k = Math.min(1, (ahora - inicio) / DESLIZAR_MS);
+    const suave = k * (2 - k);
+    marcador.setLngLat([desde.lng + (lon - desde.lng) * suave, desde.lat + (lat - desde.lat) * suave]);
+    if (k < 1) animaciones.set(marcador, requestAnimationFrame(paso));
+  };
+  animaciones.set(marcador, requestAnimationFrame(paso));
+}
+
 export default function EnVivo() {
   const [mapa, setMapa] = useState<MapaMaplibre | null>(null);
   const [busqueda, setBusqueda] = useState('');
@@ -113,12 +143,12 @@ export default function EnVivo() {
   const flota = useQuery({
     queryKey: CLAVE_FLOTA,
     queryFn: () => traerFlota({ redirigir401: false }),
-    refetchInterval: () => (document.hidden ? false : REFRESCO_MS),
+    refetchInterval: refresco,
   });
   const vivas = useQuery({
     queryKey: ['posiciones-vivas'],
     queryFn: () => traerPosicionesVivas({ redirigir401: false }),
-    refetchInterval: () => (document.hidden ? false : REFRESCO_MS),
+    refetchInterval: refresco,
   });
 
   const equipos = useMemo(() => equiposHabilitados(flota.data?.datos ?? []), [flota.data]);
@@ -169,7 +199,7 @@ export default function EnVivo() {
         marcador = new Marker({ element: elemento, anchor: 'center' }).setLngLat([posicion.longitud, posicion.latitud]).addTo(mapa);
         marcadores.current.set(equipo.id, marcador);
       } else {
-        marcador.setLngLat([posicion.longitud, posicion.latitud]);
+        deslizar(marcador, posicion.longitud, posicion.latitud);
       }
       pintarMarcador(marcador.getElement(), equipo, equipo.id === seleccion?.id);
     }
