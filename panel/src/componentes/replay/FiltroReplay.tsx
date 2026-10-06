@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import type { Dispositivo } from '@contratos';
+import { OpcionesPersonas } from '@/componentes/ui/OpcionesPersonas';
 import { fechaHoyLocal } from '@/dominio/rango';
 import { fechaAyerLocal } from '@/dominio/replay';
 
@@ -59,11 +60,7 @@ export default function FiltroReplay({
             {equipos.length === 0 && !conTodas && (
               <option value="">{cargandoEquipos ? 'Cargando equipos…' : 'Sin equipos visibles'}</option>
             )}
-            {equipos.map((equipo) => (
-              <option key={equipo.idPublico} value={equipo.idPublico}>
-                {equipo.nombre} · {equipo.identificadorUnico}
-              </option>
-            ))}
+            <OpcionesPersonas equipos={equipos} etiquetaDe={(equipo) => `${equipo.nombre} · ${equipo.identificadorUnico}`} />
           </select>
         </label>
       {acciones}

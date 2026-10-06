@@ -1,12 +1,13 @@
 {
   "name": "panel",
   "private": true,
-  "version": "1.27.1",
+  "version": "1.29.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
     "typecheck": "tsc -b --noEmit",
+    "test": "node24 --test test/*.test.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

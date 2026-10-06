@@ -1380,6 +1380,35 @@ function puntoSobreTrazado(tramo: TramoReconstruido, instante: number): { latitu
   return null;
 }
 
+// Punto del trazado más cercano a `punto` (proyección plana local, suficiente
+// para unos cientos de metros).
+function proyectarEnTrazado(
+  trazado: [number, number][],
+  punto: { latitud: number; longitud: number },
+): { latitud: number; longitud: number } | null {
+  const pares = trazado.filter((par) => Array.isArray(par) && Number.isFinite(par[0]) && Number.isFinite(par[1]));
+  if (pares.length < 2) return null;
+  const kx = Math.cos((punto.latitud * Math.PI) / 180);
+  let mejor: { latitud: number; longitud: number } | null = null;
+  let menor = Infinity;
+  for (let i = 1; i < pares.length; i += 1) {
+    const [aLon, aLat] = pares[i - 1];
+    const [bLon, bLat] = pares[i];
+    const dx = (bLon - aLon) * kx;
+    const dy = bLat - aLat;
+    const largo2 = dx * dx + dy * dy;
+    const u = largo2 > 0 ? Math.min(Math.max((((punto.longitud - aLon) * kx) * dx + (punto.latitud - aLat) * dy) / largo2, 0), 1) : 0;
+    const lat = aLat + dy * u;
+    const lon = aLon + (bLon - aLon) * u;
+    const d2 = ((punto.longitud - lon) * kx) ** 2 + (punto.latitud - lat) ** 2;
+    if (d2 < menor) {
+      menor = d2;
+      mejor = { latitud: lat, longitud: lon };
+    }
+  }
+  return mejor;
+}
+
 export function puntoEnInstante(
   posiciones: Posicion[],
   huecos: Hueco[],
@@ -1397,9 +1426,28 @@ export function puntoEnInstante(
       instante <= milisegundos(t.hasta),
   );
   if (tramo) {
+    // En un tramo ajustado a la vía el marcador va donde estaba el teléfono, no
+    // donde caería a velocidad pareja: se toma el punto interpolado entre los
+    // fixes y se lleva al trazado. Así arrancar o frenar no lo adelanta ni lo
+    // atrasa respecto a la hora que se lee.
+    if (tramo.metodo === 'MATCHED') {
+      const crudo = interpolarCrudo(posiciones, huecos, instante);
+      const ajustado = crudo ? proyectarEnTrazado(tramo.trazado, crudo) : null;
+      if (ajustado) return ajustado;
+    }
     const enTrazado = puntoSobreTrazado(tramo, instante);
     if (enTrazado) return enTrazado;
   }
+  return interpolarCrudo(posiciones, huecos, instante);
+}
+
+// Punto entre los dos fixes que rodean el instante (en huecos y saltos largos
+// se queda en el último conocido).
+function interpolarCrudo(
+  posiciones: Posicion[],
+  huecos: Hueco[],
+  instante: number,
+): { latitud: number; longitud: number } | null {
   const indice = indicePorInstante(posiciones, instante);
   const actual = posiciones[indice];
   if (!actual) return null;

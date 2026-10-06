@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { Fragment, useMemo, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -7,6 +7,7 @@ import type { Dispositivo, ResumenReporte } from '@contratos';
 import { api, consulta } from '@/lib/api';
 import { cn } from '@/lib/cn';
 import { Avatar } from '@/componentes/ui/Avatar';
+import HoverDia from '@/componentes/inicio/TarjetaDia';
 import { IconoApple } from '@/componentes/ui/Plataforma';
 import { Tarjeta } from '@/componentes/ui/Tarjeta';
 import { ErrorCarga, Esqueleto } from '@/componentes/ui/Estados';
@@ -15,6 +16,7 @@ import { claseBoton } from '@/componentes/ui/Boton';
 import { AccionesPagina } from '@/componentes/marco/Marco';
 import { bateria, duracion, hace, hora, GUION } from '@/dominio/formatoBase';
 import { traerFlota, traerJornadasFlota, traerSalud, CLAVE_FLOTA, equiposHabilitados } from '@/dominio/datos';
+import { agruparPorDepartamento } from '@/dominio/departamentos';
 import { mensajeError } from '@/dominio/errores';
 import { etiquetaEstado, claveEstado } from '@/dominio/estado';
 import { finDeDia, fechaHoyLocal, inicioDeDia, sumarDias } from '@/dominio/rango';
@@ -206,7 +208,8 @@ export default function Inicio() {
       const motivos: string[] = [];
       let grave = false;
       const clave = claveEstado(e);
-      // El servidor ya decide: señal débil = más de 15 min sin responder,
+      // El servidor ya decide: sin reporte reciente = más de 15 min sin responder
+      // (30 si estaba quieto),
       // sin señal = más de 60 min (ver flota.js).
       if (clave === 'sinSenal' || clave === 'desconocido') {
         motivos.push(
@@ -268,6 +271,8 @@ export default function Inicio() {
     });
   }, [ordenadas, busqueda, filtro, enRevision]);
 
+
+  const porDepartamento = useMemo(() => agruparPorDepartamento(filas, (e) => e.departamento), [filas]);
 
   const actualizado = flota.dataUpdatedAt ? hace(new Date(flota.dataUpdatedAt).toISOString()) : null;
 
@@ -359,17 +364,31 @@ export default function Inicio() {
                         </td>
                       </tr>
                     )}
-                    {filas.map((e) => (
-                      <FilaPersona
-                        key={e.id}
-                        equipo={e}
-                        hoy={hoy}
-                        jornada={jornadaPorPersona.get(e.idPublico) ?? null}
-                        recorrido={recorridoPorPersona.get(e.idPublico) ?? null}
-                        actividades={actividadesPorPersona.get(e.idPublico) ?? 0}
-                        nuevas={nuevasPorPersona.get(e.idPublico) ?? 0}
-                        versionMasNueva={versionMasNueva}
-                      />
+                    {porDepartamento.map((grupo) => (
+                      <Fragment key={grupo.departamento}>
+                        {porDepartamento.length > 1 && (
+                          <tr className="border-b border-borde/70 bg-marino-50/60">
+                            <th colSpan={8} scope="colgroup" className="px-4 py-1.5 text-left text-[10.5px] font-semibold tracking-[0.05em] text-texto-3 uppercase">
+                              {grupo.departamento} · {grupo.elementos.length}{' '}
+                              <span className="font-normal normal-case tracking-normal">
+                                ({grupo.elementos.filter((e) => e.jornadaActiva).length} en jornada)
+                              </span>
+                            </th>
+                          </tr>
+                        )}
+                        {grupo.elementos.map((e) => (
+                          <FilaPersona
+                            key={e.id}
+                            equipo={e}
+                            hoy={hoy}
+                            jornada={jornadaPorPersona.get(e.idPublico) ?? null}
+                            recorrido={recorridoPorPersona.get(e.idPublico) ?? null}
+                            actividades={actividadesPorPersona.get(e.idPublico) ?? 0}
+                            nuevas={nuevasPorPersona.get(e.idPublico) ?? 0}
+                            versionMasNueva={versionMasNueva}
+                          />
+                        ))}
+                      </Fragment>
                     ))}
                   </tbody>
                 </table>
@@ -408,15 +427,17 @@ function FilaPersona({
   return (
     <tr className="border-b border-borde/70 last:border-b-0 hover:bg-fondo/60">
       <td className="px-4 py-2">
-        <div className="flex items-center gap-2.5">
-          <Avatar nombre={equipo.nombre} estado={clave} tamano="sm" />
-          <div className="min-w-0 leading-tight">
-            <Link to={`/unidad/${equipo.idPublico}`} className="block truncate font-semibold text-marino-900 hover:text-marca">
-              {equipo.nombre}
-            </Link>
-            <span className="block truncate text-[11px] text-texto-3">{equipo.identificadorUnico}</span>
+        <HoverDia equipo={equipo} dia={hoy}>
+          <div className="flex items-center gap-2.5">
+            <Avatar nombre={equipo.nombre} estado={clave} tamano="sm" />
+            <div className="min-w-0 leading-tight">
+              <Link to={`/unidad/${equipo.idPublico}`} className="block truncate font-semibold text-marino-900 hover:text-marca">
+                {equipo.nombre}
+              </Link>
+              <span className="block truncate text-[11px] text-texto-3">{equipo.identificadorUnico}</span>
+            </div>
           </div>
-        </div>
+        </HoverDia>
       </td>
       <td className="px-3 py-2 whitespace-nowrap">
         <span className="inline-flex items-center gap-1.5 text-marino-900">

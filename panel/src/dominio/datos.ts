@@ -2,7 +2,7 @@ import type { QueryClient } from '@tanstack/react-query';
 import { api, consulta } from '@/lib/api';
 import type { OpcionesPeticion } from '@/lib/api';
 import type { Bateria, Dispositivo, Pagina, Posicion, PosicionesVivas, Replay, ReporteParada } from '@contratos';
-import type { RespuestaJornadasFlota, RespuestaSalud } from '@contratos';
+import type { RespuestaJornadasFlota, RespuestaOficina, RespuestaSalud } from '@contratos';
 import type {
   EntradaEsquemaAjustes,
   GrupoPlataforma,
@@ -129,6 +129,15 @@ export function traerParadas(idPublico: string, desde: string, hasta: string): P
   return api.get<Pagina<ReporteParada>>(
     `/api/v1/reports/stops${consulta({ dispositivoId: idPublico, desde, hasta, tamano: 200 })}`,
   );
+}
+
+// Oficina del equipo: la fijada por un administrador o, si no hay, la que
+// sugiere la plataforma por dónde se detiene más gente. Con la consulta fallida
+// el resumen del día simplemente no habla de oficina.
+export const CLAVE_OFICINA = ['oficina'] as const;
+
+export function traerOficina(): Promise<RespuestaOficina> {
+  return api.get<RespuestaOficina>('/api/v1/oficina', { redirigir401: false });
 }
 
 // Salud por equipo (GET /api/v1/salud): el estado lo calcula el servidor, con

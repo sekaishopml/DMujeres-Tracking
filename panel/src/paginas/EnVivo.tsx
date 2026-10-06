@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { LngLatBounds, Marker } from 'maplibre-gl';
@@ -19,6 +19,7 @@ import MapaBase from '@/componentes/mapa/MapaBase';
 import { Avatar, colorDeNombre, iniciales } from '@/componentes/ui/Avatar';
 import { ChipEstado } from '@/componentes/ui/ChipEstado';
 import { BotonIcono, claseBoton } from '@/componentes/ui/Boton';
+import { Selector } from '@/componentes/ui/Campo';
 import { Cargando, ErrorCarga, Vacio } from '@/componentes/ui/Estados';
 import { AccionesPagina } from '@/componentes/marco/Marco';
 import { cn } from '@/lib/cn';
@@ -26,13 +27,11 @@ import {
   CACHE_AUDITORIA_MS,
   CLAVE_FLOTA,
   equiposHabilitados,
-  traerBateriaEquipo,
   traerFlota,
   traerJornadas,
-  traerParadas,
   traerPosicionesVivas,
-  traerReplay,
 } from '@/dominio/datos';
+import { SIN_DEPARTAMENTO, agruparPorDepartamento, ordenarPorDepartamento } from '@/dominio/departamentos';
 import { claveEstado, colorEstado } from '@/dominio/estado';
 import { bateria, hace, hora, velocidad, GUION } from '@/dominio/formatoBase';
 import { fechaHoyLocal, finDeDia, inicioDeDia, sumarDias } from '@/dominio/rango';
@@ -40,7 +39,6 @@ import { TIPOS, traerCronograma } from '@/dominio/cronograma';
 import { api } from '@/lib/api';
 import { vivoConectado } from '@/lib/vivo';
 import { mensajeError } from '@/dominio/errores';
-import { construirBitacora, resumenBitacora } from '@/dominio/bitacora';
 import { urlExpediente, urlReplay } from '@/dominio/enlaces';
 
 // Con el canal en vivo abierto los puntos llegan solos; la consulta queda
@@ -133,6 +131,7 @@ export default function EnVivo() {
   const [mapa, setMapa] = useState<MapaMaplibre | null>(null);
   const [busqueda, setBusqueda] = useState('');
   const [filtro, setFiltro] = useState<Filtro>('todas');
+  const [departamento, setDepartamento] = useState('');
   const [seleccionado, setSeleccionado] = useState<number | null>(null);
   const marcadores = useRef(new Map<number, Marker>());
   const seleccionarRef = useRef<(id: number) => void>(() => {});
@@ -151,7 +150,11 @@ export default function EnVivo() {
     refetchInterval: refresco,
   });
 
-  const equipos = useMemo(() => equiposHabilitados(flota.data?.datos ?? []), [flota.data]);
+  const equipos = useMemo(
+    () => ordenarPorDepartamento(equiposHabilitados(flota.data?.datos ?? []), (e) => e.departamento),
+    [flota.data],
+  );
+  const departamentos = useMemo(() => agruparPorDepartamento(equipos, (e) => e.departamento).map((g) => g.departamento), [equipos]);
   const ids = useMemo(() => new Set(equipos.map((e) => e.id)), [equipos]);
   const posiciones = useMemo(
     () =>
@@ -265,10 +268,12 @@ export default function EnVivo() {
     () =>
       equipos.filter((e) => {
         if (filtro !== 'todas' && grupoDe(claveEstado(e)) !== filtro) return false;
+        if (departamento && (e.departamento ?? SIN_DEPARTAMENTO) !== departamento) return false;
         return !texto || `${e.nombre} ${e.identificadorUnico}`.toLowerCase().includes(texto);
       }),
-    [equipos, filtro, texto],
+    [equipos, filtro, departamento, texto],
   );
+  const porDepartamento = useMemo(() => agruparPorDepartamento(listado, (e) => e.departamento), [listado]);
 
   const error = flota.error ?? vivas.error;
 
@@ -300,56 +305,83 @@ export default function EnVivo() {
           ))}
         </div>
 
-        <label className="flex h-10 items-center gap-2 rounded-[12px] border border-borde bg-superficie px-3.5 focus-within:border-marca">
-          <Search className="size-4 text-texto-3" />
-          <input
-            type="search"
-            value={busqueda}
-            onChange={(e) => setBusqueda(e.target.value)}
-            placeholder="Buscar persona…"
-            aria-label="Buscar persona"
-            className="h-full min-w-0 flex-1 bg-transparent text-[13px] outline-none placeholder:text-texto-3"
-          />
-        </label>
+        <div className="flex items-center gap-2">
+          <label className="flex h-10 min-w-0 flex-1 items-center gap-2 rounded-[12px] border border-borde bg-superficie px-3.5 focus-within:border-marca">
+            <Search className="size-4 text-texto-3" />
+            <input
+              type="search"
+              value={busqueda}
+              onChange={(e) => setBusqueda(e.target.value)}
+              placeholder="Buscar persona…"
+              aria-label="Buscar persona"
+              className="h-full min-w-0 flex-1 bg-transparent text-[13px] outline-none placeholder:text-texto-3"
+            />
+          </label>
+          {departamentos.length > 1 && (
+            <div className="w-44 flex-none">
+              <Selector aria-label="Departamento" value={departamento} onChange={(e) => setDepartamento(e.target.value)}>
+                <option value="">Todos los dptos.</option>
+                {departamentos.map((d) => (
+                  <option key={d} value={d}>
+                    {d}
+                  </option>
+                ))}
+              </Selector>
+            </div>
+          )}
+        </div>
 
         {error && <ErrorCarga mensaje={mensajeError(error)} alReintentar={() => void refrescarFlota()} />}
 
         <ul className="-mr-1 flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto pr-1 pb-1">
           {flota.isPending && <Cargando />}
-          {listado.map((equipo) => {
-            const posicion = posiciones.get(equipo.id);
-            const activa = seleccion?.id === equipo.id;
-            return (
-              <li key={equipo.id}>
-                <button
-                  type="button"
-                  onClick={() => seleccionar(equipo.id)}
-                  aria-pressed={activa}
-                  className={cn(
-                    'flex w-full cursor-pointer items-center gap-3 rounded-[14px] border bg-superficie px-3.5 py-3 text-left transition-[border-color,box-shadow]',
-                    activa ? 'border-marca shadow-[0_0_0_3px_var(--color-marca-suave)]' : 'border-borde hover:border-borde-fuerte',
-                  )}
-                >
-                  <Avatar nombre={equipo.nombre} estado={claveEstado(equipo)} />
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[13.5px] font-semibold text-marino-900">{equipo.nombre}</span>
-                    <span className="block truncate text-[12px] text-texto-3">
-                      {posicion ? hace(posicion.registradoEn) : 'Sin posición'}
-                      {' · '}
-                      {equipo.jornadaActiva ? 'en jornada' : 'jornada cerrada'}
-                    </span>
+          {porDepartamento.map((grupo) => (
+            <Fragment key={grupo.departamento}>
+              {porDepartamento.length > 1 && (
+                <li className="sticky top-0 z-[1] -mx-1 flex items-center gap-2 bg-fondo px-1 pt-1 pb-0.5" aria-label={grupo.departamento}>
+                  <span className="truncate text-[11px] font-semibold tracking-[0.05em] text-texto-3 uppercase">{grupo.departamento}</span>
+                  <span className="text-[11px] text-texto-3 cifras">
+                    {grupo.elementos.length} · {grupo.elementos.filter((e) => e.jornadaActiva).length} en jornada
                   </span>
-                  <span className="flex flex-none flex-col items-end gap-1">
-                    <ChipEstado equipo={equipo} />
-                    <span className="flex items-center gap-1 text-[11.5px] text-texto-2 cifras">
-                      <IconoBateria pct={equipo.bateriaPct} cargando={equipo.cargando} />
-                      {bateria(equipo.bateriaPct)}
-                    </span>
-                  </span>
-                </button>
-              </li>
-            );
-          })}
+                  <span className="h-px flex-1 bg-borde" />
+                </li>
+              )}
+              {grupo.elementos.map((equipo) => {
+                const posicion = posiciones.get(equipo.id);
+                const activa = seleccion?.id === equipo.id;
+                return (
+                  <li key={equipo.id}>
+                    <button
+                      type="button"
+                      onClick={() => seleccionar(equipo.id)}
+                      aria-pressed={activa}
+                      className={cn(
+                        'flex w-full cursor-pointer items-center gap-3 rounded-[14px] border bg-superficie px-3.5 py-3 text-left transition-[border-color,box-shadow]',
+                        activa ? 'border-marca shadow-[0_0_0_3px_var(--color-marca-suave)]' : 'border-borde hover:border-borde-fuerte',
+                      )}
+                    >
+                      <Avatar nombre={equipo.nombre} estado={claveEstado(equipo)} />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-[13.5px] font-semibold text-marino-900">{equipo.nombre}</span>
+                        <span className="block truncate text-[12px] text-texto-3">
+                          {posicion ? hace(posicion.registradoEn) : 'Sin posición'}
+                          {' · '}
+                          {equipo.jornadaActiva ? 'en jornada' : 'jornada cerrada'}
+                        </span>
+                      </span>
+                      <span className="flex flex-none flex-col items-end gap-1">
+                        <ChipEstado equipo={equipo} />
+                        <span className="flex items-center gap-1 text-[11.5px] text-texto-2 cifras">
+                          <IconoBateria pct={equipo.bateriaPct} cargando={equipo.cargando} />
+                          {bateria(equipo.bateriaPct)}
+                        </span>
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </Fragment>
+          ))}
           {!flota.isPending && listado.length === 0 && (
             <Vacio titulo="Sin coincidencias">Ninguna persona coincide con el filtro o la búsqueda.</Vacio>
           )}
@@ -381,7 +413,7 @@ export default function EnVivo() {
 }
 
 // Ficha flotante de la persona elegida: estado actual y los hitos de hoy
-// (inicio de jornada, salida, llegada, cortes, cierre) desde la bitácora.
+// (inicio de jornada y tiempo).
 function FichaPersona({
   equipo,
   posicion,
@@ -417,24 +449,7 @@ function FichaPersona({
     staleTime: 60_000,
     retry: 0,
   });
-  const replay = useQuery({ queryKey: ['replay', id, hoy, hoy], queryFn: () => traerReplay(id, desde, hasta), ...opciones });
-  const paradas = useQuery({ queryKey: ['paradas', id, hoy, hoy], queryFn: () => traerParadas(id, desde, hasta), ...opciones });
-  const muestras = useQuery({ queryKey: ['bateria', id, hoy], queryFn: () => traerBateriaEquipo(id, desde, hasta), ...opciones });
-
-  const resumen = useMemo(
-    () =>
-      resumenBitacora(
-        construirBitacora({
-          jornadas: jornadas.data?.jornadas,
-          posiciones: replay.data?.posiciones,
-          huecos: replay.data?.huecos,
-          paradas: paradas.data?.datos,
-          muestrasBateria: muestras.data?.muestras,
-        }),
-      ),
-    [jornadas.data, replay.data, paradas.data, muestras.data],
-  );
-  const cargando = jornadas.isPending || replay.isPending || paradas.isPending;
+  const cargando = jornadas.isPending;
 
   // Jornada del día: la abierta (aunque haya empezado antes) o la última que
   // empezó hoy. El tiempo corre mientras está abierta y se congela al cerrar.
@@ -446,23 +461,20 @@ function FichaPersona({
   const inicioMs = jornada ? new Date(jornada.inicioEn).getTime() : null;
   const finMs = jornada?.finEn ? new Date(jornada.finEn).getTime() : ahora;
   const tiempoJornada = inicioMs != null && finMs > inicioMs ? reloj((finMs - inicioMs) / 1000) : GUION;
-  // Primera salida tras iniciar la jornada (deja su primera parada).
-  const salida = (replay.data?.posiciones ?? []).length
-    ? resumen.primeraSalida && inicioMs != null && new Date(resumen.primeraSalida.instante).getTime() >= inicioMs - 60_000
-      ? resumen.primeraSalida
-      : null
-    : null;
   const diaInicio = jornada ? fechaLocalDe(jornada.inicioEn) : null;
 
-  const hitos: { etiqueta: string; valor: string; detalle?: string; vivo?: boolean }[] = [
+  const hitos: { etiqueta: string; valor: string; detalle?: string; vivo?: boolean; titulo?: string }[] = [
     {
       etiqueta: 'Inició jornada',
       valor: jornada ? hora(jornada.inicioEn) : GUION,
       detalle: diaInicio && diaInicio !== hoy ? `el ${diaInicio.slice(8, 10)}/${diaInicio.slice(5, 7)}` : undefined,
     },
-    { etiqueta: 'Primera salida', valor: salida ? hora(salida.instante) : GUION },
-    { etiqueta: 'Tiempo de jornada', valor: tiempoJornada, vivo: Boolean(jornada && !jornada.finEn) },
-    { etiqueta: 'Finalizó', valor: jornada?.finEn ? hora(jornada.finEn) : jornada ? 'En curso' : GUION },
+    {
+      etiqueta: jornada?.finEn ? 'Jornada' : 'Tiempo de jornada',
+      valor: tiempoJornada,
+      detalle: jornada?.finEn ? `finalizó ${hora(jornada.finEn)}` : undefined,
+      vivo: Boolean(jornada && !jornada.finEn),
+    },
   ];
 
   // Actividad en curso: la última del cronograma de hoy cuya hora ya pasó.
@@ -487,6 +499,7 @@ function FichaPersona({
           <div className="min-w-0">
             <p className="truncate font-display text-[16px] font-semibold text-marino-900">{equipo.nombre}</p>
             <p className="truncate text-[12px] text-texto-3">
+              {equipo.departamento ? `${equipo.departamento} · ` : ''}
               {posicion ? `Reportó ${hace(posicion.registradoEn)} · ${velocidad(posicion.velocidadKmh)}` : 'Sin posición conocida'}
             </p>
           </div>
@@ -513,9 +526,9 @@ function FichaPersona({
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-px overflow-hidden border-y border-borde bg-borde sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-px overflow-hidden border-y border-borde bg-borde sm:grid-cols-3">
         {hitos.map((h) => (
-          <div key={h.etiqueta} className="bg-superficie px-5 py-2.5">
+          <div key={h.etiqueta} className="bg-superficie px-4 py-2.5" title={h.titulo}>
             <p className="flex items-center gap-1.5 text-[11.5px] text-texto-3">
               {h.vivo && <span className="size-1.5 animate-pulse rounded-full bg-movimiento motion-reduce:animate-none" />}
               {h.etiqueta}

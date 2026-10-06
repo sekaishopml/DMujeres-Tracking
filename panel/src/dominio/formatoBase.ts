@@ -54,7 +54,7 @@ export function bateria(pct?: number | null): string {
 export const ETIQUETA_ESTADO: Record<string, string> = {
   deshabilitado: 'Fuera de jornada',
   sinSenal: 'Sin señal',
-  senalDebil: 'Señal débil',
+  senalDebil: 'Sin reporte reciente',
   detenido: 'Detenido',
   enLinea: 'En línea',
 };

@@ -8,6 +8,8 @@
 // "sin señal" y se muestra la última batería conocida.
 import type { Hueco, MuestraBateria, Posicion, ReporteParada } from '@contratos';
 import type { Jornada } from './datos';
+import { resumenDia } from './dia';
+import type { LugarOficina } from './dia';
 
 export type TipoEvento =
   | 'jornadaInicio'
@@ -42,6 +44,10 @@ export interface EntradasBitacora {
   huecos?: Hueco[];
   paradas?: ReporteParada[];
   muestrasBateria?: MuestraBateria[];
+  // Con la oficina (y un solo día de datos) las paradas se cuentan como casa,
+  // oficina o visita.
+  oficina?: LugarOficina | null;
+  nombreOficina?: string;
 }
 
 // Por debajo de este nivel, un hueco que empieza se atribuye a batería agotada.
@@ -150,8 +156,12 @@ export function construirBitacora(entradas: EntradasBitacora): EventoBitacora[] 
   // fin. Una parada que sigue abierta al final de la ventana no tiene salida.
   const paradas = [...(entradas.paradas ?? [])].sort((a, b) => ms(a.inicio) - ms(b.inicio));
   const ultimaPosicion = posiciones.at(-1);
+  const dia = resumenDia({ posiciones, paradas, huecos: entradas.huecos ?? [], oficina: entradas.oficina ?? null });
+  const oficina = entradas.nombreOficina ?? 'Oficina';
   for (const [i, p] of paradas.entries()) {
     const lugar = { latitud: p.latitud, longitud: p.longitud, direccion: p.direccion };
+    const rol = dia.roles[i];
+    const visita = dia.numeroVisita[i];
     // La primera parada que arranca con la jornada no es una "llegada": es
     // donde estaba al encender.
     const esOrigen = i === 0 && posiciones.length > 0 && ms(p.inicio) - ms(posiciones[0].registradoEn) < 2 * 60_000;
@@ -160,7 +170,16 @@ export function construirBitacora(entradas: EntradasBitacora): EventoBitacora[] 
         id: `llegada-${p.id}`,
         tipo: 'llegada',
         instante: p.inicio,
-        titulo: p.direccion ? frase('Llegó a', 'Llegó cerca de', p.direccion) : 'Llegó y se detuvo',
+        titulo:
+          rol === 'oficina'
+            ? `Llegó a ${oficina.toLowerCase() === 'oficina' ? 'la oficina' : oficina}`
+            : rol === 'regreso'
+              ? 'Volvió a casa'
+              : p.direccion
+                ? frase(visita != null ? `Visita ${visita}: llegó a` : 'Llegó a', 'Llegó cerca de', p.direccion)
+                : visita != null
+                  ? `Visita ${visita}: llegó y se detuvo`
+                  : 'Llegó y se detuvo',
         detalle: `Detenido ${duracionTexto(p.duracionMin * 60)}.`,
         lugar,
         duracionSegundos: p.duracionMin * 60,
@@ -172,7 +191,14 @@ export function construirBitacora(entradas: EntradasBitacora): EventoBitacora[] 
         id: `salida-${p.id}`,
         tipo: 'salida',
         instante: p.fin,
-        titulo: p.direccion ? frase('Salió de', 'Salió de la zona de', p.direccion) : 'Salió',
+        titulo:
+          rol === 'casa'
+            ? 'Salió de casa'
+            : rol === 'oficina'
+              ? `Salió de ${oficina.toLowerCase() === 'oficina' ? 'la oficina' : oficina}`
+              : p.direccion
+                ? frase('Salió de', 'Salió de la zona de', p.direccion)
+                : 'Salió',
         detalle: esOrigen ? `Estuvo ${duracionTexto(p.duracionMin * 60)} en el punto de inicio.` : undefined,
         lugar,
       });

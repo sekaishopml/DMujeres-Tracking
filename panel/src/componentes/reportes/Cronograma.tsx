@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -11,6 +11,7 @@ import { claseBoton } from '@/componentes/ui/Boton';
 import { CLAVE_FLOTA, equiposHabilitados, traerDireccion, traerFlota } from '@/dominio/datos';
 import { mensajeError } from '@/dominio/errores';
 import { hora } from '@/dominio/formatoBase';
+import { agruparPorDepartamento, ordenarPorDepartamento } from '@/dominio/departamentos';
 import { diaDe, fechaHoyLocal, sumarDias } from '@/dominio/rango';
 import {
   TIPOS,
@@ -48,9 +49,9 @@ export default function Cronograma({ pestanas }: { pestanas?: ReactNode }) {
   const [persona, setPersona] = useState('');
 
   const flota = useQuery({ queryKey: CLAVE_FLOTA, queryFn: () => traerFlota() });
-  // Personas en orden alfabético; sin elección, se muestra la primera.
+  // Personas por departamento y nombre; sin elección, se muestra la primera.
   const equipos = useMemo(
-    () => equiposHabilitados(flota.data?.datos ?? []).sort((a, b) => a.nombre.localeCompare(b.nombre, 'es')),
+    () => ordenarPorDepartamento(equiposHabilitados(flota.data?.datos ?? []), (e) => e.departamento),
     [flota.data],
   );
   const elegida = persona || equipos[0]?.idPublico || '';
@@ -102,7 +103,7 @@ export default function Cronograma({ pestanas }: { pestanas?: ReactNode }) {
         <div className="flex flex-wrap items-center gap-2 px-3 py-2.5">
           {pestanas}
           <SelectorPersona
-            personas={equipos.map((e) => ({ id: e.idPublico, nombre: e.nombre, nuevas: nuevasPor.get(e.idPublico) ?? 0 }))}
+            personas={equipos.map((e) => ({ id: e.idPublico, nombre: e.nombre, departamento: e.departamento, nuevas: nuevasPor.get(e.idPublico) ?? 0 }))}
             valor={elegida}
             alCambiar={setPersona}
           />
@@ -170,7 +171,7 @@ function SelectorPersona({
   valor,
   alCambiar,
 }: {
-  personas: { id: string; nombre: string; nuevas: number }[];
+  personas: { id: string; nombre: string; departamento: string | null; nuevas: number }[];
   valor: string;
   alCambiar: (id: string) => void;
 }) {
@@ -178,6 +179,8 @@ function SelectorPersona({
   const caja = useRef<HTMLDivElement>(null);
   const actual = personas.find((p) => p.id === valor);
   const otrasConAviso = personas.filter((p) => p.id !== valor && p.nuevas > 0).length;
+  const grupos = useMemo(() => agruparPorDepartamento(personas, (p) => p.departamento), [personas]);
+  const conGrupos = grupos.length > 1;
 
   useEffect(() => {
     if (!abierto) return;
@@ -217,35 +220,44 @@ function SelectorPersona({
           aria-label="Persona"
           className="absolute right-0 z-50 mt-1 max-h-80 w-60 overflow-auto rounded-control border border-borde bg-superficie py-1 shadow-[0_12px_32px_rgb(11_37_69/0.16)]"
         >
-          {personas.map((p) => {
-            const elegida = p.id === valor;
-            return (
-              <li key={p.id} role="option" aria-selected={elegida}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    alCambiar(p.id);
-                    setAbierto(false);
-                  }}
-                  className={cn(
-                    'flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-[13px] hover:bg-fondo',
-                    elegida ? 'font-semibold text-marino-900' : 'text-texto',
-                  )}
-                >
-                  <Check className={cn('size-3.5 flex-none', elegida ? 'text-marca' : 'invisible')} />
-                  <span className="min-w-0 flex-1 truncate">{p.nombre}</span>
-                  {p.nuevas > 0 && (
-                    <span
-                      className="grid h-5 min-w-5 flex-none place-items-center rounded-full bg-marca px-1.5 text-[11px] leading-none font-bold text-white cifras"
-                      title={`${p.nuevas} actividades nuevas`}
+          {grupos.map((grupo) => (
+            <Fragment key={grupo.departamento}>
+              {conGrupos && (
+                <li role="presentation" className="px-3 pt-2 pb-1 text-[11px] font-semibold tracking-wide text-texto-3 uppercase">
+                  {grupo.departamento}
+                </li>
+              )}
+              {grupo.elementos.map((p) => {
+                const elegida = p.id === valor;
+                return (
+                  <li key={p.id} role="option" aria-selected={elegida}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        alCambiar(p.id);
+                        setAbierto(false);
+                      }}
+                      className={cn(
+                        'flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-[13px] hover:bg-fondo',
+                        elegida ? 'font-semibold text-marino-900' : 'text-texto',
+                      )}
                     >
-                      {p.nuevas > 99 ? '99+' : p.nuevas}
-                    </span>
-                  )}
-                </button>
-              </li>
-            );
-          })}
+                      <Check className={cn('size-3.5 flex-none', elegida ? 'text-marca' : 'invisible')} />
+                      <span className="min-w-0 flex-1 truncate">{p.nombre}</span>
+                      {p.nuevas > 0 && (
+                        <span
+                          className="grid h-5 min-w-5 flex-none place-items-center rounded-full bg-marca px-1.5 text-[11px] leading-none font-bold text-white cifras"
+                          title={`${p.nuevas} actividades nuevas`}
+                        >
+                          {p.nuevas > 99 ? '99+' : p.nuevas}
+                        </span>
+                      )}
+                    </button>
+                  </li>
+                );
+              })}
+            </Fragment>
+          ))}
         </ul>
       )}
     </div>

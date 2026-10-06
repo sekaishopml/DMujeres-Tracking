@@ -6,10 +6,12 @@ import { api, consulta } from '@/lib/api';
 import { Tarjeta, CabeceraTarjeta } from '@/componentes/ui/Tarjeta';
 import { Segmentado } from '@/componentes/ui/Segmentado';
 import { Entrada, Selector } from '@/componentes/ui/Campo';
+import { OpcionesPersonas } from '@/componentes/ui/OpcionesPersonas';
 import { Tabla, Th, Td, Fila } from '@/componentes/ui/Tabla';
 import { Cargando, ErrorCarga, Vacio } from '@/componentes/ui/Estados';
 import { CACHE_AUDITORIA_MS, CLAVE_FLOTA, equiposHabilitados, traerFlota } from '@/dominio/datos';
 import { GUION, duracion, fechaHora, kilometros, velocidad } from '@/dominio/formatoBase';
+import { ordenarPorDepartamento } from '@/dominio/departamentos';
 import { mensajeError } from '@/dominio/errores';
 import { fechaHaceDias, fechaHoyLocal, finDeDia, inicioDeDia } from '@/dominio/rango';
 import GraficoDistancia from '@/componentes/reportes/GraficoDistancia';
@@ -54,7 +56,7 @@ export default function Recorridos({ pestanas }: { pestanas?: ReactNode }) {
 
   // Personas en orden alfabético; sin elección, se muestra la primera.
   const personas = useMemo(
-    () => equiposHabilitados(flota.data?.datos ?? []).sort((a, b) => a.nombre.localeCompare(b.nombre, 'es')),
+    () => ordenarPorDepartamento(equiposHabilitados(flota.data?.datos ?? []), (e) => e.departamento),
     [flota.data],
   );
   const elegido = equipo || personas[0]?.idPublico || '';
@@ -131,11 +133,7 @@ export default function Recorridos({ pestanas }: { pestanas?: ReactNode }) {
             reiniciarPaginas();
           }}
         >
-          {personas.map((p) => (
-            <option key={p.idPublico} value={p.idPublico}>
-              {p.nombre}
-            </option>
-          ))}
+          <OpcionesPersonas equipos={personas} />
         </Selector>
         <Segmentado opciones={PERIODOS} valor={periodo} alCambiar={cambiarPeriodo} />
         <Entrada

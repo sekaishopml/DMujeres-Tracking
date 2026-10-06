@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { Fragment, useMemo, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -8,6 +8,7 @@ import { consulta } from '@/lib/api';
 import { cn } from '@/lib/cn';
 import { Avatar } from '@/componentes/ui/Avatar';
 import { Selector } from '@/componentes/ui/Campo';
+import { OpcionesPersonas } from '@/componentes/ui/OpcionesPersonas';
 import { Segmentado } from '@/componentes/ui/Segmentado';
 import { Tarjeta } from '@/componentes/ui/Tarjeta';
 import { claseBoton } from '@/componentes/ui/Boton';
@@ -15,6 +16,7 @@ import { ErrorCarga, Esqueleto, Vacio } from '@/componentes/ui/Estados';
 import { AccionesPagina } from '@/componentes/marco/Marco';
 import { GUION } from '@/dominio/formatoBase';
 import { traerFlota, traerJornadasFlota, CACHE_AUDITORIA_MS, CLAVE_FLOTA, equiposHabilitados } from '@/dominio/datos';
+import { agruparPorDepartamento, ordenarPorDepartamento } from '@/dominio/departamentos';
 import { mensajeError } from '@/dominio/errores';
 import { etiquetaMes, lunesDe, primeroDeMes, sumarMeses, ultimoDeMes } from '@/dominio/cronograma';
 import { fechaHoyLocal, finDeDia, inicioDeDia, sumarDias } from '@/dominio/rango';
@@ -118,7 +120,7 @@ export default function Historial() {
 
   const flota = useQuery({ queryKey: CLAVE_FLOTA, queryFn: () => traerFlota(), staleTime: 60_000 });
   const personas = useMemo(
-    () => equiposHabilitados(flota.data?.datos ?? []).sort((a, b) => a.nombre.localeCompare(b.nombre, 'es')),
+    () => ordenarPorDepartamento(equiposHabilitados(flota.data?.datos ?? []), (e) => e.departamento),
     [flota.data],
   );
   const jornadas = useQuery({
@@ -133,6 +135,7 @@ export default function Historial() {
     [jornadas.data, jornadas.dataUpdatedAt],
   );
   const filas = personas.filter((p) => persona === '' || p.idPublico === persona);
+  const grupos = useMemo(() => agruparPorDepartamento(filas, (p) => p.departamento), [filas]);
 
   const mover = (paso: number) => setAncla(vista === 'semana' ? sumarDias(ancla, paso * 7) : sumarMeses(ancla, paso));
 
@@ -141,11 +144,7 @@ export default function Historial() {
       <AccionesPagina>
         <Selector aria-label="Persona" className="w-44" value={persona} onChange={(e) => setPersona(e.target.value)}>
           <option value="">Todo el equipo</option>
-          {personas.map((p) => (
-            <option key={p.idPublico} value={p.idPublico}>
-              {p.nombre}
-            </option>
-          ))}
+          <OpcionesPersonas equipos={personas} />
         </Selector>
         <Segmentado opciones={VISTAS} valor={vista} alCambiar={setVista} />
         <div className="flex items-center gap-1">
@@ -213,44 +212,86 @@ export default function Historial() {
                 </tr>
               </thead>
               <tbody>
-                {filas.map((p, fila) => {
-                  const porDia = celdas.get(p.idPublico);
-                  const delPeriodo = dias.map((d) => porDia?.get(d)).filter((c): c is Celda => Boolean(c));
-                  const minutos = delPeriodo.reduce((suma, c) => suma + c.minutos, 0);
-                  const entradas = delPeriodo
-                    .filter((c) => c.entrada)
-                    .map((c) => {
-                      const [h, m] = HORA.format(new Date(c.entrada!)).split(':').map(Number);
-                      return h * 60 + m;
-                    });
-                  const media = entradas.length > 0 ? Math.round(entradas.reduce((a, b) => a + b, 0) / entradas.length) : null;
-                  return (
-                    <tr key={p.idPublico} className="inicio-fila border-b border-borde/70 last:border-b-0" style={{ '--orden': Math.min(fila, 12) } as CSSProperties}>
-                      <td className="sticky left-0 z-[1] bg-superficie px-4 py-2">
-                        <span className="flex items-center gap-2.5">
-                          <Avatar nombre={p.nombre} tamano="sm" />
-                          <span className="truncate font-semibold text-marino-900">{p.nombre}</span>
-                        </span>
-                      </td>
-                      {dias.map((dia) => (
-                        <td key={dia} className={cn('px-0.5 py-1.5 text-center', indiceSemana(dia) >= 5 && 'bg-marino-50/50')}>
-                          <CeldaDia celda={porDia?.get(dia) ?? null} dia={dia} hoy={hoy} persona={p} compacta={vista === 'mes'} />
-                        </td>
-                      ))}
-                      <td className="px-3 py-2 text-right font-semibold text-marino-900 cifras">{delPeriodo.length}</td>
-                      <td className="px-3 py-2 text-right text-marino-900 cifras">{minutos > 0 ? horasTexto(minutos) : GUION}</td>
-                      <td className="px-3 py-2 text-right text-texto-2 cifras">
-                        {media == null ? GUION : `${String(Math.floor(media / 60)).padStart(2, '0')}:${String(media % 60).padStart(2, '0')}`}
-                      </td>
-                    </tr>
-                  );
-                })}
+                {grupos.map((grupo) => (
+                  <Fragment key={grupo.departamento}>
+                    {grupos.length > 1 && (
+                      <tr className="border-b border-borde/70 bg-marino-50/60">
+                        <th
+                          colSpan={dias.length + 4}
+                          scope="colgroup"
+                          className="px-4 py-1.5 text-left text-[10.5px] font-semibold tracking-[0.05em] text-texto-3 uppercase"
+                        >
+                          <span className="sticky left-4">
+                            {grupo.departamento} · {grupo.elementos.length}
+                          </span>
+                        </th>
+                      </tr>
+                    )}
+                    {grupo.elementos.map((p) => (
+                      <FilaAsistencia
+                        key={p.idPublico}
+                        persona={p}
+                        orden={filas.indexOf(p)}
+                        dias={dias}
+                        porDia={celdas.get(p.idPublico)}
+                        hoy={hoy}
+                        compacta={vista === 'mes'}
+                      />
+                    ))}
+                  </Fragment>
+                ))}
               </tbody>
             </table>
           </div>
         )}
       </Tarjeta>
     </div>
+  );
+}
+
+function FilaAsistencia({
+  persona,
+  orden,
+  dias,
+  porDia,
+  hoy,
+  compacta,
+}: {
+  persona: { idPublico: string; nombre: string };
+  orden: number;
+  dias: string[];
+  porDia: Map<string, Celda> | undefined;
+  hoy: string;
+  compacta: boolean;
+}) {
+  const delPeriodo = dias.map((d) => porDia?.get(d)).filter((c): c is Celda => Boolean(c));
+  const minutos = delPeriodo.reduce((suma, c) => suma + c.minutos, 0);
+  const entradas = delPeriodo
+    .filter((c) => c.entrada)
+    .map((c) => {
+      const [h, m] = HORA.format(new Date(c.entrada!)).split(':').map(Number);
+      return h * 60 + m;
+    });
+  const media = entradas.length > 0 ? Math.round(entradas.reduce((a, b) => a + b, 0) / entradas.length) : null;
+  return (
+    <tr className="inicio-fila border-b border-borde/70 last:border-b-0" style={{ '--orden': Math.min(orden, 12) } as CSSProperties}>
+      <td className="sticky left-0 z-[1] bg-superficie px-4 py-2">
+        <span className="flex items-center gap-2.5">
+          <Avatar nombre={persona.nombre} tamano="sm" />
+          <span className="truncate font-semibold text-marino-900">{persona.nombre}</span>
+        </span>
+      </td>
+      {dias.map((dia) => (
+        <td key={dia} className={cn('px-0.5 py-1.5 text-center', indiceSemana(dia) >= 5 && 'bg-marino-50/50')}>
+          <CeldaDia celda={porDia?.get(dia) ?? null} dia={dia} hoy={hoy} persona={persona} compacta={compacta} />
+        </td>
+      ))}
+      <td className="px-3 py-2 text-right font-semibold text-marino-900 cifras">{delPeriodo.length}</td>
+      <td className="px-3 py-2 text-right text-marino-900 cifras">{minutos > 0 ? horasTexto(minutos) : GUION}</td>
+      <td className="px-3 py-2 text-right text-texto-2 cifras">
+        {media == null ? GUION : `${String(Math.floor(media / 60)).padStart(2, '0')}:${String(media % 60).padStart(2, '0')}`}
+      </td>
+    </tr>
   );
 }
 

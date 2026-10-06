@@ -3,6 +3,8 @@ import { useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { LngLatBounds, Marker } from 'maplibre-gl';
 import type { GeoJSONSource, Map as TipoMapa } from 'maplibre-gl';
+import { GUION } from '@/dominio/formatoBase';
+import type { Cobertura } from '@/dominio/dia';
 import Icono from '@/componentes/replay/Icono';
 import MapaRaster, { CAPAS_REPLAY, CAPA_INICIAL_REPLAY } from '@/componentes/mapa/MapaBase';
 import ReproductorReplay, {
@@ -20,6 +22,9 @@ import {
 } from '@/componentes/replay/trazo';
 import { depurarRecorrido } from '@/dominio/depuracion';
 import { traerFlota, traerJornadas, traerParadas, traerReplay, CACHE_AUDITORIA_MS, CLAVE_FLOTA, equiposHabilitados } from '@/dominio/datos';
+import { ordenarPorDepartamento } from '@/dominio/departamentos';
+import { coberturaDe, resumenDia } from '@/dominio/dia';
+import { useOficina } from '@/dominio/oficina';
 import { esNoEncontrado, mensajeError } from '@/dominio/errores';
 import {
   aColeccion,
@@ -44,11 +49,13 @@ import type { Hueco, ReplayCalidad } from '@contratos';
 // resto queda punteado como "sin observación". Aquí se dice en una línea.
 function IntegridadRecorrido({
   totalFixes,
+  simuladas,
   huecos,
   reconstruidos,
   calidad,
 }: {
   totalFixes: number;
+  simuladas: number;
   huecos: Hueco[];
   reconstruidos: TramoReconstruido[];
   calidad?: ReplayCalidad;
@@ -73,6 +80,12 @@ function IntegridadRecorrido({
           {calidad?.descartadasFueraDeZona ? ` (${calidad.descartadasFueraDeZona} fuera de zona)` : ''}.
         </p>
       )}
+      {simuladas > 0 && (
+        <p className="replay-alerta">
+          {simuladas} {simuladas === 1 ? 'punto fue marcado' : 'puntos fueron marcados'} por el teléfono como ubicación
+          simulada (GPS falso).
+        </p>
+      )}
       {calidad?.posibleOrigenMultiple && (
         <p className="replay-alerta">
           La posición alterna entre sitios a varios kilómetros: probablemente hay otra sesión abierta con esta cuenta
@@ -90,6 +103,54 @@ function formatoMinutos(minutos: number): string {
   return resto === 0 ? `${horas} h` : `${horas} h ${resto} min`;
 }
 
+// Botón de información sobre el mapa (abajo a la derecha): abre la lectura de
+// auditoría del recorrido y la cobertura de señal.
+function InfoRecorrido({
+  totalFixes,
+  simuladas,
+  huecos,
+  reconstruidos,
+  calidad,
+  cobertura,
+}: {
+  totalFixes: number;
+  simuladas: number;
+  huecos: Hueco[];
+  reconstruidos: TramoReconstruido[];
+  calidad?: ReplayCalidad;
+  cobertura: Cobertura;
+}) {
+  const [abierta, setAbierta] = useState(false);
+  return (
+    <div className="replay-info maplibregl-ctrl-bottom-right">
+      {abierta && (
+        <section className="replay-info-panel" aria-label="Información del recorrido">
+          <h3>Información del recorrido</h3>
+          <p className="replay-info-cobertura">
+            <span>Cobertura</span>
+            <strong>{cobertura.porcentaje == null ? GUION : `${Math.round(cobertura.porcentaje)} %`}</strong>
+          </p>
+          <IntegridadRecorrido totalFixes={totalFixes} simuladas={simuladas} huecos={huecos} reconstruidos={reconstruidos} calidad={calidad} />
+        </section>
+      )}
+      {/* Mismo control y mismo aspecto que el botón de atribución del mapa,
+          que aquí se oculta: ocupa su lugar. */}
+      <details className="maplibregl-ctrl maplibregl-ctrl-attrib maplibregl-compact info-recorrido">
+        <summary
+          className="maplibregl-ctrl-attrib-button"
+          onClick={(evento) => {
+            evento.preventDefault();
+            setAbierta((v) => !v);
+          }}
+          title="Información del recorrido"
+          aria-label="Información del recorrido"
+          aria-expanded={abierta}
+        />
+      </details>
+    </div>
+  );
+}
+
 // Nombre de archivo sin caracteres problemáticos (mismo criterio que
 // Historial).
 function nombreArchivo(id: string): string {
@@ -105,10 +166,10 @@ const PIXEL_RATIO_FLECHA = 2;
 const NUCLEO_FLECHA = '#ffffff';
 // Trazado: una sola línea azul marino con borde blanco, que se lee igual sobre
 // calles y satélite. Lo estimado va punteado en el mismo azul y la falta de señal en
-// gris punteado: nunca se confunden con GPS registrado.
+// ámbar con guiones: nunca se confunden con GPS registrado.
 const COLOR_RUTA = '#17365d';
 const COLOR_BORDE = '#ffffff';
-const COLOR_SIN_SENAL = '#8a94a3';
+const COLOR_SIN_SENAL = '#c46a00';
 const ID_FLECHA = 'dir-ruta';
 const MIN_PARADA_MS = 3 * 60_000;
 const REFRESCO_VIVO_MS = 15_000;
@@ -300,7 +361,10 @@ export default function Replay() {
 
   const flota = useQuery({ queryKey: CLAVE_FLOTA, queryFn: () => traerFlota() });
   // Solo los equipos habilitados aparecen en el selector y en las consultas.
-  const equipos = useMemo(() => equiposHabilitados(flota.data?.datos ?? []), [flota.data]);
+  const equipos = useMemo(
+    () => ordenarPorDepartamento(equiposHabilitados(flota.data?.datos ?? []), (e) => e.departamento),
+    [flota.data],
+  );
   // La selección es válida solo si apunta a un equipo de la flota habilitada.
   // Una URL o un estado previo hacia un equipo deshabilitado se resuelve a la
   // primera unidad disponible sin disparar consultas del equipo dado de baja.
@@ -427,6 +491,14 @@ export default function Replay() {
     return [...ubicadas, ...nuevas].sort((a, b) => milisegundos(a.inicio) - milisegundos(b.inicio));
   }, [paradasServidor, paradasLocales, estancias]);
   const paradasLocalesEnUso = paradasServidor == null && paradasConsulta.isError;
+  // El día contado como lo vive la persona: de dónde sale, cuándo llega a la
+  // oficina, qué visita y cuánto se vio. Solo con un día; en un rango largo las
+  // estancias de cada noche se mezclarían.
+  const oficina = useOficina();
+  const resumen = useMemo(
+    () => (desde === hasta ? resumenDia({ posiciones, paradas, huecos, oficina: oficina.lugar }) : null),
+    [desde, hasta, posiciones, paradas, huecos, oficina.lugar],
+  );
   // Detenciones de 40 s a 3 min (semáforo largo, entrega rápida) que no
   // llegan a parada: se marcan aparte.
   const microparadas = useMemo(() => microparadasDeRecorrido(posiciones, paradas), [posiciones, paradas]);
@@ -489,7 +561,7 @@ export default function Replay() {
     // arranca vacío y las guardas por id evitan fuentes, capas e imágenes
     // duplicadas.
     if (!mapa.getSource('replay-recorrido')) {
-      mapa.addSource('replay-recorrido', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+      mapa.addSource('replay-recorrido', { type: 'geojson', tolerance: 0, data: { type: 'FeatureCollection', features: [] } });
     }
     if (!mapa.getSource('replay-flechas')) {
       mapa.addSource('replay-flechas', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
@@ -594,16 +666,36 @@ export default function Replay() {
         },
       });
     }
+    // Con `tolerance: 0` el mapa no descarta los tramos cortos al alejar el zoom:
+    // con poco zoom cada par de puntos mide menos de un píxel y desaparecía.
+    // Corte de señal: lo que no se vio. Una raya ámbar con borde blanco y
+    // guiones largos se distingue del GPS registrado (línea sólida azul) y de
+    // lo estimado por calles (punteado del color de la hora).
+    if (!mapa.getLayer('replay-hueco-borde')) {
+      mapa.addLayer({
+        id: 'replay-hueco-borde',
+        type: 'line',
+        source: 'replay-recorrido',
+        filter: ['==', ['get', 'tipo'], 'hueco'],
+        layout: { 'line-cap': 'butt' },
+        paint: {
+          'line-color': COLOR_BORDE,
+          'line-width': ['interpolate', ['linear'], ['zoom'], 10, 4.5, 16, 7],
+          'line-opacity': 0.85,
+        },
+      });
+    }
     if (!mapa.getLayer('replay-hueco')) {
       mapa.addLayer({
         id: 'replay-hueco',
         type: 'line',
         source: 'replay-recorrido',
         filter: ['==', ['get', 'tipo'], 'hueco'],
+        layout: { 'line-cap': 'butt' },
         paint: {
           'line-color': COLOR_SIN_SENAL,
-          'line-width': ['interpolate', ['linear'], ['zoom'], 10, 1.5, 16, 2.5],
-          'line-dasharray': [0.6, 2],
+          'line-width': ['interpolate', ['linear'], ['zoom'], 10, 2.5, 16, 4],
+          'line-dasharray': [1.6, 1.4],
         },
       });
     }
@@ -689,6 +781,51 @@ export default function Replay() {
     if (!mapa) return;
     mapa.getSource<GeoJSONSource>('replay-flechas')?.setData(direccion);
   }, [mapa, direccion]);
+
+  // Recorrido guiado: una capa de degradado por cada línea con hora, encima de
+  // la ruta atenuada (ver guia.ts). ReproductorReplay mueve el corte del
+  // degradado al ritmo del marcador. Se rehacen cuando cambian las líneas.
+  const [versionGuia, setVersionGuia] = useState(0);
+  useEffect(() => {
+    if (!mapa) return;
+    if (!mapa.getSource('replay-hecho')) {
+      mapa.addSource('replay-hecho', { type: 'geojson', tolerance: 0, lineMetrics: true, data: { type: 'FeatureCollection', features: [] } });
+    }
+    for (const capa of mapa.getStyle().layers ?? []) {
+      if (capa.id.startsWith('replay-hecho-')) mapa.removeLayer(capa.id);
+    }
+    const desplazamiento = ['interpolate', ['linear'], ['zoom'], 13, 0, 15, 2.5, 18, 5];
+    const antes = mapa.getLayer('replay-hueco-borde') ? 'replay-hueco-borde' : undefined;
+    const sinAvance = ['interpolate', ['linear'], ['line-progress'], 0, 'rgba(0,0,0,0)', 1, 'rgba(0,0,0,0)'];
+    lineas.forEach((_, i) => {
+      for (const [tipo, ancho] of [
+        ['borde', ['interpolate', ['linear'], ['zoom'], 10, 5.5, 14, 8, 17, 11]],
+        ['linea', ['interpolate', ['linear'], ['zoom'], 10, 3, 14, 5, 17, 7.5]],
+      ] as const) {
+        mapa.addLayer(
+          {
+            id: `replay-hecho-${tipo}-${i}`,
+            type: 'line',
+            source: 'replay-hecho',
+            filter: ['==', ['id'], i],
+            layout: { 'line-cap': 'round', 'line-join': 'round' },
+            paint: { 'line-gradient': sinAvance as never, 'line-width': ancho as never, 'line-offset': desplazamiento as never },
+          },
+          antes,
+        );
+      }
+    });
+    mapa.getSource<GeoJSONSource>('replay-hecho')?.setData({
+      type: 'FeatureCollection',
+      features: lineas.map((linea, i) => ({
+        type: 'Feature' as const,
+        id: i,
+        properties: {},
+        geometry: { type: 'LineString' as const, coordinates: linea.map((v) => [v.lon, v.lat]) },
+      })),
+    });
+    setVersionGuia((v) => v + 1);
+  }, [mapa, lineas]);
 
   // Extremos del recorrido con su hora y encuadre inicial (margen 64 y zoom
   // máximo 14, para que una ruta corta no quede demasiado cerca). Solo se
@@ -801,12 +938,6 @@ export default function Replay() {
     if (!replay.data || posiciones.length === 0) return <p className="vacio">Sin recorrido en el rango seleccionado.</p>;
     return (
       <>
-        <IntegridadRecorrido
-          totalFixes={posiciones.length}
-          huecos={huecos}
-          reconstruidos={reconstruidos}
-          calidad={replay.data.calidad}
-        />
         <PanelPuntoSeleccionado />
         <ListaParadas
           paradas={paradas}
@@ -828,6 +959,9 @@ export default function Replay() {
       finRango={finDeDia(hasta)}
       paradas={paradas}
       microparadas={microparadas}
+      resumen={resumen}
+      nombreOficina={oficina.nombre}
+      versionGuia={versionGuia}
     >
       <section className="replay-pantalla">
         {/* El mapa ocupa la pantalla completa; panel y franja flotan encima
@@ -835,6 +969,16 @@ export default function Replay() {
             el set de capas sin "Mapa" (Satélite inicial) y el zoom abajo a la
             derecha, con el selector pegado al top bar. */}
         <MapaRaster clase="mapa" alListo={setMapa} capas={CAPAS_REPLAY} capaInicial={CAPA_INICIAL_REPLAY} zoomAbajoDerecha selectorPegado />
+        {hayRecorrido && replay.data && (
+          <InfoRecorrido
+            totalFixes={posiciones.length}
+            simuladas={posiciones.filter((posicion) => posicion.simulada).length}
+            huecos={huecos}
+            reconstruidos={reconstruidos}
+            calidad={replay.data.calidad}
+            cobertura={coberturaDe(posiciones, huecos)}
+          />
+        )}
         {/* Insignias de parada sobre el mapa, dentro del proveedor del
             reproductor: comparten selección con la lista y llevan el mapa a la
             parada con un vuelo suave al pulsarlas. No pintan nada en el DOM. */}

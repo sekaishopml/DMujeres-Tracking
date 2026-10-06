@@ -28,7 +28,7 @@ export function Chip({ clase, children, className }: { clase: string; children: 
 }
 
 // Estado operativo de un equipo con su etiqueta oficial (En línea, Detenido,
-// Sin señal, Señal débil, Fuera de jornada).
+// Sin señal, Sin reporte reciente, Fuera de jornada).
 export function ChipEstado({ equipo, className }: { equipo: EstadoOperativo; className?: string }) {
   return (
     <Chip clase={claveEstado(equipo)} className={className}>
