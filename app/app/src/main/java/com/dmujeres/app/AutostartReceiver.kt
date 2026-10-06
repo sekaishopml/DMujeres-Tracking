@@ -24,8 +24,15 @@ class AutostartReceiver : WakefulBroadcastReceiver() {
     @Suppress("UnsafeProtectedBroadcastReceiver")
     override fun onReceive(context: Context, intent: Intent) {
         // La alarma de rescate se rearma en boot y en reemplazo del paquete
-        // (Doze congela el Handler pero respeta setAndAllowWhileIdle).
-        runCatching { com.dmujeres.app.recovery.DozeAlarmReceiver.schedule(context) }
+        // (Doze congela el Handler pero respeta setAndAllowWhileIdle), solo si
+        // hay jornada abierta.
+        runCatching {
+            if (PreferenceManager.getDefaultSharedPreferences(context)
+                    .getBoolean(DmujeresApi.KEY_JOURNEY_OPEN, false)
+            ) {
+                com.dmujeres.app.recovery.DozeAlarmReceiver.schedule(context)
+            }
+        }
         // Encendido del teléfono (no la reinstalación de la app).
         if (intent.action == Intent.ACTION_BOOT_COMPLETED) {
             runCatching { PowerEvents.onBoot(context) }

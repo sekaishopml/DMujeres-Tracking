@@ -176,6 +176,8 @@ object DmujeresApi {
         StatusActivity.addMessage(context.getString(R.string.journey_started_toast))
         JourneyOutbox.enqueue(context, "start", journeyId, now)
         flushJourneyEvents(context)
+        // El GPS y el aviso de la barra siguen a la jornada sin esperar el pulso.
+        TrackingService.syncJourneyNow()
     }
 
     fun isJourneyOpen(context: Context): Boolean =
@@ -212,9 +214,13 @@ object DmujeresApi {
         proximaMedianoche = hoy + 24 * 3_600_000L
         if (!isJourneyOpen(context)) return
         val p = prefs(context)
-        val inicio = p.getLong(KEY_JOURNEY_STARTED_AT, 0L)
+        // Sin hora de inicio guardada, el id de la jornada (la hora en que
+        // empezó) hace de inicio: así una jornada adoptada del servidor
+        // también se parte.
+        val idGuardado = p.getLong(KEY_JOURNEY_ID, 0L)
+        val inicio = p.getLong(KEY_JOURNEY_STARTED_AT, 0L).takeIf { it > 0L } ?: idGuardado
         if (inicio <= 0L || inicio >= hoy) return
-        val anterior = p.getLong(KEY_JOURNEY_ID, inicio)
+        val anterior = if (idGuardado > 0L) idGuardado else inicio
         p.edit()
             .putLong(KEY_JOURNEY_ID, hoy)
             .putLong(KEY_JOURNEY_STARTED_AT, hoy)
@@ -235,6 +241,8 @@ object DmujeresApi {
         StatusActivity.addMessage(context.getString(R.string.journey_ended_toast))
         JourneyOutbox.enqueue(context, "stop", journeyId, System.currentTimeMillis())
         flushJourneyEvents(context)
+        // Se apaga el GPS y se sube lo que quedaba en la cola.
+        TrackingService.syncJourneyNow()
     }
 
     /** Cronograma: actividades del equipo entre dos fechas (YYYY-MM-DD). null = sin conexión/error. */
@@ -273,8 +281,7 @@ object DmujeresApi {
     fun postPowerEvent(context: Context, event: JSONObject): Boolean =
         postSync(context, "/api/mobile/v1/power", JSONObject(event.toString()).put("deviceId", deviceId(context)))
 
-    @Volatile
-    private var flushing = false
+    private val flushing = java.util.concurrent.atomic.AtomicBoolean(false)
 
     /**
      * Envía los avisos de jornada pendientes, en orden y con la hora real en
@@ -284,10 +291,11 @@ object DmujeresApi {
      * duplica por journeyId.
      */
     fun flushJourneyEvents(context: Context) {
-        if (flushing) return
         val app = context.applicationContext
         if (JourneyOutbox.peek(app) == null) return
-        flushing = true
+        // Un solo envío a la vez: dos hilos mandaban el mismo aviso y el fin
+        // repetido podía llegar después del inicio de la jornada nueva.
+        if (!flushing.compareAndSet(false, true)) return
         Thread {
             try {
                 while (true) {
@@ -314,7 +322,7 @@ object DmujeresApi {
                     )
                 }
             } finally {
-                flushing = false
+                flushing.set(false)
             }
         }.start()
     }

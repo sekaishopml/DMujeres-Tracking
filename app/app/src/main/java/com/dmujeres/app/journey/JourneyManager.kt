@@ -7,6 +7,7 @@ import org.json.JSONObject
 import com.dmujeres.app.BuildConfig
 import com.dmujeres.app.DatabaseHelper
 import com.dmujeres.app.DmujeresApi
+import com.dmujeres.app.JourneyOutbox
 import com.dmujeres.app.Prefs
 import java.net.HttpURLConnection
 import java.net.URL
@@ -111,6 +112,16 @@ class JourneyManager(context: Context) {
     private fun reconcileNow(): ReconcileOutcome {
         val remote = fetchRemote() ?: return ReconcileOutcome.FALLBACK_LOCAL
         val outcome = decide(local(), remote)
+        // La persona la cerró y el aviso todavía no llegó al servidor (sin red
+        // o la app se reinició antes): la jornada sigue cerrada. Se reenvía el
+        // aviso en vez de reabrirla.
+        if (outcome == ReconcileOutcome.ADOPTED_REMOTE &&
+            JourneyOutbox.hasPendingStop(appContext, remote.journeyId.toLongOrNull() ?: 0L)
+        ) {
+            Log.i(TAG, "jornada ${remote.journeyId} cerrada en el teléfono con aviso pendiente: no se adopta")
+            DmujeresApi.flushJourneyEvents(appContext)
+            return ReconcileOutcome.KEPT_LOCAL
+        }
         if (outcome == ReconcileOutcome.ADOPTED_REMOTE) {
             persistLocal(remote.journeyId, remote.startedAtMs, open = true)
             Log.i(TAG, "jornada adoptada del servidor: ${remote.journeyId}")
@@ -128,6 +139,22 @@ class JourneyManager(context: Context) {
          * (el servidor ya las revisa cada hora); solo se adopta la del
          * servidor si en el teléfono no hay ninguna abierta.
          */
+        /**
+         * Hora de inicio que manda el servidor: texto ISO en UTC
+         * (`2026-09-30T20:03:34.000Z`) o milisegundos. Leerla como número daba
+         * 0 y la jornada adoptada nunca se partía a medianoche.
+         */
+        fun parseStartedAt(value: Any?): Long = when (value) {
+            is Number -> value.toLong()
+            is String -> value.toLongOrNull() ?: runCatching {
+                java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.US).apply {
+                    timeZone = java.util.TimeZone.getTimeZone("UTC")
+                    isLenient = false
+                }.parse(value)?.time
+            }.getOrNull() ?: 0L
+            else -> 0L
+        }
+
         fun decide(local: LocalJourney?, remote: RemoteJourney?): ReconcileOutcome {
             if (remote == null) return ReconcileOutcome.FALLBACK_LOCAL
             if (local?.open == true) {
@@ -165,7 +192,7 @@ class JourneyManager(context: Context) {
             return RemoteJourney(
                 open = estado.equals("abierta", ignoreCase = true) || estado.equals("open", ignoreCase = true),
                 journeyId = json.optString("journeyId").ifBlank { json.optLong("journeyId", 0L).toString() },
-                startedAtMs = json.optLong("inicioEn", json.optLong("startedAt", 0L)),
+                startedAtMs = parseStartedAt(json.opt("inicioEn") ?: json.opt("startedAt")),
             )
         } catch (e: Exception) {
             Log.w(TAG, "GET journey falló", e)

@@ -35,6 +35,11 @@ object JourneyOutbox {
     @Synchronized
     fun size(context: Context): Int = read(context).size
 
+    /** ¿Hay un aviso de fin sin enviar para esta jornada? */
+    @Synchronized
+    fun hasPendingStop(context: Context, journeyId: Long): Boolean =
+        read(context).any { it.action == "stop" && it.journeyId == journeyId }
+
     private fun read(context: Context): MutableList<Event> {
         val raw = PreferenceManager.getDefaultSharedPreferences(context).getString(KEY, null) ?: return mutableListOf()
         return runCatching {

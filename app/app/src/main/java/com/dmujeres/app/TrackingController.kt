@@ -94,6 +94,22 @@ class TrackingController(private val context: Context) :
 
     private var isOnline = networkManager.isOnline
 
+    /** Con la jornada cerrada el GPS está apagado (ver [syncJourney]). */
+    private var updatesOn = false
+
+    private fun journeyOpen(): Boolean =
+        preferences.getBoolean(DmujeresApi.KEY_JOURNEY_OPEN, false)
+
+    /**
+     * Estado de la red al momento de usarlo. El valor guardado dependía de un
+     * aviso del sistema que a veces no llega y dejaba la cola sin subir, con
+     * la red disponible, hasta reiniciar la app.
+     */
+    private fun online(): Boolean {
+        isOnline = networkManager.isOnline
+        return isOnline
+    }
+
     fun start() {
         // Al arrancar, la captura queda abierta aunque un cierre anterior la
         // haya dejado congelada.
@@ -108,13 +124,15 @@ class TrackingController(private val context: Context) :
         // Rescate de Doze: la alarma se rearma en cada arranque del servicio.
         runCatching { DozeAlarmReceiver.schedule(context) }
         uploadQueue = UploadQueue(context, databaseHelper, this)
-        if (isOnline) {
-            uploadQueue?.kick(true)
-        }
-        try {
-            positionProvider.startUpdates()
-        } catch (e: SecurityException) {
-            Log.w(TAG, e)
+        uploadQueue?.kick(online())
+        // Sin jornada no se pide ubicación: la app queda en espera.
+        if (journeyOpen()) {
+            try {
+                positionProvider.startUpdates()
+                updatesOn = true
+            } catch (e: SecurityException) {
+                Log.w(TAG, e)
+            }
         }
         MotionMonitor.register(context)
         MotionMonitor.setTurnListener(this)
@@ -183,6 +201,9 @@ class TrackingController(private val context: Context) :
     private val motionTick = object : Runnable {
         override fun run() {
             val now = System.currentTimeMillis()
+            // A medianoche la jornada abierta se parte aunque no entre ningún
+            // punto (sin señal o con el teléfono quieto adentro).
+            DmujeresApi.renovarSiCambioDeDia(context, now)
             syncJourney()
             machine.onImuHint(now, MotionMonitor.isMoving())
             machine.onTick(now)
@@ -200,6 +221,13 @@ class TrackingController(private val context: Context) :
     private val watchdogTick = object : Runnable {
         override fun run() {
             val now = System.currentTimeMillis()
+            // Cada minuto la cola se reactiva sola: si un aviso de red se
+            // perdió o un envío quedó colgado, no espera al próximo punto.
+            uploadQueue?.kick(online())
+            if (!journeyOpen()) {
+                handler.postDelayed(this, WATCHDOG_PERIOD_MS)
+                return
+            }
             machine.onTick(now)
             applyCadence(requestFixOnFine = false)
             persistMovementState()
@@ -226,7 +254,7 @@ class TrackingController(private val context: Context) :
      */
     fun syncJourney() {
         runCatching {
-            val open = preferences.getBoolean(DmujeresApi.KEY_JOURNEY_OPEN, false)
+            val open = journeyOpen()
             val before = machine.state
             if (machine.syncJourney(System.currentTimeMillis(), open)) {
                 Log.i(TAG, "jornada ${if (open) "abierta" else "cerrada"}: $before -> ${machine.state}")
@@ -235,7 +263,34 @@ class TrackingController(private val context: Context) :
                 updateStationaryFence()
                 persistMovementState()
             }
+            applyJourneyPower(open)
         }.onFailure { Log.w(TAG, "no se pudo alinear la jornada", it) }
+    }
+
+    /**
+     * Con la jornada cerrada la app queda en espera: sin GPS, sin cerca de
+     * quietud, sin vigilante ni alarma de rescate. Al abrirla todo vuelve.
+     * Lo capturado antes de cerrar se termina de subir.
+     */
+    private fun applyJourneyPower(open: Boolean) {
+        if (open == updatesOn) return
+        updatesOn = open
+        if (open) {
+            runCatching { positionProvider.startUpdates() }
+                .onFailure { Log.w(TAG, "no se pudo encender la ubicación", it) }
+            watchdog.start(System.currentTimeMillis())
+            runCatching { DozeAlarmReceiver.schedule(context) }
+        } else {
+            runCatching { positionProvider.stopUpdates() }
+            if (fenceArmed) {
+                runCatching { stationaryFence.disarm() }
+                fenceArmed = false
+            }
+            runCatching { DozeAlarmReceiver.cancel(context) }
+            handler.removeCallbacks(turnReinforce)
+            uploadQueue?.kick(online())
+        }
+        runCatching { TrackingService.showJourneyState(context, open) }
     }
 
     /**
@@ -264,6 +319,7 @@ class TrackingController(private val context: Context) :
      * se arma con el primer fix que llegue.
      */
     private fun updateStationaryFence() {
+        if (!journeyOpen()) return
         if (!fineCadence && !fenceArmed && lastFixAtMs > 0) {
             stationaryFence.arm(lastFixLat, lastFixLon)
             fenceArmed = true
@@ -311,9 +367,21 @@ class TrackingController(private val context: Context) :
     fun refreshNow() {
         runCatching {
             uploadQueue?.resume()
-            uploadQueue?.kick(isOnline)
-            positionProvider.requestSingleLocation()
+            uploadQueue?.kick(online())
+            if (journeyOpen()) positionProvider.requestSingleLocation()
         }.onFailure { Log.w(TAG, "refresco manual falló", it) }
+    }
+
+    /**
+     * Sube lo que quede en la cola sin pedir ubicación. Se usa al finalizar la
+     * jornada: lo capturado en los últimos minutos tiene que llegar aunque ya
+     * no entren puntos nuevos que activen la cola.
+     */
+    fun drainQueue() {
+        runCatching {
+            uploadQueue?.resume()
+            uploadQueue?.kick(online())
+        }.onFailure { Log.w(TAG, "no se pudo vaciar la cola", it) }
     }
 
     /**
@@ -322,11 +390,16 @@ class TrackingController(private val context: Context) :
      * llegue y la cola fluyendo cierran la recuperación.
      */
     fun onRecoveryWakeup(): Boolean {
+        // Sin jornada no hay nada que rescatar: solo se vacía la cola.
+        if (!journeyOpen()) {
+            uploadQueue?.kick(online())
+            return false
+        }
         machine.onRecoveryTriggered(System.currentTimeMillis())
         persistMovementState()
         runCatching { positionProvider.requestFreshLocation() }
             .onFailure { Log.w(TAG, "fix fresco de recuperación falló", it) }
-        uploadQueue?.kick(isOnline)
+        uploadQueue?.kick(online())
         return true
     }
 
@@ -452,6 +525,7 @@ class TrackingController(private val context: Context) :
      * acelerómetro.
      */
     fun onSignificantMotion() {
+        if (!journeyOpen()) return
         Log.i(TAG, "movimiento por sensor significativo")
         significantMotionPending = true
         machine.onSignificantMotion(System.currentTimeMillis())
@@ -462,6 +536,7 @@ class TrackingController(private val context: Context) :
 
     /** Giro fuerte (giroscopio): captura la esquina sin subir la cadencia base. */
     override fun onTurn() {
+        if (!journeyOpen()) return
         Log.i(TAG, "giro fuerte: fix inmediato y refuerzo a los $TURN_REINFORCE_DELAY_MS ms")
         runCatching { positionProvider.requestSingleLocation() }
         handler.removeCallbacks(turnReinforce)
@@ -568,7 +643,7 @@ class TrackingController(private val context: Context) :
                     )
                 ) {
                     lastWriteKickMs = System.currentTimeMillis()
-                    uploadQueue?.kick(isOnline)
+                    uploadQueue?.kick(online())
                 }
             }
         })

@@ -51,4 +51,11 @@ class UploadPolicyTest {
         assertEquals(UploadPolicy.EventResult.DEAD, UploadPolicy.classifyEvent("dead"))
         assertEquals(UploadPolicy.EventResult.UNKNOWN, UploadPolicy.classifyEvent("otra-cosa"))
     }
+
+    @Test
+    fun `un paso de cola con mas de 2 min ocupado se da por colgado`() {
+        assertEquals(false, UploadPolicy.isBusyStuck(0L, 500_000L))
+        assertEquals(false, UploadPolicy.isBusyStuck(100_000L, 100_000L + 119_999L))
+        assertEquals(true, UploadPolicy.isBusyStuck(100_000L, 100_000L + 120_000L))
+    }
 }

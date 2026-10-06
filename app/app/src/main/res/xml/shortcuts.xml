@@ -11,7 +11,7 @@
         android:shortcutShortLabel="@string/shortcut_start">
         <intent
             android:action="android.intent.action.VIEW"
-            android:targetPackage="com.dmujeres.traccar"
+            android:targetPackage="com.dmujeres.tracking"
             android:targetClass="com.dmujeres.app.ShortcutActivity">
             <extra
                 android:name="action"
@@ -26,7 +26,7 @@
         android:shortcutShortLabel="@string/shortcut_stop">
         <intent
             android:action="android.intent.action.VIEW"
-            android:targetPackage="com.dmujeres.traccar"
+            android:targetPackage="com.dmujeres.tracking"
             android:targetClass="com.dmujeres.app.ShortcutActivity">
             <extra
                 android:name="action"
@@ -41,7 +41,7 @@
         android:shortcutShortLabel="@string/shortcut_sos">
         <intent
             android:action="android.intent.action.VIEW"
-            android:targetPackage="com.dmujeres.traccar"
+            android:targetPackage="com.dmujeres.tracking"
             android:targetClass="com.dmujeres.app.ShortcutActivity">
             <extra
                 android:name="action"

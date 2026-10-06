@@ -20,6 +20,8 @@
   <string name="settings_status_on">Desactivar</string>
   <string name="settings_status_off_summary">Servicio detenido</string>
   <string name="settings_status_on_summary">Servicio en ejecución</string>
+  <string name="notification_journey_open">Jornada activa · registrando el recorrido</string>
+  <string name="notification_journey_closed">Sin jornada · no se registra el recorrido</string>
   <string name="settings_buffer">Búfer fuera de línea</string>
   <string name="settings_buffer_off_summary">Búfer activado</string>
   <string name="settings_buffer_on_summary">Búfer desactivado</string>

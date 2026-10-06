@@ -61,6 +61,18 @@ object UploadPolicy {
         return (capped * jitter).toLong().coerceAtLeast(BASE_BACKOFF_MS)
     }
 
+    /** Un paso de la cola que lleva más de esto ocupado se da por colgado. */
+    const val BUSY_STUCK_MS = 2 * 60_000L
+
+    /**
+     * ¿Se puede dar por colgado un paso de la cola? Cada envío tiene tope de
+     * 15 s de conexión y 15 s de lectura; pasados 2 min algo se quedó
+     * esperando (DNS, red que se cayó a mitad) y sin esta salida la cola no
+     * volvía a subir nada hasta reiniciar la app.
+     */
+    fun isBusyStuck(busySinceMs: Long, nowMs: Long): Boolean =
+        busySinceMs > 0L && nowMs - busySinceMs >= BUSY_STUCK_MS
+
     /** Respuesta del servidor por punto: accepted, duplicate, invalid o dead. */
     enum class EventResult { CONFIRMED, DEAD, UNKNOWN }
 
@@ -173,6 +185,10 @@ class UploadQueue(
     @Volatile
     private var busy = false
 
+    /** Desde cuándo está ocupada (para soltarla si se cuelga). */
+    @Volatile
+    private var busySince = 0L
+
     @Volatile
     private var pausedAuth = false
 
@@ -210,7 +226,11 @@ class UploadQueue(
     /** Activa la cola (punto nuevo, vuelve la red, botón actualizar, rescate). */
     fun kick(online: Boolean) {
         lastOnline = online
-        if (busy) return
+        if (busy) {
+            if (!UploadPolicy.isBusyStuck(busySince, System.currentTimeMillis())) return
+            Log.w(TAG, "paso de cola colgado: se suelta y se reintenta")
+            busy = false
+        }
         if (pausedAuth) {
             // Solo se reanuda si cambiaron la clave o el token desde la pausa.
             if (UploadAuthPolicy.shouldResumeAfterAuthChange(
@@ -226,6 +246,7 @@ class UploadQueue(
         }
         if (!online) return
         busy = true
+        busySince = System.currentTimeMillis()
         Thread { step() }.start()
     }
 
@@ -263,7 +284,8 @@ class UploadQueue(
             } else {
                 sendLegacyOneByOne(group.items, group.deviceId)
             }
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
+            // También errores (memoria, pila): el paso termina y la cola sigue.
             Log.w(TAG, "paso de cola falló", e)
             scheduleRetry()
         }

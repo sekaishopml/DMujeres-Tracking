@@ -41,7 +41,7 @@ class TrackingService : Service() {
     override fun onCreate() {
         val sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this)
         try {
-            startForeground(NOTIFICATION_ID, createNotification(this))
+            startForeground(NOTIFICATION_ID, createNotification(this, DmujeresApi.isJourneyOpen(this)))
             Log.i(TAG, "service create")
             isRunning = true
             // Estado del teléfono visible en el panel (lastDiagnostics).
@@ -57,8 +57,11 @@ class TrackingService : Service() {
                 trackingController?.start()
             }
             // La alarma de rescate sobrevive aunque el sistema cierre la app;
-            // se vuelve a programar cada vez que arranca el servicio.
-            com.dmujeres.app.recovery.DozeAlarmReceiver.schedule(this)
+            // se vuelve a programar cada vez que arranca el servicio, pero
+            // solo con jornada: sin ella no hay nada que rescatar.
+            if (DmujeresApi.isJourneyOpen(this)) {
+                com.dmujeres.app.recovery.DozeAlarmReceiver.schedule(this)
+            }
             // Apagado del teléfono con su causa (batería o manual) para el panel.
             powerReceiver = runCatching { PowerEvents.register(this) }.getOrNull()
             PowerEvents.flush(this)
@@ -154,6 +157,31 @@ class TrackingService : Service() {
         }
 
         /**
+         * Alinea el controlador con la jornada guardada (enciende o apaga el
+         * GPS) y sube lo pendiente. Sin servicio vivo no hace nada: lo
+         * alineará onStartCommand.
+         */
+        fun syncJourneyNow() {
+            val controller = controllerRef ?: return
+            android.os.Handler(android.os.Looper.getMainLooper()).post {
+                runCatching {
+                    controller.syncJourney()
+                    controller.drainQueue()
+                }
+            }
+        }
+
+        /**
+         * El aviso fijo de la barra dice si se está registrando el recorrido.
+         * Se actualiza al abrir o cerrar la jornada.
+         */
+        fun showJourneyState(context: Context, open: Boolean) {
+            if (!isRunning) return
+            val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
+            manager.notify(NOTIFICATION_ID, createNotification(context, open))
+        }
+
+        /**
          * Rescate (alarma o push): si el servicio vive, ubicación nueva y envío
          * de la cola. Si la app está cerrada no se arranca el servicio a
          * escondidas (Android 12 o más lo rechaza): se reprograma la alarma y
@@ -196,15 +224,18 @@ class TrackingService : Service() {
         private const val NOTIFICATION_ID = 1
 
         @SuppressLint("UnspecifiedImmutableFlag")
-        private fun createNotification(context: Context): Notification {
+        private fun createNotification(context: Context, journeyOpen: Boolean): Notification {
+            val title = context.getString(
+                if (journeyOpen) R.string.notification_journey_open else R.string.notification_journey_closed,
+            )
             val builder = NotificationCompat.Builder(context, MainApplication.PRIMARY_CHANNEL)
                 .setSmallIcon(R.drawable.ic_stat_notify)
                 .setPriority(NotificationCompat.PRIORITY_LOW)
                 .setCategory(NotificationCompat.CATEGORY_SERVICE)
             val intent = Intent(context, MainActivity::class.java)
             builder
-                .setContentTitle(context.getString(R.string.settings_status_on_summary))
-                .setTicker(context.getString(R.string.settings_status_on_summary))
+                .setContentTitle(title)
+                .setTicker(title)
                 .color = ContextCompat.getColor(context, R.color.primary_dark)
             val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 PendingIntent.FLAG_IMMUTABLE

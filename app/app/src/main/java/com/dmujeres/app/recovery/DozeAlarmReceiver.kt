@@ -9,6 +9,7 @@ import android.os.Build
 import android.os.PowerManager
 import android.util.Log
 import androidx.preference.PreferenceManager
+import com.dmujeres.app.DmujeresApi
 import com.dmujeres.app.Prefs
 import com.dmujeres.app.TrackingService
 
@@ -36,8 +37,17 @@ class DozeAlarmReceiver : BroadcastReceiver() {
                 }
         }.getOrNull()
         try {
+            // Sin jornada la alarma se apaga: no hay captura que rescatar y
+            // despertar el teléfono cada 9 min solo gasta batería. Se vuelve a
+            // armar al abrir la jornada.
+            if (!PreferenceManager.getDefaultSharedPreferences(context)
+                    .getBoolean(DmujeresApi.KEY_JOURNEY_OPEN, false)
+            ) {
+                Log.i(TAG, "alarma sin jornada: no se reprograma")
+                return
+            }
             countRecovery(context)
-            schedule(context) // siempre se reprograma, haya o no servicio
+            schedule(context) // con jornada se reprograma, haya o no servicio
             val woken = TrackingService.onDozeAlarm(context)
             Log.i(TAG, "despertar de recuperación (servicio_activo=$woken)")
         } finally {

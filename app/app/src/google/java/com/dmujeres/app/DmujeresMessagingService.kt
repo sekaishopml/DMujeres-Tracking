@@ -30,6 +30,13 @@ class DmujeresMessagingService : FirebaseMessagingService() {
         // Etapas que acepta el servidor: RECOVERY_RECEIVED y RECOVERY_STARTED
         // (otra cosa se rechaza como UNKNOWN_STAGE).
         DmujeresApi.recoveryAck(this, attemptId, "RECOVERY_RECEIVED")
+        // Sin jornada no se enciende nada: el teléfono está en espera. Solo se
+        // reenvían los avisos de jornada que no hubieran llegado.
+        if (!DmujeresApi.isJourneyOpen(this)) {
+            DmujeresApi.flushJourneyEvents(this)
+            Log.i(TAG, "Recuperación FCM sin jornada: ignorada (attempt=$attemptId)")
+            return
+        }
         // La recuperación enciende la captura aunque se hubiera apagado: es una
         // orden de la operación y queda registrada.
         PreferenceManager.getDefaultSharedPreferences(this)

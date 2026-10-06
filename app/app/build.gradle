@@ -28,10 +28,10 @@ def mobileApiKey = secretsProperties.getProperty('MOBILE_HTTP_API_KEY', '')
 android {
     compileSdk 35
     defaultConfig {
-        // Reemplazo total en la flota: misma identidad que la app nativa para
-        // que Android acepte la actualización (misma firma) y Firebase siga
-        // resolviendo el google-services.json compartido.
-        applicationId 'com.dmujeres.traccar'
+        // Es otra app para Android: los teléfonos que tienen la anterior
+        // (com.dmujeres.traccar) deben desinstalarla. Firebase necesita una app
+        // registrada con este nombre en su google-services.json.
+        applicationId 'com.dmujeres.tracking'
         minSdkVersion 21
         targetSdkVersion 35
         versionCode 311
@@ -56,7 +56,7 @@ android {
         regular {
             isDefault = true
             ext.enableCrashlytics = false
-            // Desarrollo: app APARTE (com.dmujeres.traccar.dev) para poder
+            // Desarrollo: app APARTE (com.dmujeres.tracking.dev) para poder
             // instalar en un teléfono que ya tiene la app de flota, sin
             // desinstalarla ni chocar de firma.
             applicationIdSuffix ".dev"

@@ -40,6 +40,11 @@ class NetworkManager(private val context: Context, private val handler: NetworkH
 
     val isOnline: Boolean
         get() {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+                val network = connectivityManager.activeNetwork ?: return false
+                val capabilities = connectivityManager.getNetworkCapabilities(network) ?: return false
+                return capabilities.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET)
+            }
             val activeNetwork = connectivityManager.activeNetworkInfo
             return activeNetwork != null && activeNetwork.isConnectedOrConnecting
         }
