@@ -56,7 +56,12 @@ export async function listarJornadasFlota(ctx) {
     zonaHoraria: ctx.entorno.zonaHoraria,
   });
   const valores = [permisoDe(ctx.usuario), rango.desde, rango.hasta];
-  const condiciones = ['d.habilitado', PREDICADO_PERMISO];
+  // Los iPhone no entran al control de jornadas por ahora.
+  const condiciones = [
+    'd.habilitado',
+    PREDICADO_PERMISO,
+    "coalesce(d.atributos->>'plataforma', 'android') <> 'ios'",
+  ];
   const dispositivoId = url.searchParams.get('dispositivoId');
   if (dispositivoId) {
     valores.push(dispositivoId);

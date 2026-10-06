@@ -105,6 +105,7 @@ export async function obtenerReplay(ctx) {
             coalesce(p.bateria_pct, (p.atributos->>'batteryLevel')::real) AS bateria_pct,
             coalesce(p.fijado_en, p.registrado_en) AS registrado_en,
             p.recibido_en, p.valida,
+            (p.atributos->>'mock') = 'true' AS simulada,
             (SELECT j.id FROM operations.dmt_jornada j
               WHERE j.dispositivo_id = p.dispositivo_id AND j.estado <> 'anulada'
                 AND coalesce(p.fijado_en, p.registrado_en) >= j.inicio_en

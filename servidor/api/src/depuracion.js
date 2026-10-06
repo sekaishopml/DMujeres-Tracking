@@ -16,6 +16,25 @@ import { VELOCIDAD_IMPOSIBLE_KMH, distanciaKm } from './geo.js';
 const SALTO_ORIGEN_MULTIPLE_KM = 2;
 const MIN_SALTOS_ORIGEN_MULTIPLE = 3;
 
+// Posición vieja: al perder señal el GPS repite lugares de segundos atrás con
+// una precisión que parece buena. Se nota porque el siguiente punto, mucho más
+// preciso, queda a más de 150 m a más de 120 km/h. Entonces se quitan los
+// puntos de los 30 s anteriores cuya precisión sea 3 veces peor (y de 12 m o
+// más) que la del punto que llega.
+const ANTIGUO_VELOCIDAD_KMH = 120;
+const ANTIGUO_DISTANCIA_KM = 0.15;
+const ANTIGUO_VENTANA_MS = 30_000;
+const ANTIGUO_FACTOR_PRECISION = 3;
+const ANTIGUO_PRECISION_MIN_M = 12;
+
+// Pico con la persona quieta: un fix aislado que reporta 15 km/h o más, a 40 m
+// o más de los dos vecinos, cuando estos van a 6 km/h o menos y quedan a 30 m o
+// menos entre sí. Es el GPS de un teléfono parado, no un viaje de ida y vuelta.
+const PICO_QUIETO_VELOCIDAD_KMH = 15;
+const PICO_QUIETO_VECINOS_KMH = 6;
+const PICO_QUIETO_DISTANCIA_KM = 0.04;
+const PICO_QUIETO_ENTRE_VECINOS_KM = 0.03;
+
 function enZona(p) {
   return (
     Number.isFinite(p.latitud) && Number.isFinite(p.longitud)
@@ -29,6 +48,17 @@ function velocidadKmh(a, b) {
   const horas = (new Date(b.registradoEn).getTime() - new Date(a.registradoEn).getTime()) / 3600000;
   if (!(horas > 0)) return km > 0.05 ? Infinity : 0;
   return km / horas;
+}
+
+function esPicoQuieto(anterior, actual, siguiente) {
+  if (!(actual.velocidadKmh >= PICO_QUIETO_VELOCIDAD_KMH)) return false;
+  if (!(anterior.velocidadKmh <= PICO_QUIETO_VECINOS_KMH && siguiente.velocidadKmh <= PICO_QUIETO_VECINOS_KMH)) return false;
+  const km = (a, b) => distanciaKm(a.latitud, a.longitud, b.latitud, b.longitud);
+  return (
+    km(anterior, actual) >= PICO_QUIETO_DISTANCIA_KM
+    && km(actual, siguiente) >= PICO_QUIETO_DISTANCIA_KM
+    && km(anterior, siguiente) <= PICO_QUIETO_ENTRE_VECINOS_KM
+  );
 }
 
 export function depurarPosiciones(posiciones) {
@@ -55,6 +85,23 @@ export function depurarPosiciones(posiciones) {
           saltosLargos += 1;
         }
         continue;
+      }
+    }
+    if (anterior && siguiente && esPicoQuieto(anterior, actual, siguiente)) {
+      saltos += 1;
+      continue;
+    }
+    if (anterior && Number.isFinite(actual.precisionM)) {
+      const km = distanciaKm(anterior.latitud, anterior.longitud, actual.latitud, actual.longitud);
+      if (km > ANTIGUO_DISTANCIA_KM && velocidadKmh(anterior, actual) > ANTIGUO_VELOCIDAD_KMH) {
+        const t = new Date(actual.registradoEn).getTime();
+        for (let k = conservadas.length - 1; k >= 0; k -= 1) {
+          const previo = conservadas[k];
+          const peor = previo.precisionM >= Math.max(ANTIGUO_PRECISION_MIN_M, ANTIGUO_FACTOR_PRECISION * actual.precisionM);
+          if (t - new Date(previo.registradoEn).getTime() > ANTIGUO_VENTANA_MS || !peor) break;
+          conservadas.pop();
+          saltos += 1;
+        }
       }
     }
     conservadas.push(actual);

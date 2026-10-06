@@ -1,9 +1,9 @@
 // Busca teléfonos en silencio y decide si mandarles un aviso para despertarlos.
 //
 // En cada vuelta revisa los equipos habilitados. Un equipo es candidato si
-// tiene jornada activa (o figura desconectado) y lleva al menos
-// DMJ_RECUPERACION_SILENCIO_MIN minutos sin reportar (última conexión y último
-// punto). Luego se decide si se envía: hace falta token, que no haya un
+// tiene jornada activa y lleva al menos DMJ_RECUPERACION_SILENCIO_MIN minutos
+// sin reportar (última conexión y último punto). Sin jornada no se avisa: el
+// teléfono no está registrando y despertarlo solo gasta su batería. Luego se decide si se envía: hace falta token, que no haya un
 // intento en curso, que haya pasado la pausa y no superar el máximo por hora.
 // Cada envío queda en operations.dmt_alerta (recovery_probe) y el equipo pasa
 // a mobile.recoveryState='SENT'. Cuando el teléfono confirma (recovery_ack,
@@ -87,7 +87,7 @@ export function evaluarEquipo(equipo, politica, ahoraMs) {
   const motivos = [];
   if (jornadaActiva) motivos.push('jornada_activa');
   if (presenciaOffline) motivos.push('presencia_offline');
-  const dispara = jornadaActiva || presenciaOffline;
+  const dispara = jornadaActiva;
   const candidato = dispara && silencioMin >= politica.silencioMin;
   return {
     jornadaActiva,

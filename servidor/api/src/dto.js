@@ -91,6 +91,8 @@ export function aPosicion(fila) {
     registradoEn: iso(fila.registrado_en),
     recibidoEn: iso(fila.recibido_en),
     valida: fila.valida === true,
+    // El teléfono avisó que esta ubicación es simulada, no del GPS.
+    simulada: fila.simulada === true,
   };
 }
 
@@ -109,6 +111,7 @@ export function aDispositivo(fila, usuario) {
     versionApp: fila.version_app ?? null,
     plataforma: fila.atributos?.plataforma === 'ios' ? 'ios' : 'android',
     jornadaActiva: fila.jornada_activa === true,
+    departamento: fila.departamento ?? null,
     bateriaPct: numeroONulo(fila.bateria_pct),
     cargando: fila.cargando === null || fila.cargando === undefined ? null : fila.cargando === true,
     pendientes: enteroONulo(fila.pendientes),

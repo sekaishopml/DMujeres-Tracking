@@ -1,21 +1,32 @@
 // Utilidades HTTP sin dependencias: respuestas, cuerpo JSON, paginacion,
 // rangos de fecha ISO y ordenamiento por campos del contrato.
 
+import { gzipSync } from 'node:zlib';
 import { datosInvalidos } from './errores.js';
 
 export const TAMANO_MAXIMO_PAGINA = 200;
 export const TAMANO_POR_DEFECTO = 25;
 
+// Por encima de este tamaño la respuesta se comprime si el navegador lo acepta:
+// un recorrido de un día pesa más de 1 MB y comprimido queda en unos 200 KB.
+const MIN_BYTES_GZIP = 8 * 1024;
+
 export function respuestaJson(res, estado, cuerpo, cabeceras = {}) {
-  const texto = JSON.stringify(cuerpo);
+  let datos = Buffer.from(JSON.stringify(cuerpo));
+  const extra = { ...cabeceras };
+  if (datos.length >= MIN_BYTES_GZIP && /\bgzip\b/.test(res.req?.headers['accept-encoding'] ?? '')) {
+    datos = gzipSync(datos, { level: 4 });
+    extra['Content-Encoding'] = 'gzip';
+    extra.Vary = 'Accept-Encoding';
+  }
   res.writeHead(estado, {
     'Content-Type': 'application/json; charset=utf-8',
-    'Content-Length': Buffer.byteLength(texto),
+    'Content-Length': datos.length,
     'Cache-Control': 'no-store',
     'X-Content-Type-Options': 'nosniff',
-    ...cabeceras,
+    ...extra,
   });
-  res.end(texto);
+  res.end(datos);
 }
 
 export function respuestaSinContenido(res, cabeceras = {}) {

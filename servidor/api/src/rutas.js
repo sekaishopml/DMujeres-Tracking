@@ -1,4 +1,4 @@
-// Tabla de rutas del contrato /api/v1 (43 rutas) y emparejador simple.
+// Tabla de rutas del contrato /api/v1 y emparejador simple.
 
 import * as auth from './auth.js';
 import * as bateria from './bateria.js';
@@ -11,6 +11,7 @@ import * as flota from './flota.js';
 import * as geocodigo from './geocodigo.js';
 import * as grupos from './grupos.js';
 import * as jornadas from './jornadas.js';
+import * as oficina from './oficina.js';
 import * as posiciones from './posiciones.js';
 import * as replay from './replay.js';
 import * as reportes from './reportes.js';
@@ -61,6 +62,9 @@ export const DEFINICIONES = [
   { metodo: 'GET', ruta: '/api/v1/roles', manejar: roles.listarRoles },
   { metodo: 'GET', ruta: '/api/v1/configuracion/esquema', manejar: esquema.obtenerEsquema },
   { metodo: 'GET', ruta: '/api/v1/config', manejar: config.obtenerConfiguracion },
+  { metodo: 'GET', ruta: '/api/v1/oficina', manejar: oficina.obtenerOficina },
+  { metodo: 'PUT', ruta: '/api/v1/oficina', manejar: oficina.fijarOficina },
+  { metodo: 'DELETE', ruta: '/api/v1/oficina', manejar: oficina.quitarOficina },
   { metodo: 'GET', ruta: '/api/v1/geocode/reverse', manejar: geocodigo.obtenerDireccion },
   { metodo: 'GET', ruta: '/api/v1/cronograma', manejar: cronograma.listarCronograma },
   { metodo: 'GET', ruta: '/api/v1/eventos', manejar: eventos.listarEventos },

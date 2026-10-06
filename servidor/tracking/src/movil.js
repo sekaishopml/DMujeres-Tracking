@@ -483,6 +483,8 @@ export async function atenderJornada(req, res, ctx) {
       });
     } else {
       let jornadaId = entero(cuerpo.journeyId, 0);
+      // Si el aviso trae su journeyId, solo cierra esa jornada.
+      const soloJornada = jornadaId > 0 ? jornadaId : null;
       if (jornadaId <= 0) {
         jornadaId = numeroAttr(dispositivo.atributos, 'mobile.journeyId', ahora);
       }
@@ -490,6 +492,7 @@ export async function atenderJornada(req, res, ctx) {
       await ctx.almacen.cerrarJornada({
         dispositivoId: dispositivo.id,
         journeyId: jornadaId,
+        soloJornada,
         finEn: new Date(instante),
         bateriaFin: bateria >= 0 && bateria <= 100 ? bateria : null,
         parcheDispositivo: {

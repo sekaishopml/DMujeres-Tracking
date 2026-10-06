@@ -20,6 +20,8 @@ export interface Dispositivo {
   /** `ios` usa Traccar Client (sin app propia: sin versión ni cronograma). */
   plataforma: "android" | "ios";
   jornadaActiva: boolean;
+  /** Grupo de la persona asignada (null si no tiene grupo). */
+  departamento: string | null;
   bateriaPct: number | null;
   cargando: boolean | null;
   pendientes: number | null;

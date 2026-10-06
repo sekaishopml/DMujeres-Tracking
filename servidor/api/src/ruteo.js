@@ -70,16 +70,27 @@ const VELOCIDAD_MAX_TELEPORT_KMH = 120;
 const PRECISION_PICO_M = 25;
 const PRECISION_VECINA_FIABLE_M = 13;
 // El trazo MATCHED solo se usa si su largo queda entre 0.75 y 1.25 veces el
-// original, ningún punto original queda a más de max(35, 2 × precisión
-// mediana + 15) m del trazo, y no más del 30 % de los puntos tiene precisión
-// peor que 25 m. Si no, la ventana queda como vino.
+// original (crudo o sin temblor), el 90 % de los puntos originales queda a
+// menos de max(35, 2 × precisión mediana + 15) m del trazo y no más del 70 %
+// de los puntos tiene precisión peor que 25 m. Si no, la ventana queda como
+// vino.
 const AJUSTE_RAZON_MIN = 0.75;
 const AJUSTE_RAZON_MAX = 1.25;
 const AJUSTE_DESVIACION_MIN_M = 35;
 const AJUSTE_DESVIACION_FACTOR_PRECISION = 2;
 const AJUSTE_DESVIACION_MARGEN_M = 15;
 const AJUSTE_RUIDO_PRECISION_M = 25;
-const AJUSTE_RUIDO_MAX_FRACCION = 0.3;
+const AJUSTE_RUIDO_MAX_FRACCION = 0.7;
+// Con GPS ruidoso el largo crudo se infla por el temblor y el ajuste parece
+// "corto" aunque sea bueno: el largo de referencia se calcula sin los pasos
+// menores que la mitad de la precisión mediana (mínimo 10 m).
+const AJUSTE_PASO_MIN_M = 10;
+// Un punto suelto lejos del trazo no invalida la ventana: se mide el percentil
+// 90 contra el umbral y el máximo contra el doble del umbral.
+const AJUSTE_DESVIACION_MAX_FACTOR = 2;
+// Tramos de pocos puntos pegados a otro mucho más largo, con un salto
+// imposible de por medio, son posiciones viejas o falsas del GPS.
+const MAX_PUNTOS_CORRIDA_FALSA = 3;
 
 // Por encima de esta precisión el punto viene de antenas o wifi (error de 90 a
 // 270 m) y no entra al ajuste ni a las estimaciones; el panel lo muestra como
@@ -251,6 +262,34 @@ function velocidadImplicitaKmh(anterior, actual) {
   }
 }
 
+// Parte la lista en corridas seguidas (sin saltos de más de 120 km/h y 60 m)
+// y quita las de 3 puntos o menos que tienen pegada una corrida más larga:
+// son posiciones viejas que el GPS repite al perder señal, y quedarse con
+// ellas descartaría los puntos buenos que vienen después del salto.
+function quitarCorridasFalsas(ventana) {
+  const corridas = [];
+  let actual = [];
+  for (const fix of ventana) {
+    if (!coordenadasValidas(fix)) continue;
+    const previo = actual[actual.length - 1];
+    const velocidad = previo ? velocidadImplicitaKmh(previo, fix) : null;
+    if (previo && velocidad !== null && velocidad > VELOCIDAD_MAX_TELEPORT_KMH && distanciaM(previo, fix) > 60) {
+      corridas.push(actual);
+      actual = [];
+    }
+    actual.push(fix);
+  }
+  if (actual.length > 0) corridas.push(actual);
+  if (corridas.length < 2) return ventana;
+  return corridas
+    .filter((corrida, i) => {
+      if (corrida.length > MAX_PUNTOS_CORRIDA_FALSA) return true;
+      const vecinas = [corridas[i - 1], corridas[i + 1]].filter(Boolean);
+      return !vecinas.some((v) => v.length > corrida.length);
+    })
+    .flat();
+}
+
 // Devuelve una lista nueva sin los saltos imposibles, para /match:
 //  - más de 120 km/h desde el anterior válido;
 //  - pico aislado de precisión peor que 30 m con los dos vecinos por debajo
@@ -260,6 +299,8 @@ function velocidadImplicitaKmh(anterior, actual) {
 function filtrarOutliersTeleport(ventana) {
   try {
     if (!Array.isArray(ventana) || ventana.length === 0) return [];
+    // Paso 0: corridas cortas separadas por un salto imposible de otra mayor.
+    ventana = quitarCorridasFalsas(ventana);
     // Paso 1: velocidad implícita excesiva.
     const sinSaltos = [];
     let anteriorValido = null;
@@ -628,10 +669,21 @@ function distanciaPuntoPolilineaM(punto, trazado) {
   return minimo;
 }
 
+// Copia de los puntos sin los que se mueven menos de `paso` metros desde el
+// último conservado: quita el temblor del GPS parado o lento.
+function sinTemblor(puntos, paso) {
+  const salida = [puntos[0]];
+  for (let i = 1; i < puntos.length; i += 1) {
+    if (distanciaM(salida[salida.length - 1], puntos[i]) >= paso) salida.push(puntos[i]);
+  }
+  return salida;
+}
+
 // Revisa el ajuste de una ventana y lo descarta si el largo sale de 0.75 a
-// 1.25 veces el original, si algún punto original queda a más de max(35,
-// 2 × precisión mediana + 15) m del trazo, o si más del 30 % de los puntos
-// tiene precisión peor que 25 m.
+// 1.25 veces el original (ni crudo ni sin el temblor del GPS), si el 90 % de
+// los puntos no queda a menos de max(35, 2 × precisión mediana + 15) m del
+// trazo (o alguno a más del doble), o si más del 70 % tiene precisión peor
+// que 25 m.
 export function validarAjusteMatch(puntos, trazado) {
   try {
     if (!Array.isArray(puntos) || puntos.length < 2) {
@@ -642,26 +694,26 @@ export function validarAjusteMatch(puntos, trazado) {
     }
     const longCruda = longitudCrudaM(puntos);
     const longAjustada = longitudTrazadoM(trazado);
-    const razon = longCruda > 0 ? longAjustada / longCruda : Infinity;
     const mediana = precisionMedianaM(puntos);
+    const longReferencia = longitudCrudaM(sinTemblor(puntos, Math.max(AJUSTE_PASO_MIN_M, (mediana ?? 0) / 2)));
+    const enRango = (largo) => largo > 0 && longAjustada / largo >= AJUSTE_RAZON_MIN && longAjustada / largo <= AJUSTE_RAZON_MAX;
+    const razon = longCruda > 0 ? longAjustada / longCruda : Infinity;
     const umbralDesviacionM = Math.max(
       AJUSTE_DESVIACION_MIN_M,
       mediana === null
         ? 0
         : AJUSTE_DESVIACION_FACTOR_PRECISION * mediana + AJUSTE_DESVIACION_MARGEN_M,
     );
-    let desviacionMaxM = 0;
-    for (const punto of puntos) {
-      const distancia = distanciaPuntoPolilineaM(punto, trazado);
-      if (distancia > desviacionMaxM) desviacionMaxM = distancia;
-    }
+    const desviaciones = puntos.map((punto) => distanciaPuntoPolilineaM(punto, trazado)).sort((x, y) => x - y);
+    const desviacionMaxM = desviaciones[desviaciones.length - 1];
+    const desviacionP90M = desviaciones[Math.floor((desviaciones.length - 1) * 0.9)];
     const ruidosos = puntos.filter(
       (p) => Number.isFinite(Number(p?.precisionM)) && Number(p.precisionM) > AJUSTE_RUIDO_PRECISION_M,
     ).length;
     const fraccionRuido = ruidosos / puntos.length;
     let motivo = null;
-    if (!(razon >= AJUSTE_RAZON_MIN && razon <= AJUSTE_RAZON_MAX)) motivo = 'a';
-    else if (desviacionMaxM > umbralDesviacionM) motivo = 'b';
+    if (!(enRango(longCruda) || enRango(longReferencia))) motivo = 'a';
+    else if (desviacionP90M > umbralDesviacionM || desviacionMaxM > AJUSTE_DESVIACION_MAX_FACTOR * umbralDesviacionM) motivo = 'b';
     else if (fraccionRuido > AJUSTE_RUIDO_MAX_FRACCION) motivo = 'c';
     return {
       valida: motivo === null,
@@ -669,6 +721,7 @@ export function validarAjusteMatch(puntos, trazado) {
       razon,
       longCrudaM: longCruda,
       longAjustadaM: longAjustada,
+      longReferenciaM: longReferencia,
       desviacionMaxM,
       umbralDesviacionM,
       fraccionRuido,

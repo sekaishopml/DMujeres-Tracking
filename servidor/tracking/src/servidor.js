@@ -1,5 +1,6 @@
 // Servidor HTTP del receptor de la app. Rutas:
 //   GET/POST /                     protocolo OsmAnd (versiones viejas de la app)
+//   POST /owntracks                OwnTracks (iPhone, modo HTTP)
 //   POST /api/mobile/v1/sesion     inicio de sesión (devuelve un token)
 //   GET  /api/mobile/v1/config     configuración del teléfono
 //   GET  /api/mobile/v1/journey    estado de la jornada en el servidor
@@ -15,6 +16,7 @@ import { pathToFileURL } from 'node:url';
 import { cargarConfiguracion } from './entorno.js';
 import { crearAlmacen } from './db.js';
 import { atenderOsmand } from './osmand.js';
+import { atenderOwnTracks } from './owntracks.js';
 import {
   atenderConfig,
   atenderDiagnosticos,
@@ -50,6 +52,10 @@ async function manejar(req, res, ctx) {
       return atenderOsmand(req, res, { ...ctx, url });
     }
     return responderNoEncontrado(res);
+  }
+
+  if (ruta === '/owntracks') {
+    return atenderOwnTracks(req, res, { ...ctx, url });
   }
 
   if (ruta === '/api/mobile/v1/sesion' && metodo === 'POST') {

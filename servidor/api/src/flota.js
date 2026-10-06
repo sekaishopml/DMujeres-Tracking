@@ -16,11 +16,12 @@ export const SELECT_DISPOSITIVO = `
            -- Contacto: la última vez que el teléfono respondió, con un punto o
            -- con el diagnóstico que manda cada 10 min aunque esté quieto.
            --   más de 60 min sin responder (o nunca): SIN_SENAL
-           --   más de 15 min: SENAL_DEBIL
+           --   más de 15 min (30 si estaba quieto, que reporta menos): SENAL_DEBIL
            --   responde y su último punto (de menos de 3 min) tiene
            --   velocidad: EN_LINEA; si no, DETENIDO
            WHEN ct.contacto IS NULL OR ct.contacto < now() - interval '60 minutes' THEN 'SIN_SENAL'
-           WHEN ct.contacto < now() - interval '15 minutes' THEN 'SENAL_DEBIL'
+           WHEN ct.contacto < now() - CASE WHEN pa.atributos->>'motion' = 'STATIONARY'
+                                           THEN interval '30 minutes' ELSE interval '15 minutes' END THEN 'SENAL_DEBIL'
            WHEN pa.registrado_en > now() - interval '3 minutes' AND pa.velocidad_kmh >= 1.852 THEN 'EN_LINEA'
            ELSE 'DETENIDO'
          END AS estado,
@@ -30,6 +31,7 @@ export const SELECT_DISPOSITIVO = `
          d.atributos->>'mobile.appVersion' AS version_app,
          d.atributos->>'mobile.pending' AS pendientes,
          ja.activa AS jornada_activa,
+         dep.nombre AS departamento,
          -- La batería más reciente entre la telemetría y el último punto
          -- (algunos teléfonos solo la mandan junto con el punto).
          CASE
@@ -60,6 +62,21 @@ export const SELECT_DISPOSITIVO = `
       WHERE j.dispositivo_id = d.id AND j.estado = 'abierta'
     ) AS activa
   ) ja ON TRUE
+  -- Departamento: el grupo de la persona asignada al equipo (si tiene varios,
+  -- el primero por nombre) o, sin persona con grupo, el grupo del propio equipo.
+  LEFT JOIN LATERAL (
+    SELECT coalesce(
+      (SELECT g.nombre
+         FROM operations.dmt_asignacion a
+         JOIN iam.dmt_usuario_grupo ug ON ug.usuario_id = a.usuario_id
+         JOIN iam.dmt_grupo g ON g.id = ug.grupo_id
+        WHERE a.dispositivo_id = d.id AND a.activa
+          AND a.desde_en <= now() AND (a.hasta_en IS NULL OR a.hasta_en > now())
+        ORDER BY g.nombre
+        LIMIT 1),
+      (SELECT g.nombre FROM iam.dmt_grupo g WHERE g.id = d.grupo_id)
+    ) AS nombre
+  ) dep ON TRUE
   LEFT JOIN LATERAL (
     SELECT b.porcentaje, b.cargando, b.registrado_en
     FROM telemetry.dmt_bateria b

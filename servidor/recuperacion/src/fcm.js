@@ -143,7 +143,10 @@ export function crearEmisorFcm({ credencial, log, fetchImpl = fetch, ahora = () 
           deviceId,
           issuedAtMs: String(issuedAtMs),
         },
-        android: { priority: 'HIGH', ttl: '60s' },
+        // Con 60 s el aviso se perdía si el teléfono estaba sin red o dormido en
+        // ese minuto. Con 30 min FCM lo guarda y lo entrega al volver, y la
+        // llave de colapso deja solo el más reciente.
+        android: { priority: 'HIGH', ttl: '1800s', collapse_key: 'tracking_recovery' },
       },
     };
     try {

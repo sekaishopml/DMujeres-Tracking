@@ -681,10 +681,14 @@ export class Almacen {
     return rows[0];
   }
 
-  async cerrarJornada({ dispositivoId, journeyId, finEn, bateriaFin, parcheDispositivo }) {
+  async cerrarJornada({ dispositivoId, journeyId, soloJornada = null, finEn, bateriaFin, parcheDispositivo }) {
     const conexion = await this.#pool.connect();
     try {
       await conexion.query('BEGIN');
+      // Un aviso de fin que llega tarde (por ejemplo el de ayer, después del
+      // inicio de hoy) no debe cerrar la jornada nueva: con `soloJornada` solo
+      // cierra la que lleva ese journeyId. Sin él, o si la jornada no tiene
+      // journeyId, se cierra la abierta.
       const cerradas = await conexion.query(
         `UPDATE operations.dmt_jornada
             SET estado = 'cerrada',
@@ -692,8 +696,9 @@ export class Almacen {
                 duracion_s = GREATEST(0, EXTRACT(EPOCH FROM ($2 - inicio_en))::bigint),
                 bateria_fin_pct = $3,
                 actualizado_en = now()
-          WHERE dispositivo_id = $1 AND estado = 'abierta'`,
-        [dispositivoId, finEn, bateriaFin],
+          WHERE dispositivo_id = $1 AND estado = 'abierta'
+            AND ($4::text IS NULL OR atributos->>'journeyId' IS NULL OR atributos->>'journeyId' = $4::text)`,
+        [dispositivoId, finEn, bateriaFin, soloJornada == null ? null : String(soloJornada)],
       );
       // Si el cierre se repite, ya no hay jornada abierta y no se duplica el evento.
       if (cerradas.rowCount > 0) {
@@ -705,7 +710,14 @@ export class Almacen {
           ocurridoEn: finEn,
         });
       }
-      await this.#fusionarAtributos(conexion, dispositivoId, parcheDispositivo);
+      // Si el aviso era de otra jornada y la abierta sigue ahí, los datos del
+      // equipo (journeyId vigente) no se tocan.
+      const sigueOtra = cerradas.rowCount === 0 && soloJornada != null
+        && (await conexion.query(
+          `SELECT 1 FROM operations.dmt_jornada WHERE dispositivo_id = $1 AND estado = 'abierta' LIMIT 1`,
+          [dispositivoId],
+        )).rowCount > 0;
+      if (!sigueOtra) await this.#fusionarAtributos(conexion, dispositivoId, parcheDispositivo);
       await conexion.query('COMMIT');
       return cerradas.rowCount;
     } catch (error) {
@@ -807,6 +819,9 @@ export class Almacen {
   // punto reciente (los viejos que llegan del búfer no abren nada). Si la
   // abierta viene de otro día, se parte a medianoche como hace la app Android.
   async #abrirJornadaIos(dispositivoId, posicion) {
+    // Por ahora los iPhone quedan fuera del control de jornadas: solo se guardan
+    // sus puntos. Quitar esta línea para volver a abrirlas con el primer punto.
+    return;
     const instante = new Date(posicion.registradoEn);
     if (Date.now() - instante.getTime() > MAX_ATRASO_INICIO_IOS_MS) return;
     const { rows } = await this.#pool.query(

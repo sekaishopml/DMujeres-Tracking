@@ -84,6 +84,8 @@ async function humo() {
     evaluarEquipo({ ...equipoBase, ultimaConexionEn: senalHace(5) }, politica, ahora).candidato === false);
   comprobar('candidato: solo lastPositionAt de 16 min',
     evaluarEquipo({ ...equipoBase, presencia: null, ultimaPosicionEn: senalHace(16) }, politica, ahora).candidato === true);
+  comprobar('no candidato: figura offline pero sin jornada',
+    evaluarEquipo({ ...equipoBase, journeyId: 0, ultimaConexionEn: senalHace(120) }, politica, ahora).candidato === false);
   comprobar('no candidato: sin senal pero sin jornada ni offline',
     evaluarEquipo({ ...equipoBase, journeyId: 0, presencia: null }, politica, ahora).candidato === false);
 

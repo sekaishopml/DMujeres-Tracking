@@ -13,6 +13,7 @@ export interface Posicion {
   registradoEn: string;
   recibidoEn: string;
   valida: boolean;
+  simulada?: boolean;
 }
 
 export interface PosicionesVivas {
