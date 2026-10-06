@@ -1,10 +1,9 @@
 # La app Android
 
 El código está en `app/`. El paquete del código es `com.dmujeres.app`, pero
-el identificador de instalación sigue siendo `com.dmujeres.traccar`: es el que
-tienen los teléfonos instalados y el que conoce Firebase. Si cambiara, los
-teléfonos no recibirían la actualización (ver
-[Próximos cambios](proximos-cambios.md)).
+el identificador de instalación es `com.dmujeres.tracking`. Los teléfonos que
+tienen la versión anterior (`com.dmujeres.traccar`) no la actualizan: hay que
+pasarlos a mano (ver [Próximos cambios](proximos-cambios.md)).
 
 ## Llaves y archivos que no están en git
 
@@ -53,6 +52,17 @@ seguir público hasta que todos tengan la 2.4.2 o una posterior.
    física, notificaciones y sin restricción de batería.
 4. En marcas como Xiaomi, Huawei u Oppo, activar el inicio automático desde
    el botón que muestra la app.
+
+## Qué hace la app según la jornada
+
+Con la jornada abierta: servicio en primer plano ("Jornada activa"), GPS cada
+segundo, alarma de rescate cada 9 minutos y aviso por push si deja de reportar.
+
+Sin jornada: el servicio sigue vivo pero en espera. No pide ubicación, no
+arma la cerca de quietud, no corre el vigilante del GPS ni la alarma de
+rescate, y ignora los avisos de recuperación. Solo manda el latido de
+diagnóstico cada 10 minutos (batería, permisos y versión, sin coordenadas) y
+vacía la cola de puntos pendientes. Al abrir la jornada todo se enciende.
 
 ## Depuración
 

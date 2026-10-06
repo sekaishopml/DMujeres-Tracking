@@ -4,8 +4,9 @@ App de jornada de DMujeres: registra el recorrido de la persona, su
 cronograma de actividades y el estado del teléfono, y lo manda al servidor.
 
 - Paquete del código: `com.dmujeres.app`.
-- Identificador de instalación: `com.dmujeres.traccar`. Por ahora no se
-  cambia, porque es el que tienen los teléfonos y el que conoce Firebase.
+- Identificador de instalación: `com.dmujeres.tracking` (en desarrollo,
+  `com.dmujeres.tracking.dev`). Ya no se cambia; ver
+  `docs/proximos-cambios.md` para pasar los teléfonos desde el anterior.
 - Compilar: `./gradlew assembleGoogleRelease` (necesita las llaves de
   `/opt/dmj-keys`).
 - Publicar una versión: `scripts/publicar-app.sh X.Y.Z "qué cambió"`, desde

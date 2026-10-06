@@ -1,22 +1,23 @@
 # Próximos cambios
 
-## Pasar el identificador de la app a com.dmujeres
+## Pasar los teléfonos al identificador com.dmujeres.tracking
 
-Hoy la app se instala como `com.dmujeres.traccar`, un nombre que viene de
-antes. La idea es pasarla a `com.dmujeres`. No se puede hacer con una
-actualización normal, porque para Android sería otra app distinta. Hay que:
+La app ya se compila como `com.dmujeres.tracking`. Para Android es otra app
+distinta de `com.dmujeres.traccar`, así que no hay actualización automática.
+Antes de publicar la primera versión con el nombre nuevo:
 
-1. Registrar en Firebase una app Android nueva con `com.dmujeres` y bajar su
-   `google-services.json` a `/opt/dmj-keys`.
-2. Cambiar `applicationId` en `app/app/build.gradle` y los `targetPackage` de
-   `app/app/src/main/res/xml/shortcuts.xml`.
-3. Firmar con la misma llave de siempre.
-4. En cada teléfono: cerrar la jornada, dejar que se vacíe la cola de puntos
+1. Registrar en Firebase una app Android nueva con `com.dmujeres.tracking` y
+   bajar su `google-services.json` a `/opt/dmj-keys`. Sin ese archivo no
+   compila la variante `google`.
+2. Firmar con la misma llave de siempre (86:7B:A1:29).
+3. En cada teléfono: cerrar la jornada, dejar que se vacíe la cola de puntos
    (en el menú de depuración se ve), desinstalar la app vieja e instalar la
    nueva. Después entrar con el mismo usuario y volver a dar los permisos.
 
 Conviene hacerlo con todos los teléfonos a la vez en una reunión, porque cada
-uno tarda unos minutos.
+uno tarda unos minutos. No publicar el APK nuevo en el canal de actualización
+hasta entonces: los teléfonos con la app vieja no lo recibirían como
+actualización.
 
 ## Otros pendientes
 
