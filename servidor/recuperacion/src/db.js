@@ -1,5 +1,6 @@
 // Acceso a la base. Lee equipos y tokens y solo escribe en
-// operations.dmt_alerta, iam.dmt_token_fcm y los atributos mobile.recovery*.
+// operations.dmt_alerta, iam.dmt_token_fcm, los atributos mobile.recovery* y
+// mobile.silencioDesde, y los eventos de silencio del teléfono.
 
 import pg from 'pg';
 
@@ -172,6 +173,20 @@ export class Almacen {
         WHERE id = $1`,
       [dispositivoId, JSON.stringify(parche)],
     );
+  }
+
+  // Evento de la línea de tiempo (tracking.dmt_evento). La clave evita
+  // repetirlo si el ciclo vuelve a pasar antes de guardar el estado.
+  async registrarEvento({ dispositivoId, tipo, ocurridoEn, atributos }) {
+    await this.#pool.query(
+      `INSERT INTO tracking.dmt_evento (dispositivo_id, tipo, ocurrido_en, atributos)
+       SELECT $1, $2, $3, $4::jsonb
+        WHERE NOT EXISTS (
+          SELECT 1 FROM tracking.dmt_evento
+           WHERE dispositivo_id = $1 AND tipo = $2 AND atributos->>'clave' = $5)`,
+      [dispositivoId, tipo, ocurridoEn, JSON.stringify(atributos), String(atributos.clave)],
+    );
+    await this.#pool.query("SELECT pg_notify('dmt_vivo', $1)", [`e:${dispositivoId}`]);
   }
 
   async cerrar() {

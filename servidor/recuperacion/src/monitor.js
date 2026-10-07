@@ -99,6 +99,43 @@ export function evaluarEquipo(equipo, politica, ahoraMs) {
   };
 }
 
+// Dejó de reportar con la jornada abierta, o volvió a reportar después. El
+// inicio del silencio se recuerda en mobile.silencioDesde para avisar una sola
+// vez. Si la jornada se cerró mientras callaba, solo se olvida el silencio.
+export function cambioDeSilencio(equipo, condiciones) {
+  const desde = Number(equipo.atributos?.['mobile.silencioDesde']) || null;
+  if (condiciones.candidato && !desde) return { tipo: 'mobileSilent', desde: condiciones.ultimaSenalMs };
+  if (desde && !condiciones.candidato) return { tipo: condiciones.jornadaActiva ? 'mobileResumed' : null, desde };
+  return null;
+}
+
+async function registrarCambioSilencio({ almacen, equipo, cambio, ahoraMs, log }) {
+  try {
+    if (cambio.tipo === 'mobileSilent') {
+      const desde = cambio.desde ?? ahoraMs;
+      await almacen.registrarEvento({
+        dispositivoId: equipo.id,
+        tipo: 'mobileSilent',
+        ocurridoEn: new Date(desde),
+        atributos: { clave: `silencio-${desde}`, mobileSeverity: 'warning' },
+      });
+      await almacen.fusionarAtributos(equipo.id, { 'mobile.silencioDesde': desde });
+    } else {
+      if (cambio.tipo) {
+        await almacen.registrarEvento({
+          dispositivoId: equipo.id,
+          tipo: cambio.tipo,
+          ocurridoEn: new Date(ahoraMs),
+          atributos: { clave: `regreso-${cambio.desde}`, silencioMin: Math.round((ahoraMs - cambio.desde) / 60_000) },
+        });
+      }
+      await almacen.fusionarAtributos(equipo.id, { 'mobile.silencioDesde': null });
+    }
+  } catch (error) {
+    log.warn(`equipo=${equipo.identificador}: no se guardó el silencio: ${error.message}`);
+  }
+}
+
 // Estado del intento del equipo segun sus atributos y la vigencia configurada.
 export function evaluarIntento(equipo, politica, ahoraMs) {
   const atributos = equipo.atributos ?? {};
@@ -244,6 +281,8 @@ export async function ejecutarCiclo({
       candidato: condiciones.candidato,
     };
     evaluaciones.push(evaluacion);
+    const silencio = cambioDeSilencio(equipo, condiciones);
+    if (silencio && !dryRun) await registrarCambioSilencio({ almacen, equipo, cambio: silencio, ahoraMs, log });
 
     if (!condiciones.candidato) {
       if (dryRun) {

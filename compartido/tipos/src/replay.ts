@@ -1,7 +1,18 @@
 import type { Dispositivo } from "./fleet";
 import type { Posicion } from "./positions";
 
-export type MotivoHueco = "SIN_SENAL" | "SIN_DATOS" | "PAUSA" | "APAGADO" | "FUERA_DE_JORNADA";
+// Por qué no hay puntos: SIN_SENAL (la app seguía viva sin posición),
+// GPS_APAGADO, SIN_PERMISO, APAGADO (teléfono), SIN_CONTACTO (app detenida o
+// sin datos móviles) o FUERA_DE_JORNADA (entre dos jornadas).
+export type MotivoHueco =
+  | "SIN_SENAL"
+  | "SIN_DATOS"
+  | "PAUSA"
+  | "APAGADO"
+  | "GPS_APAGADO"
+  | "SIN_PERMISO"
+  | "SIN_CONTACTO"
+  | "FUERA_DE_JORNADA";
 
 export interface Hueco {
   desde: string;
