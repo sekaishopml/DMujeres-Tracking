@@ -43,6 +43,9 @@ data class Actividad(
     val conUbicacion: Boolean = false,
     val pendiente: Boolean = false,
     val eliminada: Boolean = false,
+    /** Dónde está el lugar (la parada desde la que se registró), si se sabe. */
+    val lugarLat: Double? = null,
+    val lugarLon: Double? = null,
 ) {
     fun aJson(): JSONObject = JSONObject()
         .put("clientId", clientId).put("fecha", fecha).put("hora", hora).put("horaFin", horaFin ?: JSONObject.NULL).put("tipo", tipo.codigo)
@@ -50,6 +53,7 @@ data class Actividad(
         .put("at", registradoEn).put("lat", lat ?: JSONObject.NULL).put("lon", lon ?: JSONObject.NULL)
         .put("accuracy", precision?.toDouble() ?: JSONObject.NULL)
         .put("conUbicacion", conUbicacion).put("pendiente", pendiente).put("deleted", eliminada)
+        .put("lugarLat", lugarLat ?: JSONObject.NULL).put("lugarLon", lugarLon ?: JSONObject.NULL)
 
     companion object {
         fun deJson(o: JSONObject): Actividad = Actividad(
@@ -67,6 +71,8 @@ data class Actividad(
             conUbicacion = o.optBoolean("conUbicacion", false),
             pendiente = o.optBoolean("pendiente", false),
             eliminada = o.optBoolean("deleted", false),
+            lugarLat = if (o.isNull("lugarLat") || !o.has("lugarLat")) null else o.optDouble("lugarLat"),
+            lugarLon = if (o.isNull("lugarLon") || !o.has("lugarLon")) null else o.optDouble("lugarLon"),
         )
     }
 }
@@ -134,9 +140,15 @@ object Actividades {
         horaFin: String?,
         lugar: String?,
         nota: String?,
+        lugarLat: Double? = null,
+        lugarLon: Double? = null,
     ): Actividad {
         val ubic = if (DmujeresApi.isJourneyOpen(context) && fecha == hoy) ubicacionReciente(context) else null
         return Actividad(
+            // Solo la ubicación de la parada elegida: la del teléfono al cargar
+            // no sirve si se llena después (en la noche o al día siguiente).
+            lugarLat = lugarLat,
+            lugarLon = lugarLon,
             clientId = UUID.randomUUID().toString(),
             fecha = fecha,
             hora = hora,

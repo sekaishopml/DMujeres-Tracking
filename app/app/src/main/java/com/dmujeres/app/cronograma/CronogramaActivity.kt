@@ -91,6 +91,8 @@ class CronogramaActivity : AppCompatActivity() {
         }
         pintar()
         refrescarDelServidor()
+        // Lista de clientes al día para proponerlos al registrar.
+        Clientes.actualizar(this)
         reloj.postDelayed(alMinuto, 60_000L)
     }
 
@@ -374,6 +376,7 @@ class CronogramaActivity : AppCompatActivity() {
     private sealed class Fila(val minuto: Int, val orden: Int) {
         class DeActividad(val a: Actividad, minuto: Int) : Fila(minuto, 1)
         class Hueco(val tramo: AgendaDia.Tramo) : Fila(tramo.inicio, 0)
+        class Parada(val parada: ParadaGps, val tramo: AgendaDia.Tramo) : Fila(tramo.inicio, 0)
         class Ahora(minuto: Int) : Fila(minuto, 2)
     }
 
@@ -408,13 +411,19 @@ class CronogramaActivity : AppCompatActivity() {
             fecha < hoy -> AgendaDia.huecos(tramos, null, null)
             else -> emptyList()
         }
+        // Paradas del GPS que ninguna actividad cubre: tocar una registra la
+        // actividad con las horas del GPS (no se escriben). Sirve igual en la
+        // noche o al día siguiente.
+        val paradas = if (fecha <= hoy) paradasSinRegistrar(fecha, tramos, if (esHoy) ahora else null) else emptyList()
         val filas = mutableListOf<Fila>()
         delDia.forEach { filas += Fila.DeActividad(it, HoraCronograma.aMinutos(it.hora)) }
-        huecos.forEach { filas += Fila.Hueco(it) }
+        paradas.forEach { filas += it }
+        huecos.filter { h -> paradas.none { it.tramo.inicio < h.fin && it.tramo.fin > h.inicio } }
+            .forEach { filas += Fila.Hueco(it) }
         if (esHoy && enCurso == null) filas += Fila.Ahora(ahora)
         val orden = filas.sortedWith(compareBy({ if (it is Fila.Ahora) it.minuto + 0.5 else it.minuto.toDouble() }, { it.orden }))
 
-        if (delDia.isEmpty() && huecos.isEmpty()) {
+        if (delDia.isEmpty() && huecos.isEmpty() && paradas.isEmpty()) {
             lista.addView(TextView(this).apply {
                 setText(R.string.crono_vacio)
                 setTextColor(getColor(R.color.text_tertiary))
@@ -426,6 +435,7 @@ class CronogramaActivity : AppCompatActivity() {
             when (f) {
                 is Fila.DeActividad -> lista.addView(filaActividad(f.a, f.a == enCurso, esHoy, ahora, fecha < hoy))
                 is Fila.Hueco -> lista.addView(filaHueco(f.tramo))
+                is Fila.Parada -> lista.addView(filaParada(f.parada, f.tramo))
                 is Fila.Ahora -> lista.addView(filaAhora(ahoraTexto))
             }
         }
@@ -586,6 +596,62 @@ class CronogramaActivity : AppCompatActivity() {
                 }
             })
         }
+        return fila
+    }
+
+    /**
+     * Paradas del día que no tienen actividad. Se piden al servidor una vez y
+     * la lista se vuelve a pintar solo si llegaron distintas.
+     */
+    private fun paradasSinRegistrar(fecha: String, tramos: List<AgendaDia.Tramo>, hastaMinuto: Int?): List<Fila.Parada> {
+        val antes = ParadasDia.guardadas(fecha)
+        ParadasDia.cargar(this, fecha) { nuevas ->
+            if (nuevas != antes) runOnUiThread { if (!isFinishing && fechaDe(dia) == fecha) pintarDia() }
+        }
+        val minuto = { ms: Long ->
+            Calendar.getInstance(zona).apply { timeInMillis = ms }.let { it.get(Calendar.HOUR_OF_DAY) * 60 + it.get(Calendar.MINUTE) }
+        }
+        return antes.mapNotNull { p ->
+            val t = AgendaDia.Tramo(minuto(p.inicio), minuto(p.fin))
+            val cubierta = tramos.any { it.inicio < t.fin && it.fin > t.inicio }
+            if (t.fin <= t.inicio || cubierta || (hastaMinuto != null && t.inicio > hastaMinuto)) null else Fila.Parada(p, t)
+        }
+    }
+
+    /** Parada del GPS sin registrar: tocarla abre el formulario con sus horas y su lugar. */
+    private fun filaParada(p: ParadaGps, t: AgendaDia.Tramo): View {
+        val inicio = HoraCronograma.deMinutos(t.inicio)
+        val fin = HoraCronograma.deMinutos(t.fin)
+        val fila = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setBackgroundResource(R.drawable.ds_hueco)
+            setPadding(dp(4), dp(10), dp(12), dp(10))
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
+                topMargin = dp(4)
+                bottomMargin = dp(4)
+            }
+            setOnClickListener { ActividadActivity.abrir(this@CronogramaActivity, fechaDe(dia), null, inicio, fin, p.lat, p.lon) }
+        }
+        fila.addView(columnaHora(inicio, fin, true))
+        val cercano = Clientes.ordenados(this, p.lat, p.lon).firstOrNull()
+            ?.takeIf { (Clientes.distanciaM(p.lat, p.lon, it) ?: Double.MAX_VALUE) <= 300.0 }
+        fila.addView(TextView(this).apply {
+            text = if (cercano != null) {
+                getString(R.string.crono_parada_cerca_fmt, HoraCronograma.duracion(t.minutos), cercano.nombre)
+            } else {
+                getString(R.string.crono_parada_fmt, HoraCronograma.duracion(t.minutos))
+            }
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 12.5f)
+            setTextColor(getColor(R.color.text_secondary))
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        })
+        fila.addView(TextView(this).apply {
+            setText(R.string.crono_registrar_corto)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 12.5f)
+            setTypeface(typeface, Typeface.BOLD)
+            setTextColor(getColor(R.color.primary))
+        })
         return fila
     }
 

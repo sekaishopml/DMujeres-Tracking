@@ -53,6 +53,9 @@ class ActividadActivity : AppCompatActivity() {
 
     private lateinit var fecha: String
     private var existente: Actividad? = null
+    // Parada del GPS desde la que se registra (o la guardada al editar).
+    private var paradaLat: Double? = null
+    private var paradaLon: Double? = null
     private var tipo = TipoActividad.VISITA
     private lateinit var desde: CampoHora
     private lateinit var hasta: CampoHora
@@ -75,6 +78,8 @@ class ActividadActivity : AppCompatActivity() {
             Actividades.todas(this).firstOrNull { it.clientId == id && !it.eliminada }
         }
         val actual = existente
+        paradaLat = intent.getDoubleExtra(EXTRA_LAT, Double.NaN).takeIf { !it.isNaN() } ?: actual?.lugarLat
+        paradaLon = intent.getDoubleExtra(EXTRA_LON, Double.NaN).takeIf { !it.isNaN() } ?: actual?.lugarLon
         lugar = findViewById(R.id.act_lugar)
         nota = findViewById(R.id.act_nota)
         error = findViewById(R.id.act_error)
@@ -248,12 +253,25 @@ class ActividadActivity : AppCompatActivity() {
         findViewById<View>(R.id.act_todo_dia).visibility = if (ausencia) View.VISIBLE else View.GONE
     }
 
-    /** Lugares de siempre a un toque (y en la lista al escribir). */
+    /**
+     * Lugares a un toque: los clientes más cercanos a la parada (si se registra
+     * desde una) y luego los de siempre. Al escribir se ofrecen todos los
+     * clientes; uno nuevo se agrega solo a la lista al guardar.
+     */
     private fun armarLugares() {
+        val clientes = Clientes.ordenados(this, paradaLat, paradaLon)
         val frecuentes = Actividades.lugaresFrecuentes(this)
-        lugar.setAdapter(ArrayAdapter(this, android.R.layout.simple_dropdown_item_1line, frecuentes))
+        val cercanos = if (paradaLat != null && paradaLon != null) {
+            clientes.filter { (Clientes.distanciaM(paradaLat!!, paradaLon!!, it) ?: Double.MAX_VALUE) <= CERCA_M }.map { it.nombre }
+        } else {
+            emptyList()
+        }
+        val todos = (clientes.map { it.nombre } + frecuentes).distinctBy { it.lowercase() }
+        lugar.setAdapter(ArrayAdapter(this, android.R.layout.simple_dropdown_item_1line, todos))
+        // Con un solo cliente cerca y el campo vacío, se propone ese.
+        if (existente == null && lugar.text.isNullOrBlank() && cercanos.size == 1) lugar.setText(cercanos[0])
         val fila = findViewById<LinearLayout>(R.id.act_lugares)
-        frecuentes.take(8).forEach { nombre ->
+        (cercanos + frecuentes).distinctBy { it.lowercase() }.take(8).forEach { nombre ->
             fila.addView(TextView(this).apply {
                 text = nombre
                 gravity = Gravity.CENTER
@@ -272,7 +290,7 @@ class ActividadActivity : AppCompatActivity() {
                 }
             })
         }
-        val conFrecuentes = if (frecuentes.isEmpty()) View.GONE else View.VISIBLE
+        val conFrecuentes = if (frecuentes.isEmpty() && cercanos.isEmpty()) View.GONE else View.VISIBLE
         findViewById<View>(R.id.act_lugares_titulo).visibility = conFrecuentes
         findViewById<View>(R.id.act_lugares_scroll).visibility = conFrecuentes
     }
@@ -419,7 +437,7 @@ class ActividadActivity : AppCompatActivity() {
         if (tipo == TipoActividad.NOVEDAD && textoNota == null) return mostrarError(R.string.crono_error_nota)
         if (ajustes.any { it.cruce == Cruce.CUBIERTA }) return mostrarError(R.string.crono_error_cruce, horario)
         val esta = existente?.copy(hora = d, horaFin = h, tipo = tipo, lugar = textoLugar, nota = textoNota)
-            ?: Actividades.nueva(this, fecha, hoy(), tipo, d, h, textoLugar, textoNota)
+            ?: Actividades.nueva(this, fecha, hoy(), tipo, d, h, textoLugar, textoNota, paradaLat, paradaLon)
         // Las vecinas se acomodan a lo que se acaba de escribir.
         val vecinas = ajustes.flatMap { aj ->
             val a = aj.actividad
@@ -531,6 +549,11 @@ class ActividadActivity : AppCompatActivity() {
         const val EXTRA_ID = "clientId"
         const val EXTRA_DESDE = "desde"
         const val EXTRA_HASTA = "hasta"
+        const val EXTRA_LAT = "lat"
+        const val EXTRA_LON = "lon"
+
+        /** Cliente "cerca" de la parada: se ofrece primero. */
+        private const val CERCA_M = 300.0
 
         private const val KEY_TIPO = "tipo"
         private const val KEY_DESDE = "desde"
@@ -543,13 +566,24 @@ class ActividadActivity : AppCompatActivity() {
         const val INICIO_DIA = "08:00"
         const val FIN_DIA = "17:00"
 
-        fun abrir(context: Context, fecha: String, actividad: Actividad? = null, desde: String? = null, hasta: String? = null) {
+        /** [lat]/[lon]: la parada del GPS desde la que se registra (ordena los clientes cercanos). */
+        fun abrir(
+            context: Context,
+            fecha: String,
+            actividad: Actividad? = null,
+            desde: String? = null,
+            hasta: String? = null,
+            lat: Double? = null,
+            lon: Double? = null,
+        ) {
             context.startActivity(
                 Intent(context, ActividadActivity::class.java)
                     .putExtra(EXTRA_FECHA, fecha)
                     .putExtra(EXTRA_ID, actividad?.clientId)
                     .putExtra(EXTRA_DESDE, desde)
-                    .putExtra(EXTRA_HASTA, hasta),
+                    .putExtra(EXTRA_HASTA, hasta)
+                    .putExtra(EXTRA_LAT, lat ?: Double.NaN)
+                    .putExtra(EXTRA_LON, lon ?: Double.NaN),
             )
         }
     }

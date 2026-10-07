@@ -36,9 +36,10 @@ import com.dmujeres.app.R
 import com.dmujeres.app.actualizacion.OtaPolicy
 import com.dmujeres.app.datos.ConfigState
 import com.dmujeres.app.datos.DatabaseHelper
-import com.dmujeres.app.datos.FirebaseState
 import com.dmujeres.app.datos.Prefs
 import com.dmujeres.app.datos.RefreshOutcome
+import com.dmujeres.app.datos.RefreshSummary
+import com.dmujeres.app.sistema.ServiceHeartbeat
 import com.dmujeres.app.datos.RemoteConfig
 import com.dmujeres.app.red.ConnectionState
 import com.dmujeres.app.red.DmujeresApi
@@ -46,7 +47,6 @@ import com.dmujeres.app.red.NetworkManager
 import com.dmujeres.app.seguimiento.PositionProvider
 import com.dmujeres.app.seguimiento.TrackingService
 import com.dmujeres.app.sesion.SessionStore
-import com.dmujeres.app.sistema.FcmStatus
 
 /** Refresco en vivo del home (estado, pendientes, batería y duración). */
 private const val LIVE_REFRESH_MS = 5_000L
@@ -58,7 +58,8 @@ const val EXTRA_BANNER_DEMO = "bannerDemo"
 private const val KEY_LAST_OTA_CHECK = "lastOtaCheckApp"
 
 /** Pasos visibles del refresco manual (para el relleno proporcional). */
-private const val REFRESH_STEPS = 8
+private const val REFRESH_STEPS = 3
+private const val PAUSA_REFRESCO_MS = 30_000L
 
 /** Bloqueo del botón de jornada tras un toque (anti doble toque). */
 private const val JOURNEY_TAP_GUARD_MS = 1_200L
@@ -68,7 +69,6 @@ private const val KEY_PIE_OCULTO = "pieActividadesOculto"
 private const val PENDING_OFFLINE_THRESHOLD = 30
 
 /** Aviso "inicia la jornada" en el botón ACTUALIZAR (luego vuelve solo). */
-private const val JOURNEY_NOTICE_MS = 2_500L
 
 /** Naranja de aviso: el refresco terminó con algo fallando. */
 private val REFRESH_WARNING_COLOR = 0xFFE65100.toInt()
@@ -306,12 +306,19 @@ class MainActivity : AppCompatActivity() {
         // cada paso y el relleno avanza de izquierda a derecha. La
         // actualización de la app es el aviso de arriba.
         updateButton.setOnClickListener {
-            // Sin jornada abierta no se refresca: el botón lo explica y vuelve.
-            if (DmujeresApi.isJourneyOpen(this)) {
-                runProgressiveRefresh()
-            } else {
-                showJourneyClosedNotice()
+            // Mientras muestra un problema que se arregla en el teléfono, el
+            // toque lleva al ajuste (GPS o ahorro de batería).
+            accionPendiente?.let { accion ->
+                accionPendiente = null
+                accion()
+                return@setOnClickListener
             }
+            // Tocarlo seguido no repite todo: se vuelve a mostrar el último resultado.
+            if (!refreshing && SystemClock.elapsedRealtime() - ultimoRefresco < PAUSA_REFRESCO_MS && ultimoResumen != null) {
+                Toast.makeText(this, ultimoResumen, Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            runProgressiveRefresh()
         }
         version.text = getString(
             R.string.version_footer_fmt,
@@ -465,7 +472,7 @@ class MainActivity : AppCompatActivity() {
         )
         // ACTUALIZAR se ve apagado (texto gris) sin jornada abierta; un refresco
         // o el aviso en curso mandan sobre este estado de reposo.
-        if (!refreshing && !journeyNotice) {
+        if (!refreshing) {
             updateButton.text = getString(R.string.refresh_button)
             updateButton.setTextColor(updateButtonIdleColor())
         }
@@ -672,35 +679,20 @@ class MainActivity : AppCompatActivity() {
      */
     private var refreshing = false
 
-    /** Aviso "inicia la jornada" visible ahora en el botón ACTUALIZAR. */
-    private var journeyNotice = false
+    // Último resultado del botón Actualizar y cuándo terminó (pausa entre toques).
+    private var ultimoResumen: String? = null
+    private var ultimoRefresco = 0L
+
+    // Ajuste que abre el próximo toque cuando el resultado es algo que la
+    // persona puede arreglar.
+    @Volatile
+    private var accionPendiente: (() -> Unit)? = null
 
     /** Color de reposo del botón ACTUALIZAR: navy con jornada, gris sin ella. */
     private fun updateButtonIdleColor(): Int = androidx.core.content.ContextCompat.getColor(
         this,
         if (DmujeresApi.isJourneyOpen(this)) R.color.navy else R.color.muted,
     )
-
-    /**
-     * Sin jornada no hay nada que refrescar: el botón muestra el aviso unos
-     * 2,5 s y vuelve a "ACTUALIZAR".
-     */
-    private fun showJourneyClosedNotice() {
-        if (journeyNotice || refreshing) return
-        journeyNotice = true
-        val button = findViewById<Button>(R.id.update_button)
-        val fill = (button.background as android.graphics.drawable.LayerDrawable)
-            .findDrawableByLayerId(R.id.progress_fill) as android.graphics.drawable.ClipDrawable
-        fill.level = 0
-        button.text = getString(R.string.refresh_summary_journey_closed)
-        button.setTextColor(getColor(R.color.muted))
-        uiHandler.postDelayed({
-            journeyNotice = false
-            if (isFinishing || isDestroyed) return@postDelayed
-            button.text = getString(R.string.refresh_button)
-            button.setTextColor(updateButtonIdleColor())
-        }, JOURNEY_NOTICE_MS)
-    }
 
     /**
      * Refresco manual con el avance dentro del botón: el texto de cada paso
@@ -773,120 +765,87 @@ class MainActivity : AppCompatActivity() {
             }
         }
         Thread {
-            fun pause() = runCatching { Thread.sleep(450) }
             try {
-                // 1) puntos pendientes
+                // 1) Sube lo pendiente: puntos, avisos de jornada y actividades,
+                // y manda el diagnóstico para que el panel vea el teléfono ya.
                 val before = runCatching { DatabaseHelper(this).countPositions() }.getOrDefault(0)
-                say(getString(R.string.refresh_step_pending, before), 1)
+                say(getString(R.string.refresh_step_sending), 1)
                 TrackingService.refreshNow()
-                // También lo demás que espera subir: avisos de jornada y actividades.
                 DmujeresApi.flushJourneyEvents(this)
                 com.dmujeres.app.cronograma.Actividades.sincronizar(this)
+                ServiceHeartbeat.reportNow()
                 // Se espera a que la cola baje de verdad (hasta 6 s), no un tiempo fijo.
                 var after = before
                 var quieto = 0
                 for (i in 0 until 12) {
+                    if (after == 0) break
                     runCatching { Thread.sleep(500) }
                     val ahora = runCatching { DatabaseHelper(this).countPositions() }.getOrDefault(after)
                     quieto = if (ahora == after) quieto + 1 else 0
                     after = ahora
-                    if (after == 0 || quieto >= 3) break
+                    if (quieto >= 3) break
                 }
-                say(getString(R.string.refresh_step_pending_ok, (before - after).coerceAtLeast(0)), 2)
-                if (after > 0) markWarning()
-                pause()
-                // 2) GPS
-                say(getString(R.string.refresh_step_gps), 3)
+                // 2) Lo que la persona puede arreglar, y qué tiene el servidor.
+                say(getString(R.string.refresh_step_checking), 2)
                 val gpsOn = runCatching {
                     (getSystemService(android.content.Context.LOCATION_SERVICE) as android.location.LocationManager)
                         .isProviderEnabled(android.location.LocationManager.GPS_PROVIDER)
                 }.getOrDefault(false)
-                val lastFixAt = PreferenceManager.getDefaultSharedPreferences(this)
-                    .getLong(PositionProvider.KEY_LAST_FIX_AT, 0L)
-                val fixAge = if (lastFixAt > 0) (System.currentTimeMillis() - lastFixAt) / 1000 else -1
-                say(
-                    if (gpsOn) {
-                        if (fixAge in 0..3600) getString(R.string.refresh_step_gps_ok, fixAge)
-                        else getString(R.string.refresh_step_gps_wait)
-                    } else {
-                        getString(R.string.refresh_step_gps_off)
-                    },
-                    3,
-                )
-                if (!gpsOn) markWarning()
-                pause()
-                // 3) datos móviles / red
-                say(getString(R.string.refresh_step_net), 4)
                 val online = runCatching {
                     NetworkManager(this, object : NetworkManager.NetworkHandler {
                         override fun onNetworkUpdate(isOnline: Boolean) = Unit
                     }).isOnline
                 }.getOrDefault(false)
-                say(getString(if (online) R.string.refresh_step_net_ok else R.string.refresh_step_net_off), 4)
-                if (!online) markWarning()
-                pause()
-                // 4) servidor
-                say(getString(R.string.refresh_step_server), 5)
-                val serverOk = DmujeresApi.serverReachable(this)
-                say(getString(if (serverOk) R.string.refresh_step_server_ok else R.string.refresh_step_server_off), 5)
-                if (!serverOk) markWarning()
-                pause()
-                // 5) configuración remota
-                say(getString(R.string.refresh_step_config), 6)
-                val config = requestRemoteConfig()
-                say(
-                    getString(
-                        if (config == ConfigState.UPDATED) R.string.refresh_step_config_updated
-                        else R.string.refresh_step_config_ok,
-                    ),
-                    6,
-                )
-                if (config == ConfigState.UPDATED) {
-                    // Mismo reinicio que RemoteConfig.applyAndRestartIfChanged.
+                val batterySaver = runCatching {
+                    !(getSystemService(android.content.Context.POWER_SERVICE) as android.os.PowerManager)
+                        .isIgnoringBatteryOptimizations(packageName)
+                }.getOrDefault(false)
+                val serverOk = online && DmujeresApi.serverReachable(this)
+                val ultimoPunto = if (serverOk) DmujeresApi.fetchUltimoPunto(this) else null
+                // La configuración del servidor se revisa sin mostrarla.
+                if (serverOk && requestRemoteConfig() == ConfigState.UPDATED) {
                     stopService(Intent(this, TrackingService::class.java))
                     ContextCompat.startForegroundService(this, Intent(this, TrackingService::class.java))
                 }
-                pause()
-                // 6) Firebase
-                say(getString(R.string.refresh_step_firebase), 7)
-                val firebase = when (FcmStatus.hasToken(this)) {
-                    true -> FirebaseState.OK
-                    false -> FirebaseState.FAIL
-                    else -> FirebaseState.NA
-                }
-                say(
-                    getString(
-                        when (firebase) {
-                            FirebaseState.OK -> R.string.refresh_step_firebase_ok
-                            FirebaseState.FAIL -> R.string.refresh_step_firebase_off
-                            FirebaseState.NA -> R.string.refresh_step_firebase_na
-                        },
-                    ),
-                    7,
-                )
-                pause()
-                // Si algo falló de verdad, no se dice "Todo listo".
+                val journeyOpen = DmujeresApi.isJourneyOpen(this)
                 val summary = RefreshOutcome(
-                    journeyOpen = DmujeresApi.isJourneyOpen(this),
+                    journeyOpen = journeyOpen,
                     pendingBefore = before,
                     pendingAfter = after,
                     gpsOn = gpsOn,
                     online = online,
                     serverOk = serverOk,
-                    firebase = firebase,
-                    config = config,
+                    batterySaver = batterySaver,
                 ).summary()
-                // El color final del relleno sigue el resultado real: azul si
-                // todo está bien, naranja de aviso si algo falló.
+                val texto = when {
+                    summary == RefreshSummary.ALL_GOOD && ultimoPunto != null -> getString(
+                        R.string.refresh_summary_ok_fmt,
+                        java.text.SimpleDateFormat("HH:mm", java.util.Locale.US).format(java.util.Date(ultimoPunto)),
+                    )
+                    else -> getString(summary.textRes)
+                }
+                // Si se puede arreglar desde el teléfono, el siguiente toque lleva
+                // directo al ajuste.
+                accionPendiente = when (summary) {
+                    RefreshSummary.GPS_OFF -> {
+                        { startActivity(Intent(android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS)) }
+                    }
+                    RefreshSummary.BATTERY_SAVER -> {
+                        { OnboardingActivity.start(this, OnboardingActivity.STEP_PERMISSIONS) }
+                    }
+                    else -> null
+                }
                 if (summary.allGood) animateFillTint(navy, 400) else markWarning()
-                say(getString(summary.textRes), 8, 700)
+                say(texto, REFRESH_STEPS, 700)
+                ultimoResumen = texto
                 runOnUiThread {
                     runCatching { refreshLockedHome() }
                     // De paso se revisa si hay versión nueva de la app.
                     runCatching { showUpdateDialogIfAvailable() }
                 }
-                // Si algo falló, el mensaje queda el tiempo suficiente para leerlo.
-                runCatching { Thread.sleep(if (summary.allGood) 900 else 3_000) }
+                // Si algo falló, el mensaje queda el tiempo suficiente para leerlo y tocarlo.
+                runCatching { Thread.sleep(if (summary.allGood) 2_500 else 6_000) }
+                accionPendiente = null
                 // Reposo: vuelve la palabra ACTUALIZAR y el fondo blanco.
                 runOnUiThread {
                     if (isFinishing || isDestroyed) return@runOnUiThread
@@ -900,6 +859,7 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
             } finally {
+                ultimoRefresco = SystemClock.elapsedRealtime()
                 refreshing = false
             }
         }.start()

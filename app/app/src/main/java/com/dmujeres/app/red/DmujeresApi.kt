@@ -250,13 +250,32 @@ object DmujeresApi {
     }
 
     /** Cronograma: actividades del equipo entre dos fechas (YYYY-MM-DD). null = sin conexión/error. */
-    fun fetchActividades(context: Context, desde: String, hasta: String): org.json.JSONArray? {
+    fun fetchActividades(context: Context, desde: String, hasta: String): org.json.JSONArray? =
+        getJson(context, "/api/mobile/v1/actividades", "desde=$desde&hasta=$hasta")?.optJSONArray("actividades")
+
+    /** Clientes de la lista (null sin conexión). */
+    fun fetchClientes(context: Context): org.json.JSONArray? =
+        getJson(context, "/api/mobile/v1/clientes", "")?.optJSONArray("clientes")
+
+    /** Paradas de un día según el GPS (null sin conexión). */
+    fun fetchParadas(context: Context, fecha: String): org.json.JSONArray? =
+        getJson(context, "/api/mobile/v1/paradas", "fecha=$fecha")?.optJSONArray("paradas")
+
+    /** Último punto que tiene el servidor de este teléfono (null si no se pudo saber). */
+    fun fetchUltimoPunto(context: Context): Long? =
+        getJson(context, "/api/mobile/v1/estado", "")?.let { o ->
+            o.optLong("ultimoPuntoEn", 0L).takeIf { it > 0 }
+        }
+
+    /** GET de una ruta del canal móvil con la identificación del teléfono. */
+    private fun getJson(context: Context, ruta: String, consulta: String): JSONObject? {
         val base = webBase(context)
         val device = deviceId(context)
         if (base.isBlank() || device.isBlank()) return null
         var connection: HttpURLConnection? = null
+        val extra = if (consulta.isBlank()) "" else "&$consulta"
         return try {
-            connection = URL("$base/api/mobile/v1/actividades?deviceId=${java.net.URLEncoder.encode(device, "UTF-8")}&desde=$desde&hasta=$hasta")
+            connection = URL("$base$ruta?deviceId=${java.net.URLEncoder.encode(device, "UTF-8")}$extra")
                 .openConnection() as HttpURLConnection
             connection.connectTimeout = 8_000
             connection.readTimeout = 8_000
@@ -267,10 +286,10 @@ object DmujeresApi {
                 noteHttpResult(context, code, hadToken)
                 null
             } else {
-                JSONObject(connection.inputStream.bufferedReader().use { it.readText() }).optJSONArray("actividades")
+                JSONObject(connection.inputStream.bufferedReader().use { it.readText() })
             }
         } catch (e: Exception) {
-            Log.w(TAG, "cronograma: no se pudo leer", e)
+            Log.w(TAG, "no se pudo leer $ruta", e)
             null
         } finally {
             runCatching { connection?.disconnect() }
