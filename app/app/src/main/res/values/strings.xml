@@ -114,7 +114,7 @@ Se registrará el cierre en el panel.</string>
   <string name="refresh_summary_gps_off">GPS apagado · toca para activarlo</string>
   <string name="refresh_summary_battery_saver">Ahorro de batería activo · toca para quitarlo</string>
   <string name="refresh_summary_pending">Quedan puntos por enviar · se reintentará</string>
-  <string name="journey_receipt_ok_fmt">Registrada %1$s ✓</string>
+  <string name="journey_receipt_ok_fmt">Registrada %1$s</string>
   <string name="journey_receipt_pending">Sin confirmar · se reintenta</string>
   <string name="journey_duration_fmt">%1$d h %2$d min</string>
   <string name="pill_online">En línea</string>
@@ -310,8 +310,6 @@ Se registrará el cierre en el panel.</string>
   <string name="crono_sync_at_fmt">Sincronizado a las %1$s</string>
   <string name="crono_sync_pend_corto_fmt">%1$d por enviar</string>
   <string name="crono_sync_nunca">Aún sin sincronizar</string>
-  <string name="crono_que_actividad">¿Qué actividad?</string>
-  <string name="crono_horario">Horario</string>
   <string name="crono_todo_el_dia">Todo el día</string>
   <string name="crono_eliminar_actividad">Eliminar actividad</string>
   <string name="crono_resumen_fmt">%1$s · %2$s</string>
@@ -344,7 +342,6 @@ Se registrará el cierre en el panel.</string>
   <string name="crono_en_curso_fmt">En curso · termina %1$s</string>
   <string name="crono_en_curso">En curso</string>
   <string name="crono_terminar_ahora">Terminé</string>
-  <string name="crono_terminada_fmt">%1$s terminada a las %2$s</string>
   <string name="crono_confirmar_eliminar_fmt">¿Eliminar %1$s?</string>
   <string name="crono_descartar">¿Salir sin guardar los cambios?</string>
   <string name="crono_descartar_si">Salir</string>
@@ -354,7 +351,6 @@ Se registrará el cierre en el panel.</string>
   <string name="crono_hora_hint">00:00</string>
   <string name="crono_hasta_hint">Opcional</string>
   <string name="crono_resumen_sin_fin_fmt">Desde las %1$s · sin hora de fin (termina cuando empiece la siguiente o al tocar Terminé)</string>
-  <string name="crono_visitados_antes">Visitados anteriormente</string>
   <string name="crono_error_hora">Escribe una hora válida, por ejemplo 9:30 o 14:30.</string>
   <string name="crono_home_terminado_fmt">Hoy %1$d actividades · todas terminadas</string>
 </resources>

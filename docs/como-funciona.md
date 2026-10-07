@@ -83,7 +83,7 @@ ubicación nueva.
 - Cada corte del recorrido dice su causa: teléfono apagado, GPS apagado, sin
   permiso, app detenida o sin datos (no llegó ningún diagnóstico) o sin señal
   GPS (la app seguía viva).
-- Al iniciar la jornada, la pantalla de la app muestra "Registrada HH:MM ✓"
+- Al iniciar la jornada, la pantalla de la app muestra "Registrada HH:MM"
   cuando el servidor la confirmó, o "Sin confirmar" mientras se reintenta.
 
 ## Actividades, clientes y el botón Actualizar

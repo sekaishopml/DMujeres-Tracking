@@ -12,7 +12,7 @@
 
     <style name="CronoCampoHora">
         <item name="android:layout_width">match_parent</item>
-        <item name="android:layout_height">52dp</item>
+        <item name="android:layout_height">44dp</item>
         <item name="android:layout_marginTop">4dp</item>
         <item name="android:background">@drawable/ds_field</item>
         <item name="android:digits">0123456789:.</item>

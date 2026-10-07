@@ -9,7 +9,6 @@ import android.view.Gravity
 import android.view.View
 import android.widget.LinearLayout
 import android.widget.TextView
-import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.preference.PreferenceManager
 import com.dmujeres.app.red.DmujeresApi
@@ -586,11 +585,6 @@ class CronogramaActivity : AppCompatActivity() {
                     val fin = HoraCronograma.deMinutos(minutosAhora())
                     if (HoraCronograma.aMinutos(fin) <= HoraCronograma.aMinutos(a.hora)) return@setOnClickListener
                     Actividades.guardar(this@CronogramaActivity, a.copy(horaFin = fin))
-                    Toast.makeText(
-                        this@CronogramaActivity,
-                        getString(R.string.crono_terminada_fmt, a.tipo.etiqueta, HoraCronograma.legible(fin)),
-                        Toast.LENGTH_SHORT,
-                    ).show()
                     pintar()
                     Actividades.sincronizar(this@CronogramaActivity) { runOnUiThread { if (!isFinishing && !isDestroyed) pintar() } }
                 }

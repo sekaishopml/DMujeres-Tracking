@@ -217,7 +217,7 @@ class ActividadActivity : AppCompatActivity() {
                 setPadding(dp(4), 0, dp(4), 0)
                 setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
                 setBackgroundResource(R.drawable.ds_chip_tipo)
-                layoutParams = LinearLayout.LayoutParams(0, dp(40), 1f).apply {
+                layoutParams = LinearLayout.LayoutParams(0, dp(36), 1f).apply {
                     if (i % 3 != 2) marginEnd = dp(6)
                 }
                 setOnClickListener {
@@ -280,7 +280,7 @@ class ActividadActivity : AppCompatActivity() {
                 setTextColor(getColor(R.color.text_primary))
                 setBackgroundResource(R.drawable.ds_chip_tipo)
                 setPadding(dp(12), 0, dp(12), 0)
-                layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, dp(36)).apply {
+                layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, dp(34)).apply {
                     marginEnd = dp(6)
                 }
                 setOnClickListener {
@@ -291,7 +291,6 @@ class ActividadActivity : AppCompatActivity() {
             })
         }
         val conFrecuentes = if (frecuentes.isEmpty() && cercanos.isEmpty()) View.GONE else View.VISIBLE
-        findViewById<View>(R.id.act_lugares_titulo).visibility = conFrecuentes
         findViewById<View>(R.id.act_lugares_scroll).visibility = conFrecuentes
     }
 
@@ -455,7 +454,7 @@ class ActividadActivity : AppCompatActivity() {
         Actividades.guardarVarias(this, vecinas + esta)
         if (vecinas.isNotEmpty()) {
             val nombres = ajustes.map { nombre(it.actividad) }.distinct().joinToString(", ")
-            Toast.makeText(this, getString(R.string.crono_ajustada_fmt, nombres), Toast.LENGTH_LONG).show()
+            Toast.makeText(this, getString(R.string.crono_ajustada_fmt, nombres), Toast.LENGTH_SHORT).show()
         }
         setResult(RESULT_OK)
         finish()

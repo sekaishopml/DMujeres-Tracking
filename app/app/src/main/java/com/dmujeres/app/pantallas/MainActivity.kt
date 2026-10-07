@@ -649,7 +649,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * Comprobante bajo la duración: "Registrada 08:02 ✓" cuando el servidor ya
+     * Comprobante bajo la duración: "Registrada 08:02" cuando el servidor ya
      * confirmó el inicio, o "Sin confirmar" mientras el aviso sigue en cola.
      * Es lo que el colaborador puede mostrar si dice que sí inició.
      */

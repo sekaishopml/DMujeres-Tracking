@@ -2,7 +2,7 @@ import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Check, ChevronDown, ChevronLeft, ChevronRight, Download, MapPin, Navigation, TriangleAlert } from 'lucide-react';
+import { ChevronDown, ChevronLeft, ChevronRight, Download, MapPin, Navigation, TriangleAlert } from 'lucide-react';
 import { Segmentado } from '@/componentes/ui/Segmentado';
 import { Tarjeta } from '@/componentes/ui/Tarjeta';
 import { Avatar } from '@/componentes/ui/Avatar';
@@ -248,7 +248,7 @@ function SelectorPersona({
                         elegida ? 'font-semibold text-marino-900' : 'text-texto',
                       )}
                     >
-                      <Check className={cn('size-3.5 flex-none', elegida ? 'text-marca' : 'invisible')} />
+                      <span className={cn('size-1.5 flex-none rounded-full', elegida ? 'bg-marca' : 'invisible')} />
                       <span className="min-w-0 flex-1 truncate">{p.nombre}</span>
                       {p.nuevas > 0 && (
                         <span
@@ -448,7 +448,7 @@ function AuditoriaCorta({ actividad: a }: { actividad: Actividad }) {
     <div className="mt-1 space-y-0.5 text-[10.5px] leading-tight">
       {respaldo && (
         <p className={cn('flex items-center gap-1 font-semibold', estilo.clase)} title={texto}>
-          {a.respaldo?.estado === 'GPS' ? <Check className="size-3 flex-none" /> : <TriangleAlert className="size-3 flex-none" />}
+          {a.respaldo?.estado !== 'GPS' && a.respaldo?.estado !== 'EN_CAMINO' && <TriangleAlert className="size-3 flex-none" />}
           {respaldo}
         </p>
       )}
