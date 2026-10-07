@@ -703,8 +703,7 @@ table.tabla thead th { position: sticky; top: 0; z-index: 1; }
   font-size: 11.5px; font-weight: 650; line-height: 1.5; padding: 0 7px; border-radius: 20px;
   background: var(--acento-suave); color: var(--acento-2); white-space: nowrap;
 }
-.parada-rol.rol-casa, .parada-rol.rol-regreso { background: color-mix(in srgb, var(--verde) 14%, #fff); color: color-mix(in srgb, var(--verde) 78%, #000); }
-.parada-rol.rol-visita { background: var(--linea-2); color: var(--color-marino-900); }
+.parada-rol { background: var(--linea-2); color: var(--color-marino-900); }
 .parada-tiempo { margin-left: auto; font-weight: 650; font-size: 14px; }
 .parada-direccion { font-size: 13px; line-height: 1.3; color: var(--apagado); overflow-wrap: anywhere; }
 
@@ -806,8 +805,6 @@ table.tabla thead th { position: sticky; top: 0; z-index: 1; }
 }
 .marcador-corte:hover { background: #fdf1e3; }
 /* Casa y oficina se distinguen de las visitas por el color de su insignia. */
-.marcador-parada.rol-casa .parada-insignia, .marcador-parada.rol-regreso .parada-insignia { background: var(--verde); }
-.marcador-parada.rol-oficina .parada-insignia { background: var(--acento); }
 .marcador-parada.activa .parada-insignia { background: #eb0045; }
 /* Clase sin uso (círculo hueco naranja); queda por si un mapa reutilizado
    todavía la nombra. */

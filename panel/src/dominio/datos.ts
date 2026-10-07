@@ -2,11 +2,10 @@ import type { QueryClient } from '@tanstack/react-query';
 import { api, consulta } from '@/lib/api';
 import type { OpcionesPeticion } from '@/lib/api';
 import type { Bateria, Dispositivo, Pagina, Posicion, PosicionesVivas, Replay, ReporteParada } from '@contratos';
-import type { RespuestaJornadasFlota, RespuestaOficina, RespuestaSalud } from '@contratos';
+import type { RespuestaJornadasFlota, RespuestaSalud } from '@contratos';
 import type {
   EntradaEsquemaAjustes,
   GrupoPlataforma,
-  RolPlataforma,
   UsuarioPlataforma,
 } from '@contratos';
 
@@ -131,15 +130,6 @@ export function traerParadas(idPublico: string, desde: string, hasta: string): P
   );
 }
 
-// Oficina del equipo: la fijada por un administrador o, si no hay, la que
-// sugiere la plataforma por dónde se detiene más gente. Con la consulta fallida
-// el resumen del día simplemente no habla de oficina.
-export const CLAVE_OFICINA = ['oficina'] as const;
-
-export function traerOficina(): Promise<RespuestaOficina> {
-  return api.get<RespuestaOficina>('/api/v1/oficina', { redirigir401: false });
-}
-
 // Salud por equipo (GET /api/v1/salud): el estado lo calcula el servidor, con
 // su causa. Si la ruta no existe, se muestra "sin dato".
 
@@ -176,14 +166,6 @@ export async function traerUsuariosPlataforma(opciones?: OpcionesPeticion): Prom
 export async function traerGrupos(opciones?: OpcionesPeticion): Promise<GrupoPlataforma[]> {
   const respuesta = await api.get<GrupoPlataforma[] | { datos: GrupoPlataforma[] }>(
     `/api/v1/grupos${consulta({ tamano: 200 })}`,
-    opciones,
-  );
-  return comoArreglo(respuesta);
-}
-
-export async function traerRoles(opciones?: OpcionesPeticion): Promise<RolPlataforma[]> {
-  const respuesta = await api.get<RolPlataforma[] | { datos: RolPlataforma[] }>(
-    '/api/v1/roles',
     opciones,
   );
   return comoArreglo(respuesta);

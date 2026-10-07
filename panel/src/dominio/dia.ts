@@ -1,5 +1,5 @@
-// El día de una persona contado como lo vive: de dónde sale, cuándo llega a la
-// oficina, qué lugares visita y cuánto del recorrido se vio. Todo sale de lo
+// El día de una persona contado como lo vive: qué lugares visita y cuánto del
+// recorrido se vio. Todo sale de lo
 // registrado (paradas, puntos y cortes de señal); lo que no se puede afirmar
 // queda en null y el panel lo muestra como "—".
 //
@@ -27,27 +27,9 @@ export interface FixDia {
   longitud: number;
 }
 
-export interface LugarOficina {
-  latitud: number;
-  longitud: number;
-  radioM: number;
-}
-
-// Qué es cada parada del día.
-//  - casa: donde empezó el registro (la estancia de partida).
-//  - regreso: vuelve a ese mismo lugar después de haber salido.
-//  - oficina: dentro del radio de la oficina.
-//  - visita: cualquier otro lugar.
-export type RolParada = 'casa' | 'regreso' | 'oficina' | 'visita';
-
 export interface ResumenDia {
-  // Un rol por parada, en el mismo orden en que se pasaron.
-  roles: RolParada[];
-  // Número de visita (1, 2, 3…) de cada parada; null si no es una visita.
+  // Número de visita (1, 2, 3…) de cada parada, en el orden en que se pasaron.
   numeroVisita: (number | null)[];
-  salidaCasa: string | null;
-  llegadaOficina: string | null;
-  salidaOficina: string | null;
   visitas: number;
   cobertura: Cobertura;
 }
@@ -60,16 +42,8 @@ export interface Cobertura {
   mayorCorteSegundos: number;
 }
 
-// La partida cuenta como "casa" si el registro empieza dentro de las primeras
-// paradas y esa estancia dura al menos esto: un teléfono que arranca en plena
-// calle no es una casa.
-export const CASA_MIN_MINUTOS = 10;
-// Volver a "casa" es volver a menos de esto del lugar de partida.
-export const RADIO_CASA_M = 150;
 // Dos paradas seguidas a menos de esto cuentan como la misma visita.
 export const RADIO_MISMA_VISITA_M = 150;
-// Una parada que sigue abierta al final de los datos no tiene salida todavía.
-const SIGUE_ALLI_MS = 60_000;
 
 const ms = (iso: string) => new Date(iso).getTime();
 
@@ -112,69 +86,24 @@ export function resumenDia(entrada: {
   posiciones: readonly FixDia[];
   paradas: readonly ParadaDia[];
   huecos: readonly HuecoDia[];
-  oficina: LugarOficina | null;
 }): ResumenDia {
-  const { posiciones, paradas, huecos, oficina } = entrada;
+  const { posiciones, paradas, huecos } = entrada;
   const cobertura = coberturaDe(posiciones, huecos);
-  const vacio: ResumenDia = {
-    roles: paradas.map(() => 'visita'),
-    numeroVisita: paradas.map(() => null),
-    salidaCasa: null,
-    llegadaOficina: null,
-    salidaOficina: null,
-    visitas: 0,
-    cobertura,
-  };
-  if (posiciones.length === 0 || paradas.length === 0) return vacio;
-
-  const ultimoFix = ms(posiciones[posiciones.length - 1].registradoEn);
-  const enOficina = (p: ParadaDia) => oficina != null && distanciaM(p, oficina) <= oficina.radioM;
-
-  const casa = null as ParadaDia | null; // la casa no está definida
-
-  const roles: RolParada[] = [];
+  if (posiciones.length === 0 || paradas.length === 0) {
+    return { numeroVisita: paradas.map(() => null), visitas: 0, cobertura };
+  }
+  // Paradas seguidas en el mismo lugar (el GPS corta una estancia larga en
+  // varias) son una sola visita.
   const numeroVisita: (number | null)[] = [];
   let visitas = 0;
   paradas.forEach((parada, i) => {
-    let rol: RolParada = 'visita';
-    if (casa && i === 0) rol = 'casa';
-    else if (enOficina(parada)) rol = 'oficina';
-    else if (casa && distanciaM(parada, casa) <= RADIO_CASA_M) rol = 'regreso';
-    roles.push(rol);
-    if (rol !== 'visita') {
-      numeroVisita.push(null);
-      return;
-    }
-    // Paradas seguidas en el mismo lugar (el GPS corta una estancia larga en
-    // varias) son una sola visita.
-    const anterior = i > 0 && roles[i - 1] === 'visita' ? paradas[i - 1] : null;
+    const anterior = i > 0 ? paradas[i - 1] : null;
     numeroVisita.push(anterior && distanciaM(parada, anterior) <= RADIO_MISMA_VISITA_M ? numeroVisita[i - 1] : (visitas += 1));
   });
-
-  const sigueAlli = (p: ParadaDia) => ms(p.fin) >= ultimoFix - SIGUE_ALLI_MS;
-  const deOficina = paradas.filter((_, i) => roles[i] === 'oficina');
-  const ultimaOficina = deOficina[deOficina.length - 1];
-  return {
-    roles,
-    numeroVisita,
-    salidaCasa: casa && !sigueAlli(casa) ? casa.fin : null,
-    llegadaOficina: deOficina[0]?.inicio ?? null,
-    salidaOficina: ultimaOficina && !sigueAlli(ultimaOficina) ? ultimaOficina.fin : null,
-    visitas,
-    cobertura,
-  };
+  return { numeroVisita, visitas, cobertura };
 }
 
 // Cómo se nombra cada parada en la lista, el mapa y la pista.
-export function etiquetaRol(rol: RolParada, numeroVisita: number | null, nombreOficina = 'Oficina'): string {
-  switch (rol) {
-    case 'casa':
-      return 'Casa';
-    case 'regreso':
-      return 'Regreso';
-    case 'oficina':
-      return nombreOficina;
-    default:
-      return numeroVisita != null ? `Visita ${numeroVisita}` : 'Visita';
-  }
+export function etiquetaVisita(numeroVisita: number | null): string {
+  return numeroVisita != null ? `Visita ${numeroVisita}` : 'Visita';
 }

@@ -13,7 +13,6 @@ import {
   traerUltimaPosicion,
 } from '@/dominio/datos';
 import { construirBitacora, resumenBitacora } from '@/dominio/bitacora';
-import { useOficina } from '@/dominio/oficina';
 import type { EventoBitacora } from '@/dominio/bitacora';
 import { colorEstado, claveEstado } from '@/dominio/estado';
 import { mensajeError, esNoEncontrado } from '@/dominio/errores';
@@ -128,7 +127,6 @@ export default function Detalle() {
     ...opcionesDia,
   });
 
-  const oficina = useOficina();
   const eventos = useMemo(
     () =>
       construirBitacora({
@@ -137,10 +135,8 @@ export default function Detalle() {
         huecos: replay.data?.huecos,
         paradas: paradas.data?.datos,
         muestrasBateria: bateriaDia.data?.muestras,
-        oficina: oficina.lugar,
-        nombreOficina: oficina.nombre,
       }),
-    [jornadas.data, replay.data, paradas.data, bateriaDia.data, oficina.lugar, oficina.nombre],
+    [jornadas.data, replay.data, paradas.data, bateriaDia.data],
   );
   const resumen = useMemo(() => resumenBitacora(eventos), [eventos]);
 

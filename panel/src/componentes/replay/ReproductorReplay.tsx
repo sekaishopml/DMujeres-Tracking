@@ -16,8 +16,8 @@ import type { Vertice } from './flechas';
 import { BLANCO, gradienteHasta, prepararGuia, progresoEn } from './guia';
 import { colorToken, useTema } from '@/lib/tema';
 import { traerDireccion } from '@/dominio/datos';
-import { distanciaM, etiquetaRol } from '@/dominio/dia';
-import type { ResumenDia, RolParada } from '@/dominio/dia';
+import { distanciaM, etiquetaVisita } from '@/dominio/dia';
+import type { ResumenDia } from '@/dominio/dia';
 import { globoDeCorte, globoDePunto, globoHoverDe } from './globos';
 import {
   ETIQUETA_MODO_REAL,
@@ -193,9 +193,8 @@ interface Props {
   finRango?: string;
   paradas?: Parada[];
   microparadas?: Microparada[];
-  // Qué es cada parada (casa, oficina, visita) y cómo se llama la oficina.
+  // Número de visita de cada parada.
   resumen?: ResumenDia | null;
-  nombreOficina?: string;
   // Cambia cuando Replay rehace las capas del recorrido guiado.
   versionGuia?: number;
   children: ReactNode;
@@ -206,7 +205,6 @@ interface Reproductor {
   paradas: Parada[];
   microparadas: Microparada[];
   resumen: ResumenDia | null;
-  nombreOficina: string;
   // Al reproducir, las paradas y los cortes de señal pasan rápido: solo se ve
   // el recorrido.
   saltarEsperas: boolean;
@@ -256,7 +254,7 @@ const ContextoReproductor = createContext<Reproductor | null>(null);
 // selección, saltos de hueco) y lo comparte con los bloques que Replay ubica
 // en el panel flotante y en la franja inferior. El clic sobre la ruta se toma
 // de la capa que agrega Replay; aquí se busca el punto más cercano.
-export default function ReproductorReplay({ mapa, posiciones, huecos, reconstruidos, lineas = SIN_LINEAS, dispositivo, finRango, paradas = SIN_PARADAS, microparadas = SIN_MICROPARADAS, resumen = null, nombreOficina = 'Oficina', versionGuia = 0, children }: Props) {
+export default function ReproductorReplay({ mapa, posiciones, huecos, reconstruidos, lineas = SIN_LINEAS, dispositivo, finRango, paradas = SIN_PARADAS, microparadas = SIN_MICROPARADAS, resumen = null, versionGuia = 0, children }: Props) {
   const finRangoMs = finRango ? milisegundos(finRango) : null;
   const [indice, setIndice] = useState(0);
   const reproduciendoRef = useRef(false);
@@ -994,7 +992,6 @@ export default function ReproductorReplay({ mapa, posiciones, huecos, reconstrui
     paradas,
     microparadas,
     resumen,
-    nombreOficina,
     saltarEsperas,
     alternarSaltarEsperas,
     irAParada,
@@ -1232,7 +1229,6 @@ function FilaParada({
   primera,
   ultima,
   activa,
-  rol,
   etiquetaDelRol,
 }: {
   parada: Parada;
@@ -1240,7 +1236,6 @@ function FilaParada({
   primera: boolean;
   ultima: boolean;
   activa: boolean;
-  rol: RolParada | null;
   etiquetaDelRol: string | null;
 }) {
   const { seleccionarParada } = useReproductor();
@@ -1265,7 +1260,7 @@ function FilaParada({
             Desde {horaCorta(parada.inicio)} hasta {horaCorta(parada.fin)}
           </span>
           {etiquetaDelRol ? (
-            <span className={`parada-rol rol-${rol}`}>{etiquetaDelRol}</span>
+            <span className="parada-rol">{etiquetaDelRol}</span>
           ) : (
             (primera || ultima) && <span className="parada-extremo">{primera ? 'Primera' : 'Última'}</span>
           )}
@@ -1293,7 +1288,7 @@ export function ListaParadas({
   const [microAbiertas, setMicroAbiertas] = useState(false);
   // La parada activa vive en el reproductor: elegirla desde su insignia del
   // mapa también resalta su fila, y viceversa.
-  const { paradaSeleccionada, microparadas, seleccionarParada, resumen, nombreOficina } = useReproductor();
+  const { paradaSeleccionada, microparadas, seleccionarParada, resumen } = useReproductor();
   if (paradas.length === 0 && microparadas.length === 0) return null;
   // El total del servidor puede superar las filas cargadas (tope de la
   // consulta): "y N más" cuenta lo que quedó fuera de la carga.
@@ -1321,8 +1316,7 @@ export function ListaParadas({
                 primera={posicion === 0}
                 ultima={posicion === paradas.length - 1}
                 activa={paradaSeleccionada === posicion}
-                rol={resumen?.roles[posicion] ?? null}
-                etiquetaDelRol={resumen ? etiquetaRol(resumen.roles[posicion], resumen.numeroVisita[posicion], nombreOficina) : null}
+                etiquetaDelRol={resumen ? etiquetaVisita(resumen.numeroVisita[posicion]) : null}
               />
             ))}
           </ul>
@@ -1370,7 +1364,7 @@ export function ListaParadas({
 // Tocar una insignia hace lo mismo que tocar su fila: pausa, ubica el reloj,
 // resalta la parada y lleva el mapa hasta ella.
 export function InsigniasParadas({ mapa, paradas }: { mapa: TipoMapa | null; paradas: Parada[] }) {
-  const { paradaSeleccionada, seleccionarParada, microparadas, resumen, nombreOficina, posiciones } = useReproductor();
+  const { paradaSeleccionada, seleccionarParada, microparadas, resumen, posiciones } = useReproductor();
   const elementos = useRef<Map<number, HTMLDivElement>>(new Map());
 
   // Microparadas: punto chico sin número, debajo de las insignias. Pulsarlo
@@ -1397,10 +1391,9 @@ export function InsigniasParadas({ mapa, paradas }: { mapa: TipoMapa | null; par
     const almacen = elementos.current;
     const hover = globoHoverDe(mapa);
     const marcadores = paradas.map((parada, orden) => {
-      const rol = resumen?.roles[orden] ?? 'visita';
-      const nombre = etiquetaRol(rol, resumen?.numeroVisita[orden] ?? null, nombreOficina);
+      const nombre = etiquetaVisita(resumen?.numeroVisita[orden] ?? null);
       const elemento = document.createElement('div');
-      elemento.className = `marcador-parada rol-${rol}`;
+      elemento.className = 'marcador-parada';
       elemento.setAttribute('aria-label', `${nombre}: desde ${horaCorta(parada.inicio)} hasta ${horaCorta(parada.fin)}`);
       const insignia = document.createElement('span');
       insignia.className = 'parada-insignia';
@@ -1444,13 +1437,13 @@ export function InsigniasParadas({ mapa, paradas }: { mapa: TipoMapa | null; par
       hover.quitar();
       almacen.clear();
     };
-  }, [mapa, paradas, posiciones, seleccionarParada, resumen, nombreOficina]);
+  }, [mapa, paradas, posiciones, seleccionarParada, resumen]);
 
   useEffect(() => {
     for (const [orden, elemento] of elementos.current) {
       elemento.classList.toggle('activa', orden === paradaSeleccionada);
     }
-  }, [paradas, paradaSeleccionada, resumen, nombreOficina]);
+  }, [paradas, paradaSeleccionada, resumen]);
 
   // Ficha desplegable de la parada elegida (desde, hasta, duración y
   // dirección), con apertura suave sobre la insignia. Se cierra al elegir un
@@ -1670,7 +1663,6 @@ function PistaTiempo({ ampliada }: { ampliada: boolean }) {
     pausar,
     seleccionarParada,
     resumen,
-    nombreOficina,
   } = useReproductor();
   const [bajo, setBajo] = useState<{ fraccion: number; instante: number; marca: MarcaPista } | null>(null);
   const primera = posiciones[0] ?? null;
@@ -1737,8 +1729,7 @@ function PistaTiempo({ ampliada }: { ampliada: boolean }) {
   // parada a la raya de al lado.
   function textoGlobo(marca: MarcaPista, instante: number): ReactNode {
     const fix = posiciones.length > 0 ? posiciones[indiceCercano(posiciones, instante)] : null;
-    const rol = (indice: number) =>
-      resumen ? etiquetaRol(resumen.roles[indice], resumen.numeroVisita[indice], nombreOficina) : null;
+    const rol = (indice: number) => (resumen ? etiquetaVisita(resumen.numeroVisita[indice]) : null);
     let detalle: ReactNode = null;
     switch (marca.tipo) {
       case 'parada':

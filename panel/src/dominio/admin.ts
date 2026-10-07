@@ -1,6 +1,6 @@
 // Tipos de sistema que no están en @contratos (compartido/tipos no tiene
 // config.ts). Copian los nombres de campo de la API para no usar `any`.
-import type { Dispositivo, Entorno, PuntoGeo, Usuario } from '@contratos';
+import type { Dispositivo, Entorno, PuntoGeo } from '@contratos';
 
 export interface MapaConfig {
   estiloUrl: string;
@@ -76,11 +76,6 @@ export interface ConfiguracionEquipo {
   'mobile.bufferPolicy'?: string;
   'mobile.ackTimeoutSeconds'?: number;
   'mobile.maxRetries'?: number;
-}
-
-// El Omit evita choques si @contratos agrega estos campos más adelante.
-export interface UsuarioGestion extends Omit<Usuario, 'dispositivoIds'> {
-  dispositivoIds: string[];
 }
 
 export interface DispositivoGestion extends Omit<Dispositivo, 'configuracion'> {

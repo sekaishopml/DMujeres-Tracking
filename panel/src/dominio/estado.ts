@@ -30,16 +30,3 @@ export function colorEstado(dispositivo: EstadoOperativo): string {
   return COLOR_ESTADO[claveEstado(dispositivo)] ?? COLOR_ESTADO.deshabilitado;
 }
 
-// Prioridad de lista: primero lo que exige atención de la operadora
-// (sin señal, estado desconocido, detenido) y al final lo que fluye.
-const PRIORIDAD: Record<string, number> = {
-  sinSenal: 0,
-  desconocido: 1,
-  detenido: 2,
-  enLinea: 3,
-  deshabilitado: 4,
-};
-
-export function prioridadEstado(dispositivo: EstadoOperativo): number {
-  return PRIORIDAD[claveEstado(dispositivo)] ?? 9;
-}

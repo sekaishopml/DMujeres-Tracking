@@ -18,13 +18,6 @@ export const CLASE_FONDO_NIVEL: Record<NivelBateria, string> = {
   sinDato: 'bg-deshabilitado',
 };
 
-export const CLASE_TEXTO_NIVEL: Record<NivelBateria, string> = {
-  ok: 'text-movimiento',
-  medio: 'text-sin-senal',
-  bajo: 'text-peligro',
-  sinDato: 'text-texto-3',
-};
-
 export interface Tendencia {
   direccion: 'sube' | 'baja' | 'estable';
   tasaPctHora: number;

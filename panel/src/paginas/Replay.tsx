@@ -24,7 +24,6 @@ import { depurarRecorrido } from '@/dominio/depuracion';
 import { traerFlota, traerJornadas, traerParadas, traerReplay, CACHE_AUDITORIA_MS, CLAVE_FLOTA, equiposHabilitados } from '@/dominio/datos';
 import { ordenarPorDepartamento } from '@/dominio/departamentos';
 import { coberturaDe, resumenDia } from '@/dominio/dia';
-import { useOficina } from '@/dominio/oficina';
 import { esNoEncontrado, mensajeError } from '@/dominio/errores';
 import {
   aColeccion,
@@ -494,10 +493,9 @@ export default function Replay() {
   // El día contado como lo vive la persona: de dónde sale, cuándo llega a la
   // oficina, qué visita y cuánto se vio. Solo con un día; en un rango largo las
   // estancias de cada noche se mezclarían.
-  const oficina = useOficina();
   const resumen = useMemo(
-    () => (desde === hasta ? resumenDia({ posiciones, paradas, huecos, oficina: oficina.lugar }) : null),
-    [desde, hasta, posiciones, paradas, huecos, oficina.lugar],
+    () => (desde === hasta ? resumenDia({ posiciones, paradas, huecos }) : null),
+    [desde, hasta, posiciones, paradas, huecos],
   );
   // Detenciones de 40 s a 3 min (semáforo largo, entrega rápida) que no
   // llegan a parada: se marcan aparte.
@@ -960,7 +958,6 @@ export default function Replay() {
       paradas={paradas}
       microparadas={microparadas}
       resumen={resumen}
-      nombreOficina={oficina.nombre}
       versionGuia={versionGuia}
     >
       <section className="replay-pantalla">

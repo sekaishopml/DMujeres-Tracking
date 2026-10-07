@@ -10,6 +10,5 @@ export * from "./geocode";
 export * from "./battery";
 export * from "./salud";
 export * from "./plataforma";
-export * from "./oficina";
 
 export const VERSION_API = "v1";

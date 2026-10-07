@@ -81,8 +81,5 @@ export function sumarMeses(fecha: string, meses: number): string {
 
 const NOMBRE_DIA = new Intl.DateTimeFormat('es-EC', { timeZone: 'UTC', weekday: 'short', day: 'numeric' });
 const NOMBRE_MES = new Intl.DateTimeFormat('es-EC', { timeZone: 'UTC', month: 'long', year: 'numeric' });
-const DIA_LARGO = new Intl.DateTimeFormat('es-EC', { timeZone: 'UTC', weekday: 'long', day: 'numeric', month: 'long' });
-
 export const etiquetaDia = (f: string) => NOMBRE_DIA.format(new Date(`${f}T12:00:00Z`));
 export const etiquetaMes = (f: string) => NOMBRE_MES.format(new Date(`${f}T12:00:00Z`));
-export const etiquetaDiaLargo = (f: string) => DIA_LARGO.format(new Date(`${f}T12:00:00Z`));
