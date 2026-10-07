@@ -626,6 +626,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun refreshDuration() {
         val text = findViewById<TextView>(R.id.duration_value) ?: return
+        refreshJourneyReceipt()
         if (!DmujeresApi.isJourneyOpen(this)) {
             text.text = getString(R.string.journey_none_banner)
             return
@@ -638,6 +639,30 @@ class MainActivity : AppCompatActivity() {
         }
         val minutes = ((System.currentTimeMillis() - startedAt) / 60_000L).toInt()
         text.text = getString(R.string.journey_duration_fmt, minutes / 60, minutes % 60)
+    }
+
+    /**
+     * Comprobante bajo la duración: "Registrada 08:02 ✓" cuando el servidor ya
+     * confirmó el inicio, o "Sin confirmar" mientras el aviso sigue en cola.
+     * Es lo que el colaborador puede mostrar si dice que sí inició.
+     */
+    private fun refreshJourneyReceipt() {
+        val label = findViewById<TextView>(R.id.duration_label) ?: return
+        val prefs = PreferenceManager.getDefaultSharedPreferences(this)
+        val journeyId = prefs.getLong(DmujeresApi.KEY_JOURNEY_ID, 0L)
+        if (!DmujeresApi.isJourneyOpen(this) || journeyId <= 0L) {
+            label.text = getString(R.string.duration_label)
+            return
+        }
+        val confirmedAt = prefs.getLong(DmujeresApi.KEY_JOURNEY_CONFIRMED_AT, 0L)
+        label.text = if (prefs.getLong(DmujeresApi.KEY_JOURNEY_CONFIRMED_ID, 0L) == journeyId && confirmedAt > 0L) {
+            getString(
+                R.string.journey_receipt_ok_fmt,
+                java.text.SimpleDateFormat("HH:mm", java.util.Locale.US).format(java.util.Date(confirmedAt)),
+            )
+        } else {
+            getString(R.string.journey_receipt_pending)
+        }
     }
 
     /**

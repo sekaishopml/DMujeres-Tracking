@@ -57,6 +57,8 @@
   <string name="login_error_password">Escribe tu contraseña.</string>
   <string name="login_error_unknown">Usuario no autorizado · revisa con CCTV.</string>
   <string name="login_error_credentials">Usuario o contraseña incorrectos · revisa con CCTV.</string>
+  <string name="login_error_locked">Cuenta bloqueada por 3 intentos fallidos · espera 15 min o pide a CCTV que la desbloquee.</string>
+  <string name="login_error_other_phone">Tu cuenta ya está abierta en otro teléfono · pide a CCTV que cierre esa sesión.</string>
   <string name="login_error_offline">Sin conexión · revisa tus datos móviles.</string>
   <string name="login_title">Inicia sesión</string>
   <string name="login_enter">Entrar</string>
@@ -102,6 +104,8 @@ Se registrará el cierre en el panel.</string>
   <string name="duration_label">Duración</string>
   <string name="journey_none_banner">Sin jornada</string>
   <string name="battery_value_fmt">%1$d%%</string>
+  <string name="journey_receipt_ok_fmt">Registrada %1$s ✓</string>
+  <string name="journey_receipt_pending">Sin confirmar · se reintenta</string>
   <string name="journey_duration_fmt">%1$d h %2$d min</string>
   <string name="pill_online">En línea</string>
   <string name="pill_no_connection">Sin conexión</string>

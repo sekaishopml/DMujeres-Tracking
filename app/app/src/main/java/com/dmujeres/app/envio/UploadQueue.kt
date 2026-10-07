@@ -22,8 +22,8 @@ import kotlin.math.min
 import kotlin.random.Random
 
 /**
- * Política de subida PURA (JVM, sin Android): clasificación HTTP y backoff.
- * Separada de la cola para poder probarla sin dispositivo.
+ * Reglas de subida sin Android (se prueban en la computadora): qué hacer con
+ * cada respuesta del servidor y cuánto esperar antes de reintentar.
  */
 object UploadPolicy {
 
@@ -37,7 +37,7 @@ object UploadPolicy {
     enum class HttpClass { CONFIRMED, RETRY, DEAD, PAUSED }
 
     /**
-     * Clasificación del HTTP de la arquitectura (§8): 2xx confirmado,
+     * Qué hacer con cada respuesta: 2xx confirmado,
      * 400/404/413 DEAD sin reintento, 401 pausa con aviso, 408/429/5xx retry.
      */
     fun classifyHttp(code: Int): HttpClass = when (code) {

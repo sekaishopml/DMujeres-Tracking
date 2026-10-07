@@ -44,7 +44,7 @@ import com.dmujeres.app.sistema.PowerEvents
 import com.dmujeres.app.sistema.SendWakeLock
 
 /**
- * Única autoridad del tracking (§3): captura, máquina de estados, cola y
+ * Único lugar que manda en el registro: captura, máquina de estados, cola y
  * recuperación pasan por aquí. Ningún otro componente manda sobre la cadencia.
  */
 private const val CONSOLE_FIX_GAP_MS = 20_000L

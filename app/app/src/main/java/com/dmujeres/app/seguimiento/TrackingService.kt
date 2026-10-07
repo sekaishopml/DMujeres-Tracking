@@ -46,6 +46,7 @@ class TrackingService : Service() {
 
     private var trackingController: TrackingController? = null
     private var powerReceiver: android.content.BroadcastReceiver? = null
+    private var gpsReceiver: android.content.BroadcastReceiver? = null
 
     override fun onCreate() {
         val sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this)
@@ -73,6 +74,21 @@ class TrackingService : Service() {
             }
             // Apagado del teléfono con su causa (batería o manual) para el panel.
             powerReceiver = runCatching { PowerEvents.register(this) }.getOrNull()
+            // Al apagar o encender la ubicación se avisa al momento.
+            gpsReceiver = runCatching {
+                val receptor = object : android.content.BroadcastReceiver() {
+                    override fun onReceive(context: android.content.Context, intent: Intent) {
+                        ServiceHeartbeat.reportNow()
+                    }
+                }
+                ContextCompat.registerReceiver(
+                    this,
+                    receptor,
+                    android.content.IntentFilter(android.location.LocationManager.PROVIDERS_CHANGED_ACTION),
+                    ContextCompat.RECEIVER_NOT_EXPORTED,
+                )
+                receptor
+            }.getOrNull()
             PowerEvents.flush(this)
             DmujeresApi.flushJourneyEvents(this)
         } catch (e: RuntimeException) {
@@ -132,6 +148,8 @@ class TrackingService : Service() {
         isRunning = false
         powerReceiver?.let { runCatching { unregisterReceiver(it) } }
         powerReceiver = null
+        gpsReceiver?.let { runCatching { unregisterReceiver(it) } }
+        gpsReceiver = null
         controllerRef = null
         ServiceHeartbeat.stop()
         // Sin servicio no hay rescate: se cancela la alarma (el próximo

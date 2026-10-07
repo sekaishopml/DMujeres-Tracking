@@ -25,8 +25,10 @@ object SessionAuth {
     fun normalizeUser(raw: String): String = raw.trim().lowercase()
 
     /** Cuerpo JSON del POST /sesion (escapado mínimo, sin dependencias). */
-    fun loginRequestJson(usuario: String, clave: String): String =
-        "{\"usuario\":\"${escape(usuario)}\",\"clave\":\"${escape(clave)}\"}"
+    // La instalación deja al servidor saber si la cuenta ya está abierta en
+    // otro teléfono (solo se permite uno).
+    fun loginRequestJson(usuario: String, clave: String, instalacion: String = ""): String =
+        "{\"usuario\":\"${escape(usuario)}\",\"clave\":\"${escape(clave)}\",\"instalacion\":\"${escape(instalacion)}\"}"
 
     private fun escape(value: String): String =
         value.replace("\\", "\\\\").replace("\"", "\\\"")

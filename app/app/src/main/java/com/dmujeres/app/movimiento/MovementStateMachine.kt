@@ -30,7 +30,7 @@ import com.dmujeres.app.seguimiento.MotionMonitor
  */
 class MovementStateMachine {
 
-    /** Estados de la arquitectura cerrada (§6). */
+    /** Estados posibles del teléfono según su movimiento. */
     enum class State {
         STOPPED,
         STARTING,

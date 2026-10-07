@@ -16,6 +16,7 @@ import com.dmujeres.app.sesion.SessionStore
 import com.dmujeres.app.sistema.PowerEvents
 import java.net.HttpURLConnection
 import java.net.URL
+import java.util.UUID
 import org.json.JSONObject
 
 /**
@@ -34,6 +35,8 @@ object DmujeresApi {
     private val ZONA_JORNADA = java.util.TimeZone.getTimeZone("America/Guayaquil")
     const val KEY_PASSWORD = "password"
     const val KEY_JOURNEY_STARTED_AT = "journeyStartedAt"
+    const val KEY_JOURNEY_CONFIRMED_ID = "journeyConfirmedId"
+    const val KEY_JOURNEY_CONFIRMED_AT = "journeyConfirmedAt"
     const val KEY_JOURNEY_OPEN = "journeyOpen"
     private const val CLIENT = "dmujeres-app"
     private const val GITHUB_REPO = "sekaishopml/DMujeres-Tracking"
@@ -316,6 +319,13 @@ object DmujeresApi {
                         break
                     }
                     JourneyOutbox.remove(app, event)
+                    // Comprobante: hora en que el servidor confirmó el inicio.
+                    if (event.action == "start") {
+                        prefs(app).edit()
+                            .putLong(KEY_JOURNEY_CONFIRMED_ID, event.journeyId)
+                            .putLong(KEY_JOURNEY_CONFIRMED_AT, System.currentTimeMillis())
+                            .apply()
+                    }
                     StatusActivity.addMessage(
                         app.getString(
                             if (event.action == "start") R.string.console_journey_start_ok else R.string.console_journey_stop_ok,
@@ -329,7 +339,16 @@ object DmujeresApi {
     }
 
     /** Resultado de validar el acceso del colaborador en el servidor. */
-    enum class LoginResult { AUTHORIZED, UNKNOWN_USER, BAD_CREDENTIALS, OFFLINE }
+    enum class LoginResult { AUTHORIZED, UNKNOWN_USER, BAD_CREDENTIALS, LOCKED, OTHER_PHONE, OFFLINE }
+
+    /** Identificador de esta instalación (se crea la primera vez). */
+    fun installId(context: Context): String {
+        val p = prefs(context)
+        p.getString(Prefs.INSTALL_ID, null)?.let { return it }
+        val nuevo = UUID.randomUUID().toString()
+        p.edit().putString(Prefs.INSTALL_ID, nuevo).apply()
+        return nuevo
+    }
 
     /**
      * Revisa el usuario: 200 = autorizado, 404 = no existe, 401/403 = clave
@@ -384,7 +403,7 @@ object DmujeresApi {
             connection.doOutput = true
             connection.setRequestProperty("Content-Type", "application/json")
             connection.outputStream.use {
-                it.write(SessionAuth.loginRequestJson(user, clave).toByteArray())
+                it.write(SessionAuth.loginRequestJson(user, clave, installId(context)).toByteArray())
             }
             code = connection.responseCode
             val stream = if (code in 200..299) connection.inputStream else connection.errorStream
@@ -422,6 +441,10 @@ object DmujeresApi {
                 LoginResult.AUTHORIZED
             }
             401 -> LoginResult.BAD_CREDENTIALS
+            // Tres claves equivocadas seguidas: bloqueada 15 minutos.
+            423 -> LoginResult.LOCKED
+            // La cuenta ya tiene la app abierta en otro teléfono.
+            409 -> LoginResult.OTHER_PHONE
             404 -> {
                 // Servidor sin /sesion: se valida con la clave compartida.
                 Log.i(TAG, "sesion no disponible (404): compatibilidad con clave compartida")

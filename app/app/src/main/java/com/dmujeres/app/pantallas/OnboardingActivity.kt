@@ -206,6 +206,8 @@ class OnboardingActivity : AppCompatActivity() {
                     DmujeresApi.LoginResult.AUTHORIZED -> showPermissions()
                     DmujeresApi.LoginResult.UNKNOWN_USER -> showError(R.string.login_error_unknown)
                     DmujeresApi.LoginResult.BAD_CREDENTIALS -> showError(R.string.login_error_credentials)
+                    DmujeresApi.LoginResult.LOCKED -> showError(R.string.login_error_locked)
+                    DmujeresApi.LoginResult.OTHER_PHONE -> showError(R.string.login_error_other_phone)
                     else -> showError(R.string.login_error_offline)
                 }
             }

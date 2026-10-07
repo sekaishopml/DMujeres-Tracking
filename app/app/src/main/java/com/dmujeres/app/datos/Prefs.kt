@@ -10,6 +10,8 @@ object Prefs {
 
     const val DEVICE = "id"
     const val URL = "url"
+    /** Identificador de esta instalación; cambia si se reinstala la app. */
+    const val INSTALL_ID = "installId"
     const val INTERVAL = "interval"
     const val DISTANCE = "distance"
     const val ANGLE = "angle"

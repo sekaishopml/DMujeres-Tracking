@@ -56,6 +56,14 @@ object ServiceHeartbeat {
         Log.i(TAG, "latido de diagnóstico iniciado")
     }
 
+    /**
+     * Diagnóstico inmediato, sin esperar los 10 minutos: cuando se apaga o se
+     * enciende la ubicación, el panel lo sabe enseguida.
+     */
+    fun reportNow() {
+        if (running) report()
+    }
+
     fun stop() {
         running = false
         handler.removeCallbacksAndMessages(null)

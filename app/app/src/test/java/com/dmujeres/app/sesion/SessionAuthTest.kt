@@ -148,9 +148,10 @@ class SessionAuthTest {
 
     @Test
     fun `cuerpo del login lleva usuario y clave`() {
-        val json = SessionAuth.loginRequestJson("ana", "secreta")
+        val json = SessionAuth.loginRequestJson("ana", "secreta", "inst-1234")
         assertTrue(json.contains("\"usuario\":\"ana\""))
         assertTrue(json.contains("\"clave\":\"secreta\""))
+        assertTrue(json.contains("\"instalacion\":\"inst-1234\""))
     }
 
     // ── Equipo de la cuenta ─────────────────────────────────────────────────

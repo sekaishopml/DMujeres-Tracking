@@ -48,7 +48,10 @@ open class MainApplication : MultiDexApplication() {
         // viejas), se vuelve a poner la de fábrica; sin ella no se puede
         // enviar ni entrar.
         val prefs = androidx.preference.PreferenceManager.getDefaultSharedPreferences(this)
-        if (prefs.getString(Prefs.URL, "").isNullOrBlank()) {
+        // También se reemplaza la dirección vieja sin cifrar (IP y puerto
+        // 5055): todo viaja ahora por https.
+        val url = prefs.getString(Prefs.URL, "").orEmpty()
+        if (url.isBlank() || url.startsWith(DIRECCION_VIEJA)) {
             prefs.edit().putString(Prefs.URL, getString(R.string.settings_url_default_value)).apply()
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -80,6 +83,7 @@ open class MainApplication : MultiDexApplication() {
     open fun handleRatingFlow(activity: Activity) {}
 
     companion object {
+        private const val DIRECCION_VIEJA = "http://68.168.20.219"
         const val PRIMARY_CHANNEL = "default"
     }
 
