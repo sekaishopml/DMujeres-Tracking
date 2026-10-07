@@ -86,6 +86,27 @@ ubicación nueva.
 - Al iniciar la jornada, la pantalla de la app muestra "Registrada HH:MM ✓"
   cuando el servidor la confirmó, o "Sin confirmar" mientras se reintenta.
 
+## Actividades, clientes y el botón Actualizar
+
+- En el cronograma de la app, las paradas del día que el GPS registró y que
+  no tienen actividad aparecen como "Detenido 09:23–09:46 · Registrar". Al
+  tocarla, la actividad se crea con las horas de la parada y ofrece primero
+  los clientes que están cerca. Se puede llenar en la noche o al día
+  siguiente: las horas salen del GPS, no se escriben.
+- Clientes: la lista se arma en el panel (se puede pegar desde Excel:
+  "Nombre | Dirección | latitud, longitud") y crece sola: si alguien registra
+  una visita a un cliente que no está, se agrega con la ubicación de esa
+  parada.
+- El cronograma del panel no juzga cuándo se cargó la actividad. Dice si el
+  recorrido la respalda: "Respaldada por GPS" (estuvo detenido a esa hora, y en
+  el cliente si tiene ubicación), "Lejos del cliente", "En movimiento a esa
+  hora" o "Sin recorrido a esa hora". Vacaciones y permisos no se comprueban.
+- El botón Actualizar de la app sube lo pendiente, manda el diagnóstico y
+  pregunta al servidor qué tiene: "Al día · el servidor tiene tu ubicación de
+  las 10:42". Si algo falla solo muestra lo que la persona puede arreglar
+  (datos, GPS, ahorro de batería) y el siguiente toque lleva al ajuste.
+  Tocarlo seguido (30 s) solo repite el último resultado.
+
 ## Teléfonos iPhone
 
 No hay app propia para iPhone. Esas personas usan Traccar Client, que se baja
