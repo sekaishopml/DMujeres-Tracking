@@ -1,0 +1,75 @@
+# tracking.sekaidevec.com: puerta https del servidor de tracking (OwnTracks del
+# iPhone y la app). iOS no deja enviar por http plano.
+# Copia en el servidor: /etc/nginx/sites-available/dmj-tracking-https
+server {
+    listen 80;
+    listen [::]:80;
+    server_name tracking.sekaidevec.com;
+
+    location /.well-known/acme-challenge/ { root /var/www/acme; }
+    location / { return 301 https://$host$request_uri; }
+}
+
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    server_name tracking.sekaidevec.com;
+
+    ssl_certificate     /etc/letsencrypt/live/tracking.sekaidevec.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/tracking.sekaidevec.com/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+
+    client_max_body_size 10m;
+
+    # OTA: lo que consulta la app para actualizarse
+    location = /latest.json { root /home/DMujeres-Tracking/ota; }
+    location = /rollout.json { root /home/DMujeres-Tracking/ota; }
+    location ~ ^/DMujeres-Tracking-[0-9.]+\.apk$ { root /home/DMujeres-Tracking/ota; }
+
+    # Teléfonos: OwnTracks (iPhone) y canal móvil de la app
+    location = /owntracks {
+        proxy_pass http://127.0.0.1:5055;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_connect_timeout 5s;
+        proxy_read_timeout 60s;
+    }
+    location /api/mobile/ {
+        proxy_pass http://127.0.0.1:5055;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_connect_timeout 5s;
+        proxy_read_timeout 60s;
+    }
+
+    # Protocolo OsmAnd de la app: puntos con lat en la query en la raíz
+    location = / {
+        if ($arg_lat) {
+            proxy_pass http://127.0.0.1:5055;
+        }
+        proxy_pass http://127.0.0.1:8999;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+    }
+
+    # Panel y API
+    location / {
+        proxy_pass http://127.0.0.1:8999;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_connect_timeout 5s;
+        proxy_read_timeout 60s;
+    }
+}

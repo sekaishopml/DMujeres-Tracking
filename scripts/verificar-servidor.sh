@@ -28,17 +28,20 @@ if (cd "$RAIZ/servidor/api" && $NODE --test test/*.test.mjs >/dev/null 2>&1); th
 if (cd "$RAIZ/servidor/tracking" && $NODE --test test/*.test.mjs >/dev/null 2>&1); then ok "pruebas del receptor"; else falla "pruebas del receptor"; fi
 
 echo "Panel y API"
-[ "$(http http://127.0.0.1/)" = 200 ] && ok "panel por el puerto 80" || falla "panel por el puerto 80"
-[ "$(http http://127.0.0.1:999/)" = 200 ] && ok "panel por el puerto 999" || falla "panel por el puerto 999"
+[ "$(http https://tracking.sekaidevec.com/)" = 200 ] && ok "panel por https" || falla "panel por https"
+[ "$(http http://127.0.0.1/)" = 301 ] && ok "el puerto 80 lleva a https" || falla "el puerto 80 no lleva a https"
+[ "$(http http://127.0.0.1:999/)" = 301 ] && ok "el puerto 999 lleva el panel a https" || falla "el puerto 999 no lleva a https"
 [ "$(http http://127.0.0.1:8999/)" = 200 ] && ok "panel directo (8999)" || falla "panel directo (8999)"
-[ "$(curl -s --max-time 10 http://127.0.0.1/api/v1/health)" = '{"estado":"ok"}' ] && ok "API" || falla "API no responde ok"
+[ "$(curl -s --max-time 10 https://tracking.sekaidevec.com/api/v1/health)" = '{"estado":"ok"}' ] && ok "API" || falla "API no responde ok"
 [ "$(curl -s --max-time 5 http://127.0.0.1:8992/health)" = ok ] && ok "ruteo por calles" || falla "ruteo por calles"
 
 echo "App"
+[ "$(http -H "X-Api-Key: $CLAVE_MOVIL" -H 'X-Device-Id: macias' https://tracking.sekaidevec.com/api/mobile/v1/config)" = 200 ] \
+  && ok "canal de la app por https" || falla "canal de la app por https"
 [ "$(http -H "X-Api-Key: $CLAVE_MOVIL" -H 'X-Device-Id: macias' http://127.0.0.1:999/api/mobile/v1/config)" = 200 ] \
-  && ok "canal de la app" || falla "canal de la app"
+  && ok "canal de la app vieja (999)" || falla "canal de la app vieja (999)"
 VERSION="$(python3 -c "import json;print(json.load(open('$RAIZ/ota/latest.json'))['version'])" 2>/dev/null)"
-[ "$(http "http://127.0.0.1:999/DMujeres-Tracking-$VERSION.apk")" = 200 ] \
+[ "$(http "https://tracking.sekaidevec.com/DMujeres-Tracking-$VERSION.apk")" = 200 ] \
   && ok "APK de la versión $VERSION" || falla "no se descarga el APK de la versión $VERSION"
 
 echo "Base de datos"

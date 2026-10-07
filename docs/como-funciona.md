@@ -64,6 +64,28 @@ teléfonos tienen la jornada abierta pero llevan rato sin reportar. A esos les
 manda una notificación por Firebase que despierta la app y le pide una
 ubicación nueva.
 
+## Entrada, alertas y cortes
+
+- Todo viaja cifrado por https (tracking.sekaidevec.com). Los puertos 80 y
+  999 llevan el panel a https; el 999 sigue atendiendo a las versiones viejas
+  de la app mientras se actualizan.
+- Tres claves equivocadas seguidas bloquean la cuenta 15 minutos, en el panel
+  y en la app. En Usuarios se ve "Bloqueada hasta" y se puede desbloquear.
+- Una cuenta solo puede tener la app abierta en un teléfono. Para cambiar de
+  teléfono, en Usuarios se cierra la sesión del anterior. Volver a entrar
+  desde el mismo teléfono sí se permite.
+- La app manda un diagnóstico cada 10 minutos, y al momento cuando se apaga o
+  enciende la ubicación. Con la jornada abierta, el servidor compara con el
+  anterior y avisa en la campana y en la línea de tiempo si apagó el GPS,
+  quitó el permiso de ubicación, puso la app en ahorro de batería o se quedó
+  con batería crítica. El servicio de recuperación avisa cuando el teléfono
+  deja de reportar 15 minutos con la jornada abierta y cuando vuelve.
+- Cada corte del recorrido dice su causa: teléfono apagado, GPS apagado, sin
+  permiso, app detenida o sin datos (no llegó ningún diagnóstico) o sin señal
+  GPS (la app seguía viva).
+- Al iniciar la jornada, la pantalla de la app muestra "Registrada HH:MM ✓"
+  cuando el servidor la confirmó, o "Sin confirmar" mientras se reintenta.
+
 ## Teléfonos iPhone
 
 No hay app propia para iPhone. Esas personas usan Traccar Client, que se baja

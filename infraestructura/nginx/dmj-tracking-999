@@ -1,7 +1,8 @@
-# Puerto 999: el que usan los teléfonos.
-#   /api/mobile/  -> receptor de la app (5055)
+# Puerto 999: lo usan los teléfonos con versiones viejas de la app, que todavía
+# no saben ir por https. Solo se atiende lo que ellos piden; el panel pasa a
+# https (tracking.sekaidevec.com).
+#   /api/mobile/      -> receptor de la app (5055)
 #   latest.json y APK -> carpeta ota/ (actualizaciones de la app)
-#   el resto      -> panel (8999)
 # Copia en el servidor: /etc/nginx/sites-available/dmj-tracking-999
 server {
     listen 999;
@@ -28,16 +29,6 @@ server {
         proxy_send_timeout 60s;
     }
 
-    # Panel (servidor/web pasa /api a la API)
-    location / {
-        proxy_pass http://127.0.0.1:8999;
-        proxy_http_version 1.1;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_connect_timeout 5s;
-        proxy_read_timeout 60s;
-        proxy_send_timeout 60s;
-    }
+    # El panel solo por https
+    location / { return 301 https://tracking.sekaidevec.com$request_uri; }
 }

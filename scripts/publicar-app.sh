@@ -56,7 +56,7 @@ case "$FIRMA" in
 esac
 
 cp "$APK" "$DESTINO"
-CODIGO=$(curl -s -m 20 -o /dev/null -w "%{http_code}" "http://68.168.20.219:999/DMujeres-Tracking-$VERSION.apk")
+CODIGO=$(curl -s -m 20 -o /dev/null -w "%{http_code}" "https://tracking.sekaidevec.com/DMujeres-Tracking-$VERSION.apk")
 test "$CODIGO" = "200" || { echo "Nginx no entrega el APK (HTTP $CODIGO)"; exit 1; }
 
 # Último paso: desde aquí los teléfonos ven la versión nueva.
@@ -64,7 +64,7 @@ SHA=$(sha256sum "$DESTINO" | cut -d' ' -f1)
 node -e "
 const fs = require('fs');
 const m = { version: '$VERSION', versionCode: $VC,
-  url: 'http://68.168.20.219:999/DMujeres-Tracking-$VERSION.apk',
+  url: 'https://tracking.sekaidevec.com/DMujeres-Tracking-$VERSION.apk',
   notes: process.argv[1], sha256: '$SHA' };
 fs.writeFileSync('ota/latest.json', JSON.stringify(m, null, 2) + '\n');
 " "$NOTAS"
