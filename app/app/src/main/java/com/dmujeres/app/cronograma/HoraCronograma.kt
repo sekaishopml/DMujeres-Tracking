@@ -95,8 +95,6 @@ object HoraCronograma {
     /** Rango corto: "08:00 – 09:30", o solo el inicio. */
     fun rangoCorto(hora: String, horaFin: String?): String = rango(hora, horaFin)
 
-    fun esPm(hora24: String): Boolean = aMinutos(hora24) >= 12 * 60
-
     /** "9:5" o "14:30" -> "09:05" / "14:30", en 24 h. */
     fun legible(hora24: String): String = deMinutos(aMinutos(hora24))
 

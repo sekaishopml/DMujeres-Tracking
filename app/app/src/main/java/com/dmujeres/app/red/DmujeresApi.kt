@@ -56,10 +56,6 @@ object DmujeresApi {
     fun hasSession(context: Context): Boolean =
         SessionStore.hasSession(context)
 
-    /** Usuario de la sesión actual (vacío si no hay sesión). */
-    fun sessionUser(context: Context): String =
-        SessionStore.user(context)
-
     /**
      * Cabeceras de autenticación: con sesión se manda el token
      * (`Authorization: Bearer`); sin sesión, la clave compartida. Devuelve true
@@ -84,12 +80,6 @@ object DmujeresApi {
         SessionStore.clearOnUnauthorized(context)
         Log.w(TAG, "sesión terminada por el servidor (401 con token): se pedirá login")
         StatusActivity.addMessage(context.getString(R.string.status_session_expired))
-    }
-
-    /** Cierre manual (debug): borra token y datos de sesión. */
-    fun logout(context: Context) {
-        SessionStore.clear(context)
-        Log.i(TAG, "sesión cerrada manualmente")
     }
 
     /** Dirección del servidor web (puerto 999), sacada de la de OsmAnd (5055). */

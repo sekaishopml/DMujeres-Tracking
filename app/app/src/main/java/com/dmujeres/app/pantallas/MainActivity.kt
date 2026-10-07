@@ -640,8 +640,6 @@ class MainActivity : AppCompatActivity() {
         text.text = getString(R.string.journey_duration_fmt, minutes / 60, minutes % 60)
     }
 
-    private fun refreshLockedHomeDuration() = refreshDuration()
-
     /**
      * ¿La app puede enviar ahora? Se mira el resultado de los últimos envíos y
      * la cola pendiente, no lo que dice el sistema, porque en algunos

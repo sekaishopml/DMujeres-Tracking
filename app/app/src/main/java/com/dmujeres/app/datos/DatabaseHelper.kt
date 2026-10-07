@@ -295,14 +295,6 @@ class DatabaseHelper(private val appContext: Context?) :
         )
     }
 
-    fun selectPositionAsync(handler: DatabaseHandler<Position?>) {
-        object : DatabaseAsyncTask<Position?>(handler) {
-            override fun executeMethod(): Position? {
-                return selectPosition()
-            }
-        }.execute()
-    }
-
     fun deletePosition(id: Long) {
         if (db.delete("position", "id = ?", arrayOf(id.toString())) != 1) {
             throw SQLException()
@@ -450,14 +442,6 @@ class DatabaseHelper(private val appContext: Context?) :
             journeyId = position.journeyId.ifBlank { getMeta(KEY_JOURNEY_ID).orEmpty() },
             status = position.status.ifBlank { STATUS_PENDING },
         )
-    }
-
-    fun deletePositionAsync(id: Long, handler: DatabaseHandler<Unit?>) {
-        object : DatabaseAsyncTask<Unit>(handler) {
-            override fun executeMethod() {
-                deletePosition(id)
-            }
-        }.execute()
     }
 
     companion object {

@@ -47,9 +47,6 @@ object UploadPolicy {
         else -> HttpClass.RETRY
     }
 
-    /** Error de red (timeout, sin conexión): siempre retry, nunca DEAD. */
-    fun networkError(): HttpClass = HttpClass.RETRY
-
     /**
      * Espera entre reintentos: crece al doble con cada fallo, con tope, y
      * varía ±20 % al azar para que los teléfonos no reintenten todos a la vez.
@@ -209,19 +206,12 @@ class UploadQueue(
     @Volatile
     private var consecutiveFailures = 0
 
-    @Volatile
-    private var lastConfirmedAtMs = 0L
-
     /**
      * Último estado de la red según el controlador (la cola no mira la red
      * por su cuenta).
      */
     @Volatile
     private var lastOnline = true
-
-    /** ¿Fluye la cola? (confirmó algo en los últimos 5 min). */
-    fun isFlowing(nowMs: Long = System.currentTimeMillis()): Boolean =
-        lastConfirmedAtMs > 0L && nowMs - lastConfirmedAtMs <= FLOWING_WINDOW_MS
 
     /** Activa la cola (punto nuevo, vuelve la red, botón actualizar, rescate). */
     fun kick(online: Boolean) {
@@ -390,7 +380,6 @@ class UploadQueue(
         }
         consecutiveFailures = 0
         if (match.confirmedIds.isNotEmpty()) {
-            lastConfirmedAtMs = System.currentTimeMillis()
             listenerSafe { listener.onQueueFlowing(match.confirmedIds.size) }
         }
         if (UploadPolicy.followUpAfterBatch(match.confirmedIds.size, match.deadIds.size) ==
@@ -442,7 +431,6 @@ class UploadQueue(
         runCatching { databaseHelper.deletePositions(confirmed) }
         if (confirmed.isNotEmpty()) {
             consecutiveFailures = 0
-            lastConfirmedAtMs = System.currentTimeMillis()
             listenerSafe { listener.onQueueFlowing(confirmed.size) }
         }
         finishOk(confirmed.size)
@@ -529,8 +517,5 @@ class UploadQueue(
     companion object {
         private val TAG = UploadQueue::class.java.simpleName
         const val PATH_POSITIONS = "/api/mobile/v1/positions"
-
-        /** Ventana para considerar que la cola fluye. */
-        const val FLOWING_WINDOW_MS = 5 * 60_000L
     }
 }
