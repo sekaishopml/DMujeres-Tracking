@@ -4,10 +4,10 @@ import android.content.Context
 import androidx.preference.PreferenceManager
 import org.json.JSONArray
 import org.json.JSONObject
-import com.dmujeres.app.DmujeresApi
-import com.dmujeres.app.PositionProvider
+import com.dmujeres.app.red.DmujeresApi
+import com.dmujeres.app.seguimiento.PositionProvider
 import com.dmujeres.app.R
-import com.dmujeres.app.StatusActivity
+import com.dmujeres.app.pantallas.StatusActivity
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList

@@ -29,7 +29,7 @@
         android:icon="@mipmap/ic_launcher"
         android:label="${appLabel}"
         android:theme="@style/AppTheme"
-        android:name=".MainApplication"
+        android:name=".sistema.MainApplication"
         tools:ignore="GoogleAppIndexingWarning,UnusedAttribute">
 
         <meta-data
@@ -37,7 +37,7 @@
             android:value="false" />
 
         <activity
-            android:name=".MainActivity"
+            android:name=".pantallas.MainActivity"
             android:exported="true"
             android:launchMode="singleTask" />
 
@@ -53,14 +53,14 @@
             android:windowSoftInputMode="stateHidden|adjustResize" />
 
         <activity
-            android:name=".SplashActivity"
+            android:name=".pantallas.SplashActivity"
             android:exported="false"
             android:theme="@style/AppTheme" />
 
         <activity-alias
             android:name=".Launcher"
             android:exported="true"
-            android:targetActivity=".SplashActivity">
+            android:targetActivity=".pantallas.SplashActivity">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -71,31 +71,31 @@
         </activity-alias>
 
         <activity
-            android:name=".UpdateActivity"
+            android:name=".pantallas.UpdateActivity"
             android:exported="false"
             android:theme="@style/AppTheme" />
 
         <activity
-            android:name=".OnboardingActivity"
+            android:name=".pantallas.OnboardingActivity"
             android:exported="false"
             android:theme="@style/AppTheme" />
 
         <activity
-            android:name=".LoginActivity"
+            android:name=".pantallas.LoginActivity"
             android:exported="false"
             android:theme="@style/AppTheme" />
 
         <activity
-            android:name=".StatusActivity"
+            android:name=".pantallas.StatusActivity"
             android:exported="false" />
 
         <activity
-            android:name=".DebugActivity"
+            android:name=".pantallas.DebugActivity"
             android:exported="false"
             android:theme="@style/AppTheme" />
 
         <activity
-            android:name=".ShortcutActivity"
+            android:name=".pantallas.ShortcutActivity"
             android:exported="true"
             android:label="@string/menu_shortcuts">
             <intent-filter>
@@ -117,12 +117,12 @@
         </provider>
 
         <service
-            android:name=".TrackingService"
+            android:name=".seguimiento.TrackingService"
             android:exported="false"
             android:foregroundServiceType="location" />
 
         <receiver
-            android:name=".AutostartReceiver"
+            android:name=".sistema.AutostartReceiver"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
@@ -134,11 +134,11 @@
 
         <!-- Rescate de Doze: alarma inexacta 9 min (solo PendingIntent explícito). -->
         <receiver
-            android:name=".recovery.DozeAlarmReceiver"
+            android:name=".recuperacion.DozeAlarmReceiver"
             android:exported="false" />
 
         <receiver
-            android:name=".StatusWidget"
+            android:name=".pantallas.StatusWidget"
             android:label="@string/widget_label"
             android:exported="true">
             <intent-filter>

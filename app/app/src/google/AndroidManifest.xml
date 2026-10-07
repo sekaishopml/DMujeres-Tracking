@@ -4,12 +4,12 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <application
-        android:name="com.dmujeres.app.GoogleMainApplication"
+        android:name="com.dmujeres.app.sistema.GoogleMainApplication"
         tools:replace="android:name"
         tools:ignore="GoogleAppIndexingWarning">
 
         <service
-            android:name="com.dmujeres.app.DmujeresMessagingService"
+            android:name="com.dmujeres.app.sistema.DmujeresMessagingService"
             android:exported="false">
             <intent-filter>
                 <action android:name="com.google.firebase.MESSAGING_EVENT" />
@@ -18,7 +18,7 @@
 
         <!-- Cerca de quietud: Play Services avisa la salida (ver StationaryFence). -->
         <receiver
-            android:name="com.dmujeres.app.StationaryExitReceiver"
+            android:name="com.dmujeres.app.seguimiento.StationaryExitReceiver"
             android:exported="false" />
 
     </application>

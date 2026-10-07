@@ -5,6 +5,16 @@ el identificador de instalación es `com.dmujeres.tracking`. Los teléfonos que
 tienen la versión anterior (`com.dmujeres.traccar`) no la actualizan: hay que
 pasarlos a mano (ver [Próximos cambios](proximos-cambios.md)).
 
+## Carpetas del código
+
+Dentro de `com.dmujeres.app`: `pantallas` (las vistas), `seguimiento` (GPS,
+movimiento y servicio), `red` (envío al servidor), `sesion` (entrada, cierre y
+cola de jornada), `datos` (base local y preferencias), `sistema` (arranque,
+batería y avisos del teléfono), `actualizacion`, `jornada`, `captura`,
+`envio`, `movimiento`, `recuperacion` y `cronograma`. Las variantes `google`
+y `regular` repiten solo lo que cambia: `google` usa los servicios de Google
+(ubicación fusionada y avisos push) y `regular` usa la ubicación del sistema.
+
 ## Llaves y archivos que no están en git
 
 La compilación lee de `/opt/dmj-keys` (o de la carpeta que diga la variable

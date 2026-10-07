@@ -22,7 +22,7 @@ import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import com.dmujeres.app.R
-import com.dmujeres.app.Responsivo
+import com.dmujeres.app.pantallas.Responsivo
 import com.dmujeres.app.cronograma.AgendaDia.Cruce
 import com.dmujeres.app.cronograma.AgendaDia.Tramo
 import java.text.SimpleDateFormat
