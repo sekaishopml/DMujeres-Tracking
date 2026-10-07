@@ -12,7 +12,7 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.preference.PreferenceManager
-import com.dmujeres.app.DmujeresApi
+import com.dmujeres.app.red.DmujeresApi
 import com.dmujeres.app.R
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -53,8 +53,8 @@ class CronogramaActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_cronograma)
-        com.dmujeres.app.Responsivo.raiz(this)?.let {
-            com.dmujeres.app.Responsivo.centrarHijos(it, com.dmujeres.app.Responsivo.ANCHO_PANEL_DP)
+        com.dmujeres.app.pantallas.Responsivo.raiz(this)?.let {
+            com.dmujeres.app.pantallas.Responsivo.centrarHijos(it, com.dmujeres.app.pantallas.Responsivo.ANCHO_PANEL_DP)
         }
         dia = Calendar.getInstance(zona)
         // Al girar la tablet se conserva el día y la vista (mes o día).

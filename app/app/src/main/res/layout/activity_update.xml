@@ -40,7 +40,7 @@
         android:translationY="28dp"
         android:orientation="horizontal">
 
-        <com.dmujeres.app.Odometro
+        <com.dmujeres.app.pantallas.Odometro
             android:id="@+id/update_odometro"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content" />
