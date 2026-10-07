@@ -6,6 +6,15 @@ import { createHash, timingSafeEqual, randomBytes, pbkdf2Sync } from 'node:crypt
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { filaSalud } from './salud.js';
+import { alertasDeDiagnostico } from './alertas.js';
+import {
+  MENSAJE_OTRO_TELEFONO,
+  limpiarFallos,
+  mensajeBloqueo,
+  minutosBloqueo,
+  registrarFallo,
+  sesionEnOtroTelefono,
+} from '../../comun/acceso.js';
 
 const LIMITE_JSON = 64 * 1024;
 const LIMITE_DIAGNOSTICO = 10_000;
@@ -172,9 +181,10 @@ function filtrarConfigApp(valor) {
   return limpia;
 }
 
-// POST /api/mobile/v1/sesion {usuario, clave} -> {token, expiraEn,
-// usuario:{nombre}, configuracion}. 401 sin decir si el usuario existe, 400
-// si faltan datos y 503 con el canal apagado.
+// POST /api/mobile/v1/sesion {usuario, clave, instalacion} -> {token,
+// expiraEn, usuario:{nombre}, configuracion}. 401 sin decir si el usuario
+// existe, 423 con la cuenta bloqueada, 409 si la cuenta ya está abierta en
+// otro teléfono, 400 si faltan datos y 503 con el canal apagado.
 export async function atenderSesion(req, res, ctx) {
   if (!ctx.configuracion.canalMovilActivo) return responderSinCuerpo(res, 503);
   const lectura = await leerJson(req, LIMITE_JSON);
@@ -183,11 +193,15 @@ export async function atenderSesion(req, res, ctx) {
   const identificador = datos ? texto(datos.usuario) : null;
   const clave = datos && typeof datos.clave === 'string' ? datos.clave : '';
   if (!identificador || !clave) return responderSinCuerpo(res, 400);
+  // Identificador de la instalación de la app (cambia si se reinstala).
+  const instalacion = datos && typeof datos.instalacion === 'string' && /^[\w-]{8,64}$/.test(datos.instalacion)
+    ? datos.instalacion
+    : null;
   let fila = null;
   try {
     const resultado = await ctx.almacen.pool.query(
       `SELECT u.id, u.nombre, u.nombre_usuario, u.correo, u.habilitado,
-              u.hash_clave, u.sal, u.atributos
+              u.hash_clave, u.sal, u.atributos, u.bloqueado_hasta
          FROM iam.dmt_usuario u
         WHERE lower(u.nombre_usuario) = lower($1) OR lower(u.correo) = lower($1)
         LIMIT 1`,
@@ -198,11 +212,36 @@ export async function atenderSesion(req, res, ctx) {
     ctx.log.error(`movil/sesion: fallo al buscar usuario: ${error.message}`);
     return responderSinCuerpo(res, 503);
   }
+  const bloqueo = minutosBloqueo(fila?.bloqueado_hasta);
+  if (bloqueo > 0) {
+    return responderJson(res, 423, { error: { codigo: 'CUENTA_BLOQUEADA', mensaje: mensajeBloqueo(bloqueo) } });
+  }
   // Mensaje único para no revelar si el usuario existe o está deshabilitado.
   if (!fila || !verificarClaveMovil(clave, fila.hash_clave, fila.sal) || !fila.habilitado) {
+    const minutos = fila && fila.habilitado ? await registrarFallo(ctx.almacen.pool, fila.id).catch(() => 0) : 0;
+    if (minutos > 0) {
+      return responderJson(res, 423, { error: { codigo: 'CUENTA_BLOQUEADA', mensaje: mensajeBloqueo(minutos) } });
+    }
     return responderJson(res, 401, {
       error: { codigo: 'NO_AUTENTICADO', mensaje: 'Usuario o clave incorrectos.' },
     });
+  }
+  try {
+    await limpiarFallos(ctx.almacen.pool, fila.id);
+    if (await sesionEnOtroTelefono(ctx.almacen.pool, fila.id, instalacion)) {
+      return responderJson(res, 409, { error: { codigo: 'SESION_EN_OTRO_TELEFONO', mensaje: MENSAJE_OTRO_TELEFONO } });
+    }
+    // Entrar de nuevo desde el mismo teléfono reemplaza su sesión anterior.
+    if (instalacion) {
+      await ctx.almacen.pool.query(
+        `UPDATE iam.dmt_sesion SET revocada_en = now(), actualizado_en = now()
+          WHERE usuario_id = $1 AND tipo = 'movil' AND revocada_en IS NULL AND instalacion = $2`,
+        [fila.id, instalacion],
+      );
+    }
+  } catch (error) {
+    ctx.log.error(`movil/sesion: fallo al revisar sesiones: ${error.message}`);
+    return responderSinCuerpo(res, 503);
   }
   const horas = Number.isFinite(Number(ctx.configuracion.sesionMovilHoras))
     ? Number(ctx.configuracion.sesionMovilHoras)
@@ -211,10 +250,10 @@ export async function atenderSesion(req, res, ctx) {
   let expiraEn = null;
   try {
     const creada = await ctx.almacen.pool.query(
-      `INSERT INTO iam.dmt_sesion (usuario_id, token_hash, tipo, direccion_ip, agente, expira_en)
-       VALUES ($1, $2, 'movil', $3, $4, now() + ($5::numeric * interval '1 hour'))
+      `INSERT INTO iam.dmt_sesion (usuario_id, token_hash, tipo, direccion_ip, agente, expira_en, instalacion)
+       VALUES ($1, $2, 'movil', $3, $4, now() + ($5::numeric * interval '1 hour'), $6)
        RETURNING expira_en`,
-      [fila.id, hashSesion(token), direccionCliente(req), agenteCliente(req), horas],
+      [fila.id, hashSesion(token), direccionCliente(req), agenteCliente(req), horas, instalacion],
     );
     expiraEn = creada.rows[0]?.expira_en ?? null;
     await ctx.almacen.pool.query('UPDATE iam.dmt_usuario SET ultimo_acceso_en = now() WHERE id = $1', [fila.id]);
@@ -705,6 +744,8 @@ export async function atenderDiagnosticos(req, res, ctx) {
   }
   const crash = texto(reporte.crash);
   if (crash) parche['mobile.lastCrashAt'] = ahora;
+  const alertas = alertasDeDiagnostico(dispositivo.atributos, reporte);
+  Object.assign(parche, alertas.parche);
 
   let bateria = null;
   if (energia) {
@@ -730,6 +771,16 @@ export async function atenderDiagnosticos(req, res, ctx) {
   } catch (error) {
     ctx.log.error(`movil/diagnostics: fallo al guardar diagnostico: ${error.message}`);
     return responderSinCuerpo(res, 503);
+  }
+  for (const tipo of alertas.eventos) {
+    await ctx.almacen
+      .registrarEventoEnergia({
+        dispositivoId: dispositivo.id,
+        tipo,
+        ocurridoEn: new Date(ahora),
+        atributos: { clave: `${tipo}-${ahora}`, mobileSeverity: 'warning' },
+      })
+      .catch((error) => ctx.log.warn(`movil/diagnostics: alerta ${tipo} sin guardar: ${error.message}`));
   }
   ultimosDiagnosticos.set(dispositivo.id, ahora);
   return responderSinCuerpo(res, 204);

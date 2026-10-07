@@ -25,10 +25,14 @@ import {
   configAppDe,
 } from './esquema.js';
 import { motivoRechazoEliminacion } from './usuarios.js';
+import { minutosBloqueo } from '../../comun/acceso.js';
 
 const CAMPOS_CUENTA = `u.id, u.id_publico, u.nombre_usuario, u.nombre, u.correo,
   u.telefono, u.cargo, u.administrador, u.solo_lectura, u.habilitado,
-  u.atributos, u.ultimo_acceso_en`;
+  u.atributos, u.ultimo_acceso_en, u.bloqueado_hasta,
+  (SELECT max(s.iniciada_en) FROM iam.dmt_sesion s
+    WHERE s.usuario_id = u.id AND s.tipo = 'movil' AND s.revocada_en IS NULL
+      AND (s.expira_en IS NULL OR s.expira_en > now())) AS sesion_telefono_desde`;
 
 const ORDEN_CUENTAS = {
   id: 'u.id',
@@ -345,6 +349,8 @@ function aCuenta(fila, grupos, roles, dispositivoIds) {
     grupos: grupos ?? [],
     roles: roles ?? [],
     configApp: configAppDe(fila.atributos),
+    bloqueadaHasta: minutosBloqueo(fila.bloqueado_hasta) > 0 ? new Date(fila.bloqueado_hasta).toISOString() : null,
+    sesionTelefonoDesde: fila.sesion_telefono_desde ? new Date(fila.sesion_telefono_desde).toISOString() : null,
     dispositivoIds: Array.isArray(dispositivoIds ?? fila.dispositivo_ids)
       ? (dispositivoIds ?? fila.dispositivo_ids).map(String)
       : [],
@@ -900,4 +906,59 @@ export async function reemplazarEquiposCuenta(ctx) {
     req: ctx.req,
   });
   respuestaJson(ctx.res, 200, { datos: equipos });
+}
+
+// POST /api/v1/usuarios/:id/desbloquear: quita el bloqueo por claves
+// equivocadas antes de que pasen los 15 minutos.
+export async function desbloquearCuenta(ctx) {
+  await exigirOperativo(ctx);
+  const id = await idDeCuenta(ctx);
+  await ctx.pool.query(
+    'UPDATE iam.dmt_usuario SET intentos_fallidos = 0, bloqueado_hasta = NULL WHERE id = $1',
+    [id],
+  );
+  const cuenta = await cargarCuenta(ctx.pool, id);
+  await auditar(ctx.pool, ctx.log, {
+    usuarioId: ctx.usuario?.id,
+    accion: 'desbloquear_usuario',
+    entidad: 'usuario',
+    entidadId: id,
+    descripcion: `Usuario ${cuenta.usuario} desbloqueado.`,
+    req: ctx.req,
+  });
+  respuestaJson(ctx.res, 200, { usuario: cuenta });
+}
+
+// POST /api/v1/usuarios/:id/cerrar-sesion-telefono: cierra la app en el
+// teléfono donde esté abierta, para poder entrar desde otro. La app vieja
+// pide entrar de nuevo en su próxima conexión.
+export async function cerrarSesionTelefono(ctx) {
+  await exigirOperativo(ctx);
+  const id = await idDeCuenta(ctx);
+  const { rowCount } = await ctx.pool.query(
+    `UPDATE iam.dmt_sesion SET revocada_en = now(), actualizado_en = now()
+      WHERE usuario_id = $1 AND tipo = 'movil' AND revocada_en IS NULL`,
+    [id],
+  );
+  const cuenta = await cargarCuenta(ctx.pool, id);
+  await auditar(ctx.pool, ctx.log, {
+    usuarioId: ctx.usuario?.id,
+    accion: 'cerrar_sesion_telefono',
+    entidad: 'usuario',
+    entidadId: id,
+    descripcion: `Sesión del teléfono de ${cuenta.usuario} cerrada.`,
+    datos: { sesionesCerradas: rowCount },
+    req: ctx.req,
+  });
+  respuestaJson(ctx.res, 200, { usuario: cuenta });
+}
+
+async function idDeCuenta(ctx) {
+  const { rows } = await ctx.pool.query(
+    `SELECT id FROM iam.dmt_usuario
+      WHERE id_publico::text = $1 OR id::text = $1 OR nombre_usuario = $1 LIMIT 1`,
+    [String(ctx.params.id)],
+  );
+  if (rows.length === 0) throw noEncontrado('El usuario no existe.');
+  return Number(rows[0].id);
 }

@@ -1,6 +1,7 @@
 // Eventos del día para Inicio, en una sola línea de tiempo:
-//  - de la app: inicio y fin de jornada, GPS apagado o encendido, batería
-//    crítica, red perdida o recuperada, teléfono apagado o encendido;
+//  - de la app: inicio y fin de jornada, GPS apagado o encendido, permiso de
+//    ubicación, ahorro de batería, batería crítica, teléfono apagado o
+//    encendido y silencio con la jornada abierta;
 //  - actividades que se subieron al cronograma (por la hora de carga).
 // GET /api/v1/eventos?desde=ISO&hasta=ISO -> {total, conteo, datos}
 
@@ -22,6 +23,12 @@ const TIPOS = {
   mobileGpsReenabled: { categoria: 'recuperacion', texto: 'Reactivó el GPS' },
   mobileNetworkRestored: { categoria: 'recuperacion', texto: 'Recuperó la red' },
   mobilePowerOn: { categoria: 'recuperacion', texto: 'Encendió el teléfono' },
+  mobilePermissionLost: { categoria: 'alerta', texto: 'Quitó el permiso de ubicación' },
+  mobilePermissionRestored: { categoria: 'recuperacion', texto: 'Devolvió el permiso de ubicación' },
+  mobileBatterySaverOn: { categoria: 'alerta', texto: 'Puso la app en ahorro de batería' },
+  mobileBatterySaverOff: { categoria: 'recuperacion', texto: 'Quitó la app del ahorro de batería' },
+  mobileSilent: { categoria: 'alerta', texto: 'Dejó de reportar con la jornada abierta' },
+  mobileResumed: { categoria: 'recuperacion', texto: 'Volvió a reportar' },
 };
 
 const ETIQUETA_ACTIVIDAD = {

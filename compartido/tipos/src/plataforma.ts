@@ -34,6 +34,10 @@ export interface UsuarioPlataforma {
   // La lectura no trae los roles; si algún día vienen, se muestran.
   roles?: RolPlataforma[];
   rolIds?: (number | string)[];
+  // Bloqueada por tres claves equivocadas seguidas, hasta esta hora.
+  bloqueadaHasta?: string | null;
+  // Desde cuándo tiene la app abierta en un teléfono (solo se permite uno).
+  sesionTelefonoDesde?: string | null;
 }
 
 export interface CreacionUsuarioPlataforma {

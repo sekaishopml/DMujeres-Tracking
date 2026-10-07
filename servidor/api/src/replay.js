@@ -7,6 +7,7 @@ import { datosInvalidos, noEncontrado } from './errores.js';
 import { leerOrden, leerPaginacion, leerRango, respuestaJson } from './http.js';
 import { PREDICADO_PERMISO, buscarDispositivo, permisoDe } from './flota.js';
 import { calcularHuecos, resumirRecorrido, sumarDistanciasKm } from './geo.js';
+import { TIPOS_EVENTO_CAUSA, causaDeHueco } from './causas.js';
 import { reconstruirTramos } from './ruteo.js';
 import { depurarPosiciones } from './depuracion.js';
 
@@ -164,6 +165,7 @@ export async function obtenerReplay(ctx) {
     reconstruidos.push(...(await reconstruirTramos(grupo, ctx.signal)));
   }
   huecos.sort((a, b) => new Date(a.desde) - new Date(b.desde));
+  await explicarHuecos(ctx, dispositivo.id, huecos);
   const sinSenal = huecos.filter((h) => h.motivo !== 'FUERA_DE_JORNADA').length;
   const resumen = resumirRecorrido(posiciones, sinSenal);
   if (grupos.length > 1) {
@@ -185,4 +187,36 @@ export async function obtenerReplay(ctx) {
     calidad,
     generadoEn: new Date().toISOString(),
   });
+}
+
+// Pone la causa a cada corte con señal perdida (ver causas.js). Si la consulta
+// falla, el corte queda como SIN_SENAL, que es lo que se mostraba antes.
+async function explicarHuecos(ctx, dispositivoId, huecos) {
+  const cortes = huecos.filter((h) => h.motivo === 'SIN_SENAL');
+  if (cortes.length === 0) return;
+  const desde = new Date(new Date(cortes[0].desde).getTime() - 5 * 60_000);
+  const hasta = new Date(cortes.reduce((m, h) => Math.max(m, new Date(h.hasta).getTime()), 0));
+  try {
+    const [eventos, diagnosticos] = await Promise.all([
+      consultar(
+        ctx.pool,
+        `SELECT tipo, ocurrido_en FROM tracking.dmt_evento
+          WHERE dispositivo_id = $1 AND ocurrido_en BETWEEN $2 AND $3 AND tipo = ANY($4)`,
+        [Number(dispositivoId), desde, hasta, TIPOS_EVENTO_CAUSA],
+        { signal: ctx.signal },
+      ),
+      consultar(
+        ctx.pool,
+        `SELECT registrado_en FROM telemetry.dmt_salud_dispositivo
+          WHERE dispositivo_id = $1 AND registrado_en BETWEEN $2 AND $3`,
+        [Number(dispositivoId), desde, hasta],
+        { signal: ctx.signal },
+      ),
+    ]);
+    const listaEventos = eventos.rows.map((f) => ({ tipo: f.tipo, en: new Date(f.ocurrido_en).getTime() }));
+    const listaDiagnosticos = diagnosticos.rows.map((f) => new Date(f.registrado_en).getTime());
+    for (const hueco of cortes) hueco.motivo = causaDeHueco(hueco, listaEventos, listaDiagnosticos);
+  } catch (error) {
+    ctx.log?.warn?.(`replay: no se pudo explicar los cortes: ${error.message}`);
+  }
 }

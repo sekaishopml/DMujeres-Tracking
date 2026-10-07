@@ -50,6 +50,8 @@ export const DEFINICIONES = [
   { metodo: 'GET', ruta: '/api/v1/usuarios/:id', manejar: cuentas.obtenerCuenta },
   { metodo: 'PATCH', ruta: '/api/v1/usuarios/:id', manejar: cuentas.actualizarCuenta },
   { metodo: 'DELETE', ruta: '/api/v1/usuarios/:id', manejar: cuentas.eliminarCuenta },
+  { metodo: 'POST', ruta: '/api/v1/usuarios/:id/desbloquear', manejar: cuentas.desbloquearCuenta },
+  { metodo: 'POST', ruta: '/api/v1/usuarios/:id/cerrar-sesion-telefono', manejar: cuentas.cerrarSesionTelefono },
   { metodo: 'GET', ruta: '/api/v1/usuarios/:id/equipos', manejar: cuentas.obtenerEquiposCuenta },
   { metodo: 'PUT', ruta: '/api/v1/usuarios/:id/equipos', manejar: cuentas.reemplazarEquiposCuenta },
   { metodo: 'GET', ruta: '/api/v1/grupos', manejar: grupos.listarGrupos },
