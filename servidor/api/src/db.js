@@ -2,7 +2,6 @@
 // tiempo máximo y se cortan si el navegador se desconecta.
 
 import pg from 'pg';
-import { ErrorApi, servicioNoDisponible } from './errores.js';
 
 const { Pool } = pg;
 
@@ -64,12 +63,3 @@ export async function enTransaccion(pool, funcion) {
   }
 }
 
-export async function verificarBaseDatos(pool, timeoutMs = 2500) {
-  try {
-    await pool.query({ text: 'SELECT 1', query_timeout: timeoutMs });
-    return true;
-  } catch (error) {
-    if (error instanceof ErrorApi) throw error;
-    return false;
-  }
-}

@@ -772,14 +772,6 @@ async function trazarPorMatch(puntos, signal) {
   }
 }
 
-// Devuelve los tramos reconstruidos: [{desde, hasta, metodo:'MATCHED' o
-// 'ESTIMATED', mapaVersion, trazado}], con las horas ISO de los puntos que
-// los cierran. replay.js los manda al panel, que dibuja MATCHED como línea
-// continua ("ajustado a vía") y ESTIMATED punteado gris.
-export async function estimarTramos(posiciones, signal) {
-  return reconstruirTramos(posiciones, signal);
-}
-
 export async function reconstruirTramos(todas, signal) {
   if (!Array.isArray(todas) || todas.length === 0) return [];
   // Solo fixes precisos: los aproximados (antena/wifi) torcían el ajuste con

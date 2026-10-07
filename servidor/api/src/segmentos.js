@@ -50,13 +50,6 @@ export const ORDEN_VIAJES = {
   dispositivoId: 'v.dispositivo_id',
 };
 
-export const ORDEN_PARADAS = {
-  inicio: 's.inicio',
-  fin: 's.fin',
-  duracionMin: 's.segundos',
-  dispositivoId: 's.dispositivo_id',
-};
-
 // Placeholders: $1 = usuario (NULL = administrador), $2 = desde, $3 = hasta,
 // $4 = dispositivo (NULL = todos). Devuelve una fila por tramo con `tipo`.
 export function sqlSegmentos() {

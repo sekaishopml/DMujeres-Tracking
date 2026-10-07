@@ -144,11 +144,6 @@ export function sanearConfigApp(valor) {
   return limpia;
 }
 
-// Mezcla los valores generales con los de la persona (los suyos ganan).
-export function mezclarConfiguracion(configApp) {
-  return { ...CONFIG_POR_DEFECTO, ...(sanearConfigApp(configApp) ?? {}) };
-}
-
 export function configAppDe(atributos) {
   if (!atributos || typeof atributos !== 'object' || Array.isArray(atributos)) return null;
   const saneada = sanearConfigApp(atributos.configApp);

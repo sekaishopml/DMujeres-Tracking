@@ -83,17 +83,15 @@ El panel web es una aplicación React que habla solo con la API
 (`servidor/api`, rutas `/api/v1/...`). Tiene estas pantallas:
 
 - Inicio: resumen del día, personas por departamento, lo que hay que revisar y
-  lo último que pasó. Al pasar el cursor por una persona sale su día: a qué
-  hora salió de casa, cuándo llegó a la oficina, cuántos sitios visitó y qué
-  parte del recorrido se vio.
+  lo último que pasó. Al pasar el cursor por una persona sale su nombre, su
+  departamento, la dirección de su última parada y un acceso a su repetición.
 - Seguimiento: el mapa con cada persona moviéndose en vivo, agrupadas por
   departamento (el grupo al que pertenece la persona en Grupos).
 - Repetición de ruta: el recorrido de una jornada, con paradas y viajes. Los
   tramos en que el teléfono no mandó puntos se dibujan por las calles con el
   servicio de ruteo y se marcan como estimados, nunca como GPS. Al pasar el
-  cursor por la línea sale la hora, la velocidad y, si la persona pasó varias
-  veces por la misma calle, todas las pasadas con su sentido; sobre una línea
-  punteada, cuánto duró el corte y cuánto se movió. Al reproducir, lo que falta
+  cursor por la línea sale la hora, la velocidad y la batería del punto más
+  cercano; sobre una línea punteada, cuánto duró el corte y cuánto se movió. Al reproducir, lo que falta
   se atenúa y las paradas pasan rápido. Atajos: Espacio reproduce o pausa, ← y
   → avanzan un punto (con Mayús, diez), N y P saltan a la parada siguiente o
   anterior, + y - cambian la velocidad.
@@ -101,11 +99,7 @@ El panel web es una aplicación React que habla solo con la API
   (distancias, viajes y paradas).
 - Batería: el estado de los teléfonos.
 - Historial: quién trabajó cada día, con entrada, salida y horas.
-- Usuarios, Grupos y Configuración: administración. En Configuración se fija
-  la oficina (nombre, coordenadas y radio); si nadie la fija, el panel usa el
-  lugar donde más personas distintas se detuvieron en 30 días y lo avisa como
-  "detectada". "Casa" es la estancia donde empezó el registro del día (al menos
-  10 minutos); si el registro empezó en la calle no se afirma nada.
+- Usuarios, Grupos y Configuración: administración.
 - Sistema: salud del servidor, cifras del día y una consola para consultar la
   base (ver el [curso de SQL](curso-sql-consola.md)).
 

@@ -300,11 +300,6 @@ export function resolverDatos(datos, lat, lon, precisionM = null) {
   return { direccion: aproximada ? `Cerca de ${texto}` : texto, aproximada, distanciaM: distancia };
 }
 
-// Compatibilidad: texto de la dirección sin contexto de precisión.
-export function componerDireccion(datos) {
-  return resolverDatos(datos, NaN, NaN, null)?.direccion ?? null;
-}
-
 // Devuelve { direccion, aproximada, distanciaM } o null. Los aciertos se
 // guardan en caché; los fallos no, para reintentar cuando vuelva la red.
 export async function resolverDireccion(lat, lon, opciones = {}) {
@@ -329,10 +324,6 @@ export async function resolverDireccion(lat, lon, opciones = {}) {
   }
 }
 
-export async function direccionDe(lat, lon, opciones = {}) {
-  return (await resolverDireccion(lat, lon, opciones))?.direccion ?? null;
-}
-
 // Solo consulta la caché, sin llamar a Nominatim. La usa el listado de
 // paradas para responder rápido.
 export function resolucionEnCache(lat, lon, precisionM = null) {
@@ -344,10 +335,6 @@ export function resolucionEnCache(lat, lon, precisionM = null) {
   } catch {
     return null;
   }
-}
-
-export function direccionEnCache(lat, lon, precisionM = null) {
-  return resolucionEnCache(lat, lon, precisionM)?.direccion ?? null;
 }
 
 // Busca en segundo plano las direcciones que faltan (una por segundo) para

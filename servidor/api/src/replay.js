@@ -5,7 +5,7 @@ import { consultar } from './db.js';
 import { aDispositivo, aPosicion } from './dto.js';
 import { datosInvalidos, noEncontrado } from './errores.js';
 import { leerOrden, leerPaginacion, leerRango, respuestaJson } from './http.js';
-import { PREDICADO_PERMISO, SELECT_DISPOSITIVO, buscarDispositivo, permisoDe } from './flota.js';
+import { PREDICADO_PERMISO, buscarDispositivo, permisoDe } from './flota.js';
 import { calcularHuecos, resumirRecorrido, sumarDistanciasKm } from './geo.js';
 import { reconstruirTramos } from './ruteo.js';
 import { depurarPosiciones } from './depuracion.js';
