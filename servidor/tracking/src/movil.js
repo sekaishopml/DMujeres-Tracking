@@ -37,12 +37,12 @@ const ultimosDiagnosticos = new Map();
 // Respuestas
 // ---------------------------------------------------------------------------
 
-function responderSinCuerpo(res, codigo) {
+export function responderSinCuerpo(res, codigo) {
   res.writeHead(codigo, { 'cache-control': 'no-store' });
   res.end();
 }
 
-function responderJson(res, codigo, cuerpo) {
+export function responderJson(res, codigo, cuerpo) {
   const texto = JSON.stringify(cuerpo);
   res.writeHead(codigo, {
     'content-type': 'application/json; charset=utf-8',
@@ -144,7 +144,7 @@ async function validarTokenMovil(pool, token) {
 }
 
 // Clave compartida (flota instalada) o sesión Bearer (app con login).
-async function autorizacionMovil(req, ctx) {
+export async function autorizacionMovil(req, ctx) {
   if (claveValida(req.headers['x-api-key'], ctx.configuracion.clavesMoviles)) {
     return { modo: 'clave' };
   }
@@ -314,7 +314,7 @@ async function leerCuerpo(req, limite) {
   return { ok: true, buffer: Buffer.concat(trozos) };
 }
 
-async function leerJson(req, limite) {
+export async function leerJson(req, limite) {
   const lectura = await leerCuerpo(req, limite);
   if (!lectura.ok) return lectura;
   const texto = lectura.buffer.toString('utf8');
@@ -326,7 +326,7 @@ async function leerJson(req, limite) {
   }
 }
 
-function identificadorDe(req, url) {
+export function identificadorDe(req, url) {
   const cabecera = req.headers['x-device-id'];
   if (typeof cabecera === 'string' && cabecera.trim() !== '') return cabecera.trim();
   const consulta = url.searchParams.get('deviceId');
@@ -356,7 +356,7 @@ function entero(valor, defecto) {
   return defecto;
 }
 
-function texto(valor) {
+export function texto(valor) {
   if (typeof valor === 'string') {
     const limpio = valor.trim();
     return limpio === '' ? null : limpio;
@@ -369,7 +369,7 @@ function booleanoJson(valor) {
   return typeof valor === 'boolean' ? valor : null;
 }
 
-function objeto(valor) {
+export function objeto(valor) {
   return valor !== null && typeof valor === 'object' && !Array.isArray(valor) ? valor : null;
 }
 
@@ -406,7 +406,7 @@ function idCoincide(reportado, dispositivo) {
   return valor.toLowerCase() === dispositivo.identificador.toLowerCase();
 }
 
-async function buscarOFallar(ctx, res, identificador, codigoDesconocido) {
+export async function buscarOFallar(ctx, res, identificador, codigoDesconocido) {
   let dispositivo;
   try {
     dispositivo = await ctx.almacen.buscarDispositivo(identificador);
@@ -552,7 +552,9 @@ export async function atenderJornada(req, res, ctx) {
 // Cronograma de actividades
 // GET  /api/mobile/v1/actividades?deviceId=&desde=YYYY-MM-DD&hasta=YYYY-MM-DD
 // POST /api/mobile/v1/actividades {deviceId, clientId, fecha, hora, tipo,
-//      lugar, nota, at, lat, lon, accuracy, deleted}
+//      lugar, lugarId (cliente de la lista), lugarLat/lugarLon (dónde está
+//      el lugar: la parada desde la que se registró), nota, at, lat, lon,
+//      accuracy, deleted}
 // ---------------------------------------------------------------------------
 
 const TIPOS_ACTIVIDAD = new Set(['visita', 'almuerzo', 'permiso_medico', 'vacaciones', 'permiso', 'novedad']);
@@ -584,6 +586,7 @@ export async function atenderActividadesConsulta(req, res, ctx) {
         horaFin: f.hora_fin ?? null,
         tipo: f.tipo,
         lugar: f.lugar,
+        lugarId: f.cliente_lugar_id === null || f.cliente_lugar_id === undefined ? null : Number(f.cliente_lugar_id),
         nota: f.nota,
         registradoEn: f.registrado_en instanceof Date ? f.registrado_en.getTime() : Date.parse(f.registrado_en),
         conJornada: f.con_jornada,
@@ -639,6 +642,9 @@ export async function atenderActividad(req, res, ctx) {
       longitud: numeroFinito(cuerpo.lon),
       precisionM: numeroFinito(cuerpo.accuracy),
       eliminada: cuerpo.deleted === true,
+      lugarId: Number.isInteger(cuerpo.lugarId) && cuerpo.lugarId > 0 ? cuerpo.lugarId : null,
+      lugarLat: numeroFinito(cuerpo.lugarLat),
+      lugarLon: numeroFinito(cuerpo.lugarLon),
     });
     return responderJson(res, 200, { ok: true, conJornada: guardada.con_jornada, conUbicacion: guardada.con_coordenada });
   } catch (error) {
@@ -1034,7 +1040,7 @@ function enteroSecuencia(valor) {
   return null;
 }
 
-function numeroFinito(valor) {
+export function numeroFinito(valor) {
   if (valor === null || valor === undefined) return null;
   const convertido = typeof valor === 'number' ? valor : Number(String(valor).trim());
   return Number.isFinite(convertido) ? convertido : null;

@@ -641,7 +641,7 @@ export class Almacen {
   async listarActividades({ dispositivoId, desde, hasta }) {
     const { rows } = await this.#pool.query(
       `SELECT cliente_id, to_char(fecha, 'YYYY-MM-DD') AS fecha, hora, hora_fin, tipo, lugar, nota,
-              registrado_en, con_jornada, latitud, longitud, precision_m
+              registrado_en, con_jornada, latitud, longitud, precision_m, cliente_lugar_id
          FROM operations.dmt_actividad
         WHERE dispositivo_id = $1 AND NOT eliminada AND fecha BETWEEN $2::date AND $3::date
         ORDER BY fecha, hora, registrado_en`,
@@ -652,7 +652,10 @@ export class Almacen {
 
   // Alta o edición por cliente_id. La ubicación solo se guarda si había una
   // jornada abierta: cargada desde la casa no describe el lugar declarado.
-  async guardarActividad({ dispositivoId, clienteId, fecha, hora, horaFin, tipo, lugar, nota, registradoEn, latitud, longitud, precisionM, eliminada }) {
+  async guardarActividad({ dispositivoId, clienteId, fecha, hora, horaFin, tipo, lugar, nota, registradoEn, latitud, longitud, precisionM, eliminada, lugarId = null, lugarLat = null, lugarLon = null }) {
+    if (lugarId === null && tipo === 'visita' && lugar) {
+      lugarId = await this.clienteDeLugar({ dispositivoId, nombre: lugar, latitud: lugarLat, longitud: lugarLon });
+    }
     const jornada = await this.#pool.query(
       `SELECT 1 FROM operations.dmt_jornada
         WHERE dispositivo_id = $1 AND inicio_en <= $2 AND (fin_en IS NULL OR fin_en >= $2)
@@ -664,21 +667,52 @@ export class Almacen {
     const { rows } = await this.#pool.query(
       `INSERT INTO operations.dmt_actividad
          (dispositivo_id, cliente_id, fecha, hora, tipo, lugar, nota, registrado_en, con_jornada,
-          latitud, longitud, precision_m, eliminada, hora_fin)
-       VALUES ($1, $2, $3::date, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+          latitud, longitud, precision_m, eliminada, hora_fin, cliente_lugar_id)
+       VALUES ($1, $2, $3::date, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14,
+               (SELECT id FROM operations.dmt_cliente WHERE id = $15))
        ON CONFLICT (dispositivo_id, cliente_id) DO UPDATE SET
          fecha = EXCLUDED.fecha, hora = EXCLUDED.hora, hora_fin = EXCLUDED.hora_fin, tipo = EXCLUDED.tipo,
          lugar = EXCLUDED.lugar, nota = EXCLUDED.nota, eliminada = EXCLUDED.eliminada,
+         cliente_lugar_id = EXCLUDED.cliente_lugar_id,
          actualizado_en = now()
        RETURNING con_jornada, latitud IS NOT NULL AS con_coordenada`,
       [
         dispositivoId, clienteId, fecha, hora, tipo, lugar, nota, registradoEn, conJornada,
         conCoordenada ? latitud : null, conCoordenada ? longitud : null,
         conCoordenada && Number.isFinite(precisionM) ? precisionM : null, eliminada === true, horaFin ?? null,
+        lugarId,
       ],
     );
     await this.#avisar(this.#pool, 'a', dispositivoId);
     return rows[0];
+  }
+
+  // Cliente con ese nombre; si no existe, se crea (así la lista crece sola con
+  // lo que registran). Si no tenía ubicación y la visita trae la de su parada,
+  // la aprende.
+  async clienteDeLugar({ dispositivoId, nombre, latitud, longitud }) {
+    const conUbicacion = Number.isFinite(latitud) && Number.isFinite(longitud)
+      && Math.abs(latitud) <= 90 && Math.abs(longitud) <= 180;
+    const lat = conUbicacion ? latitud : null;
+    const lon = conUbicacion ? longitud : null;
+    const nombreLimpio = String(nombre).trim().slice(0, 120);
+    const existente = await this.#pool.query(
+      `UPDATE operations.dmt_cliente
+          SET latitud = COALESCE(latitud, $2::float8), longitud = COALESCE(longitud, $3::float8),
+              actualizado_en = CASE WHEN latitud IS NULL AND $2::float8 IS NOT NULL THEN now() ELSE actualizado_en END
+        WHERE activo AND lower(nombre) = lower($1)
+        RETURNING id`,
+      [nombreLimpio, lat, lon],
+    );
+    if (existente.rows[0]) return Number(existente.rows[0].id);
+    const creado = await this.#pool.query(
+      `INSERT INTO operations.dmt_cliente (nombre, latitud, longitud, creado_por_dispositivo)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT DO NOTHING
+       RETURNING id`,
+      [nombreLimpio, lat, lon, Number(dispositivoId)],
+    );
+    return creado.rows[0] ? Number(creado.rows[0].id) : null;
   }
 
   async cerrarJornada({ dispositivoId, journeyId, soloJornada = null, finEn, bateriaFin, parcheDispositivo }) {

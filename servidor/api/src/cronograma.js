@@ -5,6 +5,9 @@
 //    detenida, la parada. Con hora de inicio y fin se toma la parada que más
 //    tiempo comparte con ese horario y qué parte cubre.
 //  - `registro`: cuándo se cargó y, si fue con jornada iniciada, dónde.
+//  - `respaldo`: si el recorrido respalda lo declarado (ver respaldoDe). No
+//    importa cuándo se cargó: llenar el reporte en la noche o al día
+//    siguiente es normal; lo que cuenta es dónde estuvo a esa hora.
 // Las direcciones salen de la caché; las que faltan las pide el panel.
 
 import { consultar } from './db.js';
@@ -52,6 +55,36 @@ export function paradaDeActividad(paradas, t, tFin) {
   return { parada, porRango: false, coberturaPct: null };
 }
 
+// A esta distancia o menos de la ubicación del cliente, la parada es en el
+// cliente (cubre el error del GPS y estacionar a una cuadra).
+export const RADIO_CLIENTE_M = 250;
+const SIN_VERIFICAR = new Set(['vacaciones', 'permiso', 'permiso_medico']);
+
+function metros(a, b) {
+  const rad = Math.PI / 180;
+  const dLat = (b.lat - a.lat) * rad;
+  const dLon = (b.lon - a.lon) * rad;
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * rad) * Math.cos(b.lat * rad) * Math.sin(dLon / 2) ** 2;
+  return 2 * 6371000 * Math.asin(Math.sqrt(h));
+}
+
+// Qué dice el recorrido de lo declarado:
+//  - GPS: estuvo detenido en ese horario (y en el cliente, si tiene ubicación);
+//  - LEJOS: estuvo detenido, pero lejos del cliente declarado;
+//  - EN_CAMINO: había puntos, pero estaba en movimiento;
+//  - SIN_RECORRIDO: no hay puntos a esa hora (no inició jornada o sin señal);
+//  - NO_APLICA: vacaciones y permisos no se comprueban con el recorrido.
+export function respaldoDe({ tipo, enHora, cliente }) {
+  if (SIN_VERIFICAR.has(tipo)) return { estado: 'NO_APLICA', distanciaM: null };
+  if (!enHora) return { estado: 'SIN_RECORRIDO', distanciaM: null };
+  if (!enHora.detenida) return { estado: 'EN_CAMINO', distanciaM: null };
+  if (cliente && Number.isFinite(cliente.lat) && Number.isFinite(cliente.lon)) {
+    const distanciaM = Math.round(metros({ lat: enHora.latitud, lon: enHora.longitud }, cliente));
+    return { estado: distanciaM <= RADIO_CLIENTE_M ? 'GPS' : 'LEJOS', distanciaM };
+  }
+  return { estado: 'GPS', distanciaM: null };
+}
+
 export async function listarCronograma(ctx) {
   const desde = ctx.url.searchParams.get('desde');
   const hasta = ctx.url.searchParams.get('hasta');
@@ -66,9 +99,12 @@ export async function listarCronograma(ctx) {
     ctx.pool,
     `SELECT a.id_publico, a.dispositivo_id, d.id_publico AS dispositivo_publico, d.nombre,
             to_char(a.fecha, 'YYYY-MM-DD') AS fecha, a.hora, a.hora_fin, a.tipo, a.lugar, a.nota,
-            a.registrado_en, a.con_jornada, a.latitud, a.longitud, a.precision_m
+            a.registrado_en, a.con_jornada, a.latitud, a.longitud, a.precision_m,
+            c.id AS cliente_id_lista, c.nombre AS cliente_nombre, c.direccion AS cliente_direccion,
+            c.latitud AS cliente_lat, c.longitud AS cliente_lon
        FROM operations.dmt_actividad a
        JOIN tracking.dmt_dispositivo d ON d.id = a.dispositivo_id
+       LEFT JOIN operations.dmt_cliente c ON c.id = a.cliente_lugar_id
       WHERE NOT a.eliminada
         AND a.fecha BETWEEN $2::date AND $3::date
         AND ${PREDICADO_PERMISO}
@@ -137,6 +173,15 @@ export async function listarCronograma(ctx) {
             : direccion(cercano.latitud, cercano.longitud, cercano.precisionM),
         }
       : null;
+    const cliente = f.cliente_id_lista === null
+      ? null
+      : {
+          id: Number(f.cliente_id_lista),
+          nombre: f.cliente_nombre,
+          direccion: f.cliente_direccion ?? null,
+          lat: f.cliente_lat === null ? null : Number(f.cliente_lat),
+          lon: f.cliente_lon === null ? null : Number(f.cliente_lon),
+        };
     const lat = f.latitud === null ? null : Number(f.latitud);
     const lon = f.longitud === null ? null : Number(f.longitud);
     return {
@@ -157,6 +202,8 @@ export async function listarCronograma(ctx) {
         direccion: lat !== null ? direccion(lat, lon, f.precision_m === null ? null : Number(f.precision_m)) : null,
       },
       enHora,
+      cliente,
+      respaldo: respaldoDe({ tipo: f.tipo, enHora, cliente }),
     };
   });
   respuestaJson(ctx.res, 200, { desde, hasta, datos });

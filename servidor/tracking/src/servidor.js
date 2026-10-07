@@ -6,6 +6,9 @@
 //   GET  /api/mobile/v1/journey    estado de la jornada en el servidor
 //   POST /api/mobile/v1/journey    inicio y fin de jornada
 //   POST /api/mobile/v1/positions  lote de puntos (sin duplicar)
+//   GET/POST /api/mobile/v1/clientes  clientes para registrar actividades
+//   GET  /api/mobile/v1/paradas    paradas de un día (actividades desde el GPS)
+//   GET  /api/mobile/v1/estado     último punto que tiene el servidor
 //   POST /api/mobile/v1/diagnostics
 //   GET  /api/mobile/v1/ota
 //   POST /api/mobile/v1/fcm-token
@@ -31,6 +34,8 @@ import {
   atenderSesion,
   atenderTokenFcm,
 } from './movil.js';
+import { atenderClienteNuevo, atenderClientesConsulta, atenderParadasDia } from './clientes.js';
+import { atenderEstado } from './estado.js';
 
 function responderNoEncontrado(res) {
   res.writeHead(404, { 'cache-control': 'no-store' });
@@ -78,6 +83,18 @@ async function manejar(req, res, ctx) {
   }
   if (ruta === '/api/mobile/v1/actividades' && metodo === 'POST') {
     return atenderActividad(req, res, { ...ctx, url });
+  }
+  if (ruta === '/api/mobile/v1/clientes' && metodo === 'GET') {
+    return atenderClientesConsulta(req, res, { ...ctx, url });
+  }
+  if (ruta === '/api/mobile/v1/clientes' && metodo === 'POST') {
+    return atenderClienteNuevo(req, res, { ...ctx, url });
+  }
+  if (ruta === '/api/mobile/v1/estado' && metodo === 'GET') {
+    return atenderEstado(req, res, { ...ctx, url });
+  }
+  if (ruta === '/api/mobile/v1/paradas' && metodo === 'GET') {
+    return atenderParadasDia(req, res, { ...ctx, url });
   }
   if (ruta === '/api/mobile/v1/power' && metodo === 'POST') {
     return atenderEnergia(req, res, { ...ctx, url });
