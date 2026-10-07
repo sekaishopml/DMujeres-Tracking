@@ -8,6 +8,7 @@ import {
   Route,
   Server,
   Settings2,
+  Store,
   Users,
   UsersRound,
 } from 'lucide-react';
@@ -40,6 +41,7 @@ export const GRUPOS: { titulo: string; enlaces: Enlace[] }[] = [
     enlaces: [
       { ruta: '/usuarios', descripcion: 'Cuentas de acceso, roles y equipos asignados.', texto: 'Usuarios', icono: Users, soloAdmin: true },
       { ruta: '/grupos', descripcion: 'Grupos de trabajo y sus integrantes.', texto: 'Grupos', icono: UsersRound, soloAdmin: true },
+      { ruta: '/clientes', descripcion: 'Clientes que visitan, para registrar actividades y compararlas con el recorrido.', texto: 'Clientes', icono: Store, soloAdmin: true },
       { ruta: '/configuracion', descripcion: 'Ajustes de la plataforma y de la app en los teléfonos.', texto: 'Configuración', icono: Settings2, soloAdmin: true },
       { ruta: '/sistema', descripcion: 'Estado de los servicios y de cada equipo.', texto: 'Sistema', icono: Server, soloAdmin: true },
     ],

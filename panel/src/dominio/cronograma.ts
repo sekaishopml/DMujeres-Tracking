@@ -36,7 +36,13 @@ export interface Actividad {
     coberturaPct?: number | null;
     direccion: string | null;
   } | null;
+  // Cliente de la lista, si se eligió uno.
+  cliente?: { id: number; nombre: string; direccion: string | null; lat: number | null; lon: number | null } | null;
+  // Lo que dice el recorrido a esa hora (no importa cuándo se cargó).
+  respaldo?: { estado: EstadoRespaldo; distanciaM: number | null };
 }
+
+export type EstadoRespaldo = 'GPS' | 'LEJOS' | 'EN_CAMINO' | 'SIN_RECORRIDO' | 'NO_APLICA';
 
 export const TIPOS: Record<TipoActividad, { etiqueta: string; clase: string }> = {
   visita: { etiqueta: 'Visita', clase: 'bg-marino-100 text-marino-800' },

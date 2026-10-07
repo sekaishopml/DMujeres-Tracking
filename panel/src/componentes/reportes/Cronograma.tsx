@@ -12,11 +12,10 @@ import { CLAVE_FLOTA, equiposHabilitados, traerDireccion, traerFlota } from '@/d
 import { mensajeError } from '@/dominio/errores';
 import { hora } from '@/dominio/formatoBase';
 import { agruparPorDepartamento, ordenarPorDepartamento } from '@/dominio/departamentos';
-import { diaDe, fechaHoyLocal, sumarDias } from '@/dominio/rango';
+import { fechaHoyLocal, sumarDias } from '@/dominio/rango';
 import {
   TIPOS,
   diasDeSemana,
-  etiquetaDia,
   etiquetaMes,
   lunesDe,
   primeroDeMes,
@@ -94,7 +93,9 @@ export default function Cronograma({ pestanas }: { pestanas?: ReactNode }) {
   const titulo = vista === 'semana' ? rangoSemana(desde, hasta) : etiquetaMes(desde);
 
   const novedades = datos.filter((a) => a.tipo === 'novedad').length;
-  const sinJornada = datos.filter((a) => !a.registro.conJornada).length;
+  const conRespaldo = datos.filter((a) => a.respaldo?.estado === 'GPS').length;
+  const verificables = datos.filter((a) => a.respaldo && a.respaldo.estado !== 'NO_APLICA').length;
+  const sinRespaldo = datos.filter((a) => a.respaldo?.estado === 'LEJOS' || a.respaldo?.estado === 'SIN_RECORRIDO').length;
 
   return (
     <div className="space-y-4">
@@ -133,10 +134,15 @@ export default function Cronograma({ pestanas }: { pestanas?: ReactNode }) {
           <Dato valor={datos.length} etiqueta="actividades" />
           <Dato valor={novedades} etiqueta="novedades" tono={novedades > 0 ? 'text-marca' : undefined} />
           <Dato
-            valor={sinJornada}
-            etiqueta="cargadas sin jornada"
-            tono={sinJornada > 0 ? 'text-sin-senal' : undefined}
-            titulo="Se cargaron con la jornada cerrada: no llevan ubicación de registro."
+            valor={verificables > 0 ? `${conRespaldo} de ${verificables}` : conRespaldo}
+            etiqueta="respaldadas por GPS"
+            titulo="Estuvo detenido a esa hora (y en el cliente, si tiene ubicación). No importa cuándo se cargó."
+          />
+          <Dato
+            valor={sinRespaldo}
+            etiqueta="sin respaldo"
+            tono={sinRespaldo > 0 ? 'text-sin-senal' : undefined}
+            titulo="Lejos del cliente declarado o sin recorrido a esa hora."
           />
         </div>
       </Tarjeta>
@@ -264,7 +270,7 @@ function SelectorPersona({
   );
 }
 
-function Dato({ valor, etiqueta, tono, titulo }: { valor: number; etiqueta: string; tono?: string; titulo?: string }) {
+function Dato({ valor, etiqueta, tono, titulo }: { valor: number | string; etiqueta: string; tono?: string; titulo?: string }) {
   return (
     <p className="text-[12.5px] text-texto-2" title={titulo}>
       <span className={cn('text-[14px] font-semibold text-marino-900 cifras', tono)}>{valor}</span>{' '}
@@ -395,7 +401,9 @@ function FragmentoCelda({ actividad: a, color, almuerzo }: { actividad?: Activid
           {a.tipo !== 'visita' && (
             <span className={cn('rounded-full px-1.5 text-[10px] font-semibold', tipo.clase)}>{tipo.etiqueta}</span>
           )}
-          {a.lugar && <span className="font-semibold break-words text-marino-900">{a.lugar}</span>}
+          {(a.cliente?.nombre ?? a.lugar) && (
+            <span className="font-semibold break-words text-marino-900">{a.cliente?.nombre ?? a.lugar}</span>
+          )}
         </div>
         {a.nota && <p className="mt-0.5 text-[11.5px] break-words text-texto-2">{a.nota}</p>}
         <AuditoriaCorta actividad={a} />
@@ -404,21 +412,25 @@ function FragmentoCelda({ actividad: a, color, almuerzo }: { actividad?: Activid
   );
 }
 
-// Cuándo se cargó respecto de lo declarado: antes (planificada), mientras
-// ocurría o después de que terminó (registro tardío, con cuánto después).
-// Ecuador continental: UTC-5 todo el año.
-const MARGEN_CARGA_MS = 15 * 60_000;
-// Más de una hora después se marca como aviso, igual que sin jornada.
-function momentoDeCarga(a: Actividad): { texto: string; tardia: boolean } | null {
-  const inicio = Date.parse(`${a.fecha}T${a.hora}:00-05:00`);
-  const fin = Date.parse(`${a.fecha}T${a.horaFin ?? a.hora}:00-05:00`);
-  const en = Date.parse(a.registro.en);
-  if (Number.isNaN(inicio) || Number.isNaN(fin) || Number.isNaN(en)) return null;
-  if (en < inicio - MARGEN_CARGA_MS) return { texto: 'planificada', tardia: false };
-  if (en <= fin + MARGEN_CARGA_MS) return null;
-  const minutos = Math.round((en - fin) / 60_000);
-  const tarde = minutos < 60 ? `${minutos} min` : minutos < 1440 ? `${Math.floor(minutos / 60)} h ${minutos % 60} min` : `${Math.floor(minutos / 1440)} d`;
-  return { texto: `${tarde} después`, tardia: minutos > 60 };
+// Qué dice el recorrido de lo declarado. La hora de carga no se juzga: llenar
+// el reporte en la noche o al día siguiente es normal.
+const RESPALDO: Record<string, { texto: string; clase: string }> = {
+  GPS: { texto: 'Respaldada por GPS', clase: 'text-movimiento' },
+  LEJOS: { texto: 'Lejos del cliente', clase: 'text-sin-senal' },
+  EN_CAMINO: { texto: 'En movimiento a esa hora', clase: 'text-texto-3' },
+  SIN_RECORRIDO: { texto: 'Sin recorrido a esa hora', clase: 'text-sin-senal' },
+  NO_APLICA: { texto: '', clase: 'text-texto-3' },
+};
+
+function textoRespaldo(a: Actividad): string {
+  const r = a.respaldo;
+  if (!r) return '';
+  const base = RESPALDO[r.estado]?.texto ?? '';
+  return r.estado === 'LEJOS' && r.distanciaM != null ? `${base} (${kmOm(r.distanciaM)})` : base;
+}
+
+function kmOm(metros: number): string {
+  return metros < 1000 ? `${metros} m` : `${(metros / 1000).toFixed(1)} km`;
 }
 
 // Auditoría en una línea dentro de la celda; el detalle completo va en el
@@ -430,11 +442,16 @@ function AuditoriaCorta({ actividad: a }: { actividad: Actividad }) {
   const texto = !eh
     ? 'Sin recorrido a esa hora'
     : `${eh.detenida ? 'Detenida' : 'En camino'}${eh.detenida && eh.paradaDesde && eh.paradaHasta ? ` ${hora(eh.paradaDesde)}–${hora(eh.paradaHasta)}${cobertura}` : ''}${direccion ? ` · ${direccion}` : ''}`;
-  const momento = momentoDeCarga(a);
-  const carga = `Cargada ${hora(a.registro.en)}${diaDe(a.registro.en) !== a.fecha ? ` del ${etiquetaDia(diaDe(a.registro.en))}` : ''}${a.registro.conJornada ? ' con jornada' : ' sin jornada'}${momento ? ` · ${momento.texto}` : ''}`;
-  const aviso = !a.registro.conJornada || momento?.tardia === true;
+  const respaldo = textoRespaldo(a);
+  const estilo = RESPALDO[a.respaldo?.estado ?? 'NO_APLICA'];
   return (
     <div className="mt-1 space-y-0.5 text-[10.5px] leading-tight">
+      {respaldo && (
+        <p className={cn('flex items-center gap-1 font-semibold', estilo.clase)} title={texto}>
+          {a.respaldo?.estado === 'GPS' ? <Check className="size-3 flex-none" /> : <TriangleAlert className="size-3 flex-none" />}
+          {respaldo}
+        </p>
+      )}
       <p className="flex items-start gap-1 text-texto-3" title={texto}>
         {eh?.detenida ? <MapPin className="mt-px size-3 flex-none text-detenido" /> : <Navigation className="mt-px size-3 flex-none text-movimiento" />}
         <span className="line-clamp-2">{texto}</span>
@@ -443,10 +460,6 @@ function AuditoriaCorta({ actividad: a }: { actividad: Actividad }) {
             Ruta
           </Link>
         )}
-      </p>
-      <p className={cn('flex items-center gap-1', aviso ? 'text-sin-senal' : 'text-texto-3')} title={carga}>
-        {aviso && <TriangleAlert className="size-3 flex-none" />}
-        {carga}
       </p>
     </div>
   );
@@ -543,16 +556,15 @@ function useDireccionFaltante(lat: number | null, lon: number | null, conocida: 
 function exportarCsv(datos: Actividad[], desde: string, hasta: string) {
   const campo = (v: unknown) => `"${String(v ?? '').replaceAll('"', '""')}"`;
   const filas = [
-    ['Fecha', 'Persona', 'Hora', 'Tipo', 'Lugar', 'Nota', 'Cargada', 'Con jornada', 'A esa hora', 'Dirección a esa hora'],
+    ['Fecha', 'Persona', 'Hora', 'Tipo', 'Cliente o lugar', 'Nota', 'Respaldo del GPS', 'A esa hora', 'Dirección a esa hora'],
     ...datos.map((a) => [
       a.fecha,
       a.nombre,
       a.horaFin ? `${a.hora}–${a.horaFin}` : a.hora,
       TIPOS[a.tipo].etiqueta,
-      a.lugar,
+      a.cliente?.nombre ?? a.lugar,
       a.nota,
-      a.registro.en,
-      a.registro.conJornada ? 'Sí' : 'No',
+      textoRespaldo(a) || 'No aplica',
       a.enHora ? (a.enHora.detenida ? 'Detenida' : 'En camino') : 'Sin recorrido',
       a.enHora?.direccion,
     ]),

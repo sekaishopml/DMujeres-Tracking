@@ -15,6 +15,7 @@ const Bateria = lazy(() => import('@/paginas/Bateria'));
 const Reportes = lazy(() => import('@/paginas/Reportes'));
 const Usuarios = lazy(() => import('@/paginas/Usuarios'));
 const Grupos = lazy(() => import('@/paginas/Grupos'));
+const Clientes = lazy(() => import('@/paginas/Clientes'));
 const Configuracion = lazy(() => import('@/paginas/Configuracion'));
 const Sistema = lazy(() => import('@/paginas/Sistema'));
 
@@ -34,6 +35,7 @@ export default function App() {
             <Route path="/reportes" element={<Reportes />} />
             <Route path="/usuarios" element={<Usuarios />} />
             <Route path="/grupos" element={<Grupos />} />
+            <Route path="/clientes" element={<Clientes />} />
             <Route path="/configuracion" element={<Configuracion />} />
             <Route path="/sistema" element={<Sistema />} />
             <Route path="*" element={<Navigate to="/" replace />} />
