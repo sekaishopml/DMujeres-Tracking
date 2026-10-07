@@ -53,11 +53,24 @@ export function globoDePunto(titulo: string, filas: FilaGlobo[], nota?: string):
 
 // Lo que se sabe de un corte de señal: entre qué horas, cuánto duró, cuánto se
 // movió entre el último punto visto y el siguiente, y la batería de los dos.
-export function globoDeCorte(antes: Posicion, despues: Posicion): HTMLElement {
+export const ETIQUETA_CORTE: Record<string, string> = {
+  SIN_SENAL: 'Sin señal GPS',
+  GPS_APAGADO: 'GPS apagado',
+  SIN_PERMISO: 'Sin permiso de ubicación',
+  APAGADO: 'Teléfono apagado',
+  SIN_CONTACTO: 'App detenida o sin datos',
+  FUERA_DE_JORNADA: 'Fuera de jornada',
+};
+
+export function etiquetaCorte(motivo: string | null | undefined): string {
+  return (motivo && ETIQUETA_CORTE[motivo]) || 'Sin señal';
+}
+
+export function globoDeCorte(antes: Posicion, despues: Posicion, motivo?: string | null): HTMLElement {
   const segundos = (milisegundos(despues.registradoEn) - milisegundos(antes.registradoEn)) / 1000;
   const km = distanciaM(antes, despues) / 1000;
   return globoDePunto(
-    'Sin señal',
+    etiquetaCorte(motivo),
     [
       { etiqueta: 'Desde', valor: horaCorta(antes.registradoEn) },
       { etiqueta: 'Hasta', valor: horaCorta(despues.registradoEn) },

@@ -1,7 +1,7 @@
 import { cn } from '@/lib/cn';
 import { useCallback, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Eye, EyeOff, Pencil, Plus, SlidersHorizontal, Trash2, Users } from 'lucide-react';
+import { Eye, EyeOff, LockOpen, Pencil, Plus, SlidersHorizontal, Smartphone, Trash2, Users } from 'lucide-react';
 import { toast } from 'sonner';
 import type {
   ActualizacionUsuarioPlataforma,
@@ -14,7 +14,7 @@ import type {
 } from '@contratos';
 import { api } from '@/lib/api';
 import { useSesion } from '@/lib/sesion';
-import { GUION } from '@/dominio/formatoBase';
+import { GUION, fechaHora, hora } from '@/dominio/formatoBase';
 import { mensajeError } from '@/dominio/errores';
 import {
   CLAVE_FLOTA,
@@ -652,6 +652,28 @@ export default function Usuarios() {
     onError: (error) => toast.error(mensajeError(error)),
   });
 
+  const desbloquear = useMutation({
+    mutationFn: (usuario: UsuarioPlataforma) =>
+      api.post<{ usuario: UsuarioPlataforma }>(`/api/v1/usuarios/${idEnUrl(usuario)}/desbloquear`, {}),
+    onSuccess: () => {
+      invalidar();
+      toast.success('Cuenta desbloqueada.');
+    },
+    onError: (error) => toast.error(mensajeError(error)),
+  });
+
+  // Cierra la app en el teléfono donde esté abierta: así la persona puede
+  // entrar desde otro (solo se permite uno a la vez).
+  const cerrarTelefono = useMutation({
+    mutationFn: (usuario: UsuarioPlataforma) =>
+      api.post<{ usuario: UsuarioPlataforma }>(`/api/v1/usuarios/${idEnUrl(usuario)}/cerrar-sesion-telefono`, {}),
+    onSuccess: () => {
+      invalidar();
+      toast.success('Sesión del teléfono cerrada. Ya puede entrar desde otro.');
+    },
+    onError: (error) => toast.error(mensajeError(error)),
+  });
+
   const guardarAjustes = useMutation({
     mutationFn: ({ usuario, ajustes }: { usuario: UsuarioPlataforma; ajustes: Record<string, ValorAjuste> }) =>
       api.patch<{ usuario: UsuarioPlataforma }>(`/api/v1/usuarios/${idEnUrl(usuario)}`, { configApp: ajustes }),
@@ -761,10 +783,15 @@ export default function Usuarios() {
                     <Td className="max-w-56">{textoGrupos(usuario)}</Td>
                     <Td className="max-w-56">{textoEquipos(usuario, listaEquipos)}</Td>
                     <Td>
-                      {usuario.habilitado ? (
-                        <Insignia tono="exito">Activa</Insignia>
-                      ) : (
+                      {!usuario.habilitado ? (
                         <Insignia tono="neutro">Dada de baja</Insignia>
+                      ) : usuario.bloqueadaHasta ? (
+                        <Insignia tono="peligro">Bloqueada hasta {hora(usuario.bloqueadaHasta)}</Insignia>
+                      ) : (
+                        <Insignia tono="exito">Activa</Insignia>
+                      )}
+                      {usuario.sesionTelefonoDesde && (
+                        <p className="mt-1 text-[11.5px] text-texto-3">App abierta desde {fechaHora(usuario.sesionTelefonoDesde)}</p>
                       )}
                     </Td>
                     <Td>
@@ -779,6 +806,22 @@ export default function Usuarios() {
                           etiqueta={`Cambiar los ajustes de ${usuario.nombre}`}
                           onClick={() => abrirAjustes(usuario)}
                         />
+                        {usuario.bloqueadaHasta && (
+                          <BotonIcono
+                            icono={LockOpen}
+                            etiqueta={`Desbloquear la cuenta de ${usuario.nombre}`}
+                            onClick={() => desbloquear.mutate(usuario)}
+                            disabled={desbloquear.isPending}
+                          />
+                        )}
+                        {usuario.sesionTelefonoDesde && (
+                          <BotonIcono
+                            icono={Smartphone}
+                            etiqueta={`Cerrar la app en el teléfono de ${usuario.nombre}`}
+                            onClick={() => cerrarTelefono.mutate(usuario)}
+                            disabled={cerrarTelefono.isPending}
+                          />
+                        )}
                         {usuario.habilitado ? (
                           <BotonIcono
                             icono={Trash2}

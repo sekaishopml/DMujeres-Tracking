@@ -13,6 +13,7 @@ import ReproductorReplay, {
   ListaParadas,
   PanelPuntoSeleccionado,
 } from '@/componentes/replay/ReproductorReplay';
+import { etiquetaCorte } from '@/componentes/replay/globos';
 import FiltroReplay from '@/componentes/replay/FiltroReplay';
 import { flechasDeLineas, lineasDeRecorrido, sinPicos } from '@/componentes/replay/flechas';
 import {
@@ -73,6 +74,9 @@ function IntegridadRecorrido({
         <strong>{totalFixes.toLocaleString('es-EC')}</strong> puntos GPS · {sinSenal}
         {estimados > 0 && ` · ${estimados} ${estimados === 1 ? 'salto estimado' : 'saltos estimados'} por calle`}
       </p>
+      {cortes.some((c) => c.motivo !== 'SIN_SENAL') && (
+        <p className="replay-nota">Causas: {causasDeCortes(cortes)}.</p>
+      )}
       {apartados > 0 && (
         <p className="replay-nota">
           {apartados} {apartados === 1 ? 'punto imposible apartado' : 'puntos imposibles apartados'} del trazado
@@ -100,6 +104,16 @@ function formatoMinutos(minutos: number): string {
   const horas = Math.floor(minutos / 60);
   const resto = minutos % 60;
   return resto === 0 ? `${horas} h` : `${horas} h ${resto} min`;
+}
+
+// "2 GPS apagado, 1 app detenida o sin datos": cuántos cortes hubo por causa.
+function causasDeCortes(cortes: Hueco[]): string {
+  const cuenta = new Map<string, number>();
+  for (const corte of cortes) {
+    const etiqueta = etiquetaCorte(corte.motivo);
+    cuenta.set(etiqueta, (cuenta.get(etiqueta) ?? 0) + 1);
+  }
+  return [...cuenta].map(([etiqueta, n]) => `${n} ${etiqueta.charAt(0).toLowerCase()}${etiqueta.slice(1)}`).join(', ');
 }
 
 // Botón de información sobre el mapa (abajo a la derecha): abre la lectura de

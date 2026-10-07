@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { BatteryWarning, Bell, CirclePlay, CircleStop, SignalHigh, WifiOff } from 'lucide-react';
+import { BatteryWarning, Bell, CirclePlay, CircleStop, SignalHigh, TriangleAlert, WifiOff } from 'lucide-react';
 import type { Dispositivo } from '@contratos';
 import { CLAVE_FLOTA, traerFlota } from '@/dominio/datos';
 import { api, consulta } from '@/lib/api';
@@ -11,6 +11,8 @@ import { cn } from '@/lib/cn';
 
 // Notificaciones del día, solo lo que la supervisión necesita:
 //  - quién empezó y quién terminó la jornada;
+//  - si en jornada apagó el GPS, quitó el permiso de ubicación, puso la app en
+//    ahorro de batería o se quedó con batería crítica;
 //  - a quién en jornada se le cortó el envío (30 min sin puntos), y por qué: con 5 %
 //    de batería o menos se atribuye a la batería; si no, se dice que se apagó
 //    o perdió cobertura (la app no avisa de un apagado manual, así que no se
@@ -19,7 +21,7 @@ import { cn } from '@/lib/cn';
 //    "Recuperó señal" con la hora, en vez de sumar otra.
 // Los cortes y lo leído se guardan en este navegador (localStorage).
 
-type Tipo = 'inicio' | 'fin' | 'corte';
+type Tipo = 'inicio' | 'fin' | 'corte' | 'alerta';
 
 interface Notificacion {
   id: string;
@@ -97,6 +99,7 @@ function actualizarCortes(previos: Corte[], equipos: Dispositivo[]): Corte[] {
 // que la persona inició o finalizó, aunque la jornada haya empezado otro día.
 interface EventoJornada {
   categoria: string;
+  texto?: string;
   en: string;
   dispositivoId: string;
   nombre: string;
@@ -105,6 +108,24 @@ interface EventoJornada {
 // La app renueva la jornada cerrándola y abriendo otra en el mismo minuto:
 // ese cierre y esa apertura no son hechos de la persona y no se notifican.
 const RENOVACION_MS = 2 * 60_000;
+
+// Alertas del teléfono durante la jornada: GPS apagado, permiso quitado,
+// ahorro de batería o batería crítica. El silencio ya lo cuentan los cortes.
+const TEXTO_SILENCIO = 'Dejó de reportar con la jornada abierta';
+
+function alertasDeEventos(eventos: EventoJornada[]): Notificacion[] {
+  return eventos
+    .filter((e) => e.categoria === 'alerta' && e.texto && e.texto !== TEXTO_SILENCIO)
+    .map((e) => ({
+      id: `alerta-${e.dispositivoId}-${e.en}-${e.texto}`,
+      tipo: 'alerta' as const,
+      idPublico: e.dispositivoId,
+      nombre: e.nombre,
+      instante: e.en,
+      titulo: e.texto ?? '',
+      detalle: `A las ${hora(e.en)}`,
+    }));
+}
 
 function desdeEventos(eventos: EventoJornada[]): Notificacion[] {
   const jornada = eventos.filter((e) => e.categoria === 'inicio_jornada' || e.categoria === 'fin_jornada');
@@ -153,7 +174,7 @@ function desdeCortes(cortes: Corte[]): Notificacion[] {
   });
 }
 
-const ICONOS: Record<Tipo, typeof Bell> = { inicio: CirclePlay, fin: CircleStop, corte: WifiOff };
+const ICONOS: Record<Tipo, typeof Bell> = { inicio: CirclePlay, fin: CircleStop, corte: WifiOff, alerta: TriangleAlert };
 
 export function Notificaciones() {
   const navegar = useNavigate();
@@ -200,7 +221,7 @@ export function Notificaciones() {
 
   const lista = useMemo(
     () =>
-      [...desdeEventos(eventos.data?.datos ?? []), ...desdeCortes(cortes)].sort(
+      [...desdeEventos(eventos.data?.datos ?? []), ...alertasDeEventos(eventos.data?.datos ?? []), ...desdeCortes(cortes)].sort(
         (a, b) => ms(b.instante) - ms(a.instante),
       ),
     [eventos.data, cortes],
@@ -266,6 +287,7 @@ export function Notificaciones() {
                         'mt-0.5 grid size-8 flex-none place-items-center rounded-full',
                         n.tipo === 'inicio' && 'bg-movimiento-suave text-movimiento',
                         n.tipo === 'fin' && 'bg-deshabilitado-suave text-deshabilitado',
+                        n.tipo === 'alerta' && 'bg-sin-senal-suave text-sin-senal',
                         n.tipo === 'corte' && !n.recuperada && (n.porBateria ? 'bg-peligro-suave text-peligro' : 'bg-sin-senal-suave text-sin-senal'),
                         n.tipo === 'corte' && n.recuperada && 'bg-movimiento-suave text-movimiento',
                       )}
