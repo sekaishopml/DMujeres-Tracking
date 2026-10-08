@@ -49,6 +49,8 @@ export interface ReplayResumen {
   velocidadMaximaKmh: number | null;
   bateriaInicialPct: number | null;
   bateriaFinalPct: number | null;
+  /** Pasos que contó el teléfono en las jornadas del recorrido; null si no hay dato. */
+  pasos?: number | null;
 }
 
 /**

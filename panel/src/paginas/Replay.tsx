@@ -50,12 +50,16 @@ import type { Hueco, ReplayCalidad } from '@contratos';
 function IntegridadRecorrido({
   totalFixes,
   simuladas,
+  pasos,
+  distanciaKm,
   huecos,
   reconstruidos,
   calidad,
 }: {
   totalFixes: number;
   simuladas: number;
+  pasos: number | null;
+  distanciaKm: number;
   huecos: Hueco[];
   reconstruidos: TramoReconstruido[];
   calidad?: ReplayCalidad;
@@ -81,6 +85,14 @@ function IntegridadRecorrido({
         <p className="replay-nota">
           {apartados} {apartados === 1 ? 'punto imposible apartado' : 'puntos imposibles apartados'} del trazado
           {calidad?.descartadasFueraDeZona ? ` (${calidad.descartadasFueraDeZona} fuera de zona)` : ''}.
+        </p>
+      )}
+      {pasos != null && (
+        <p className="replay-nota">
+          {pasos.toLocaleString('es-EC')} {pasos === 1 ? 'paso' : 'pasos'} en la jornada
+          {pasos < PASOS_MINIMOS && distanciaKm >= KM_SIN_PASOS
+            ? `: con ${distanciaKm.toFixed(1)} km de recorrido, viajó en vehículo o el teléfono no iba con la persona.`
+            : '.'}
         </p>
       )}
       {simuladas > 0 && (
@@ -116,11 +128,17 @@ function causasDeCortes(cortes: Hueco[]): string {
   return [...cuenta].map(([etiqueta, n]) => `${n} ${etiqueta.charAt(0).toLowerCase()}${etiqueta.slice(1)}`).join(', ');
 }
 
+// Con tantos kilómetros y menos de estos pasos, la persona no iba caminando.
+const KM_SIN_PASOS = 3;
+const PASOS_MINIMOS = 200;
+
 // Botón de información sobre el mapa (abajo a la derecha): abre la lectura de
 // auditoría del recorrido y la cobertura de señal.
 function InfoRecorrido({
   totalFixes,
   simuladas,
+  pasos,
+  distanciaKm,
   huecos,
   reconstruidos,
   calidad,
@@ -128,6 +146,8 @@ function InfoRecorrido({
 }: {
   totalFixes: number;
   simuladas: number;
+  pasos: number | null;
+  distanciaKm: number;
   huecos: Hueco[];
   reconstruidos: TramoReconstruido[];
   calidad?: ReplayCalidad;
@@ -143,7 +163,7 @@ function InfoRecorrido({
             <span>Cobertura</span>
             <strong>{cobertura.porcentaje == null ? GUION : `${Math.round(cobertura.porcentaje)} %`}</strong>
           </p>
-          <IntegridadRecorrido totalFixes={totalFixes} simuladas={simuladas} huecos={huecos} reconstruidos={reconstruidos} calidad={calidad} />
+          <IntegridadRecorrido totalFixes={totalFixes} simuladas={simuladas} pasos={pasos} distanciaKm={distanciaKm} huecos={huecos} reconstruidos={reconstruidos} calidad={calidad} />
         </section>
       )}
       {/* Mismo control y mismo aspecto que el botón de atribución del mapa,
@@ -984,6 +1004,8 @@ export default function Replay() {
           <InfoRecorrido
             totalFixes={posiciones.length}
             simuladas={posiciones.filter((posicion) => posicion.simulada).length}
+            pasos={replay.data.resumen.pasos ?? null}
+            distanciaKm={replay.data.resumen.distanciaKm}
             huecos={huecos}
             reconstruidos={reconstruidos}
             calidad={replay.data.calidad}
