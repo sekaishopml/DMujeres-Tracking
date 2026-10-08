@@ -107,6 +107,24 @@ ubicación nueva.
   (datos, GPS, ahorro de batería) y el siguiente toque lleva al ajuste.
   Tocarlo seguido (30 s) solo repite el último resultado.
 
+## Permisos, pasos y datos del teléfono
+
+- La app pide ubicación, ubicación "todo el tiempo", notificaciones y, como
+  recomendado, actividad física (pasos). En la pantalla principal, un aviso
+  dice qué permiso falta y al tocarlo abre el ajuste: el de "todo el tiempo"
+  lleva directo a Permisos > Ubicación de la app, donde se elige "Permitir
+  todo el tiempo".
+- Los pasos los cuenta el propio teléfono; la app guarda solo el total de la
+  jornada. Se mandan en el diagnóstico y con el aviso de fin de jornada. La
+  repetición de ruta los muestra en la "i" del mapa; si no hay dato (sin
+  permiso, sin sensor o app vieja) no muestra nada. Con 3 km o más de recorrido
+  y menos de 200 pasos avisa que viajó en vehículo o que el teléfono no iba
+  con la persona (no distingue entre las dos).
+- El diagnóstico también trae la conexión (wifi, datos), la memoria libre, el
+  estado de los servicios de Google y la hora del teléfono. Si la hora difiere
+  más de 5 minutos de la del servidor, o si activa el ahorro de batería del
+  sistema, avisa en la campana y en la línea de tiempo.
+
 ## Teléfonos iPhone
 
 No hay app propia para iPhone. Esas personas usan Traccar Client, que se baja
