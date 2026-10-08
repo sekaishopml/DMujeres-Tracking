@@ -9,6 +9,7 @@ import com.dmujeres.app.actualizacion.OtaPolicy
 import com.dmujeres.app.datos.Prefs
 import com.dmujeres.app.datos.RemoteConfig
 import com.dmujeres.app.pantallas.StatusActivity
+import com.dmujeres.app.seguimiento.Pasos
 import com.dmujeres.app.seguimiento.TrackingService
 import com.dmujeres.app.sesion.JourneyOutbox
 import com.dmujeres.app.sesion.SessionAuth
@@ -177,6 +178,7 @@ object DmujeresApi {
             .putLong(KEY_JOURNEY_STARTED_AT, now)
             .putBoolean(KEY_JOURNEY_OPEN, true)
             .apply()
+        Pasos.reiniciar(context)
         StatusActivity.addMessage(context.getString(R.string.journey_started_toast))
         JourneyOutbox.enqueue(context, "start", journeyId, now)
         flushJourneyEvents(context)
@@ -230,7 +232,8 @@ object DmujeresApi {
             .putLong(KEY_JOURNEY_STARTED_AT, hoy)
             .putBoolean(KEY_JOURNEY_OPEN, true)
             .commit()
-        JourneyOutbox.enqueue(context, "stop", anterior, hoy - 1)
+        JourneyOutbox.enqueue(context, "stop", anterior, hoy - 1, Pasos.deLaJornada(context))
+        Pasos.reiniciar(context)
         JourneyOutbox.enqueue(context, "start", hoy, hoy)
         StatusActivity.addMessage(context.getString(R.string.journey_renewed))
         flushJourneyEvents(context)
@@ -243,7 +246,7 @@ object DmujeresApi {
         val journeyId = prefs(context).getLong(KEY_JOURNEY_ID, System.currentTimeMillis())
         prefs(context).edit().putBoolean(KEY_JOURNEY_OPEN, false).apply()
         StatusActivity.addMessage(context.getString(R.string.journey_ended_toast))
-        JourneyOutbox.enqueue(context, "stop", journeyId, System.currentTimeMillis())
+        JourneyOutbox.enqueue(context, "stop", journeyId, System.currentTimeMillis(), Pasos.deLaJornada(context))
         flushJourneyEvents(context)
         // Se apaga el GPS y se sube lo que quedaba en la cola.
         TrackingService.syncJourneyNow()
@@ -331,6 +334,7 @@ object DmujeresApi {
                             .put("action", event.action)
                             .put("journeyId", event.journeyId)
                             .put("at", event.at)
+                            .put("steps", event.steps)
                             .put("client", CLIENT),
                     )
                     if (!ok) {

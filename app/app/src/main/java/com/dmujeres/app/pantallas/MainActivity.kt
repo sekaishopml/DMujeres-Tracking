@@ -39,6 +39,7 @@ import com.dmujeres.app.datos.DatabaseHelper
 import com.dmujeres.app.datos.Prefs
 import com.dmujeres.app.datos.RefreshOutcome
 import com.dmujeres.app.datos.RefreshSummary
+import com.dmujeres.app.sistema.AjustesPermisos
 import com.dmujeres.app.sistema.ServiceHeartbeat
 import com.dmujeres.app.datos.RemoteConfig
 import com.dmujeres.app.red.ConnectionState
@@ -59,6 +60,8 @@ private const val KEY_LAST_OTA_CHECK = "lastOtaCheckApp"
 
 /** Pasos visibles del refresco manual (para el relleno proporcional). */
 private const val REFRESH_STEPS = 3
+private const val REQUEST_PERMISO_UBICACION = 201
+private const val REQUEST_PERMISO_ACTIVIDAD = 202
 private const val PAUSA_REFRESCO_MS = 30_000L
 
 /** Bloqueo del botón de jornada tras un toque (anti doble toque). */
@@ -291,7 +294,12 @@ class MainActivity : AppCompatActivity() {
                 // la jornada no arranca: se avisa y se abre el paso de permisos.
                 if (!journeyPermissionsGranted()) {
                     Toast.makeText(this, R.string.journey_missing_permissions, Toast.LENGTH_LONG).show()
-                    OnboardingActivity.start(this, OnboardingActivity.STEP_PERMISSIONS)
+                    if (AjustesPermisos.ubicacion(this) && !AjustesPermisos.ubicacionSiempre(this)) {
+                        // Solo falta "todo el tiempo": directo a ese permiso.
+                        AjustesPermisos.abrirUbicacion(this)
+                    } else {
+                        OnboardingActivity.start(this, OnboardingActivity.STEP_PERMISSIONS)
+                    }
                     return@setOnClickListener
                 }
                 ContextCompat.startForegroundService(
@@ -449,6 +457,7 @@ class MainActivity : AppCompatActivity() {
         findViewById<LinearLayout>(R.id.location_warning)?.setOnClickListener {
             startActivity(Intent(android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS))
         }
+        refreshPermissionWarning()
         val pill = findViewById<LinearLayout>(R.id.status_pill)
         val pillText = findViewById<TextView>(R.id.pill_text)
         val button = findViewById<Button>(R.id.journey_button)
@@ -907,6 +916,48 @@ class MainActivity : AppCompatActivity() {
             changed.get() -> ConfigState.UPDATED
             else -> ConfigState.OK
         }
+    }
+
+    /**
+     * Aviso fijo cuando falta un permiso: ubicación, ubicación "todo el tiempo"
+     * o actividad física. Cada uno abre su ajuste (el de "todo el tiempo", la
+     * página de ubicación de la app).
+     */
+    private fun refreshPermissionWarning() {
+        val banner = findViewById<LinearLayout>(R.id.permission_warning) ?: return
+        val text = findViewById<TextView>(R.id.permission_warning_text) ?: return
+        val faltante = when {
+            !AjustesPermisos.ubicacion(this) -> R.string.permission_warning_location to {
+                androidx.core.app.ActivityCompat.requestPermissions(
+                    this,
+                    arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION),
+                    REQUEST_PERMISO_UBICACION,
+                )
+            }
+            !AjustesPermisos.ubicacionSiempre(this) -> R.string.permission_warning_background to {
+                AjustesPermisos.abrirUbicacion(this)
+            }
+            !AjustesPermisos.actividadFisica(this) -> R.string.permission_warning_activity to {
+                androidx.core.app.ActivityCompat.requestPermissions(
+                    this,
+                    arrayOf(Manifest.permission.ACTIVITY_RECOGNITION),
+                    REQUEST_PERMISO_ACTIVIDAD,
+                )
+            }
+            else -> null
+        }
+        if (faltante == null) {
+            banner.visibility = View.GONE
+            return
+        }
+        text.setText(faltante.first)
+        banner.visibility = View.VISIBLE
+        banner.setOnClickListener { faltante.second() }
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        refreshLockedHome()
     }
 
     /** Permisos mínimos para iniciar jornada (los mismos del asistente). */

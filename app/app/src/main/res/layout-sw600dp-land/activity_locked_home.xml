@@ -87,6 +87,30 @@
             android:textStyle="bold" />
     </LinearLayout>
 
+    <!-- Permisos que faltan: al tocarlo abre el ajuste exacto. -->
+    <LinearLayout
+        android:id="@+id/permission_warning"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:background="@drawable/ds_surface"
+        android:gravity="center"
+        android:minHeight="46dp"
+        android:orientation="horizontal"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/permission_warning_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:textColor="@color/primary"
+            android:textSize="13sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
     </LinearLayout>
 
     <!-- Columna derecha: indicadores del día y acciones de la jornada. -->

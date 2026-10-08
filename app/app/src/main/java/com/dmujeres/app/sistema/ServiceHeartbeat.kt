@@ -16,6 +16,7 @@ import com.dmujeres.app.datos.RemoteConfig
 import com.dmujeres.app.red.DmujeresApi
 import com.dmujeres.app.seguimiento.AdaptiveCadence
 import com.dmujeres.app.seguimiento.PositionProvider
+import com.dmujeres.app.seguimiento.Pasos
 import com.dmujeres.app.seguimiento.TrackingService
 import org.json.JSONObject
 
@@ -141,7 +142,27 @@ object ServiceHeartbeat {
                                 JSONObject()
                                     .put("battery", battery.level.toInt().coerceIn(0, 100))
                                     .put("charging", battery.charging)
-                                    .put("exempt", exempt),
+                                    .put("exempt", exempt)
+                                    .put("saver", EstadoTelefono.ahorroDeBateria(context)),
+                            )
+                            // Qué tiene el teléfono: conexión, memoria libre,
+                            // servicios de Google y hora propia (el servidor la
+                            // compara con la suya para ver relojes cambiados).
+                            .put(
+                                "device",
+                                JSONObject()
+                                    .put("net", EstadoTelefono.conexion(context))
+                                    .put("memFreeMb", EstadoTelefono.memoriaLibreMb(context))
+                                    .put("play", EstadoPlay.leer(context))
+                                    .put("clockMs", System.currentTimeMillis()),
+                            )
+                            // Pasos de la jornada: comprueba que el teléfono va con una persona.
+                            .put(
+                                "activity",
+                                JSONObject()
+                                    .put("permission", AjustesPermisos.actividadFisica(context))
+                                    .put("sensor", Pasos.disponible(context))
+                                    .put("steps", Pasos.deLaJornada(context)),
                             )
                             // Cadencia efectiva: permite detectar desde el panel
                             // un equipo que traza con huecos.
@@ -157,7 +178,8 @@ object ServiceHeartbeat {
                                 JSONObject()
                                     .put("fine", permFine)
                                     .put("background", permBackground)
-                                    .put("notifications", permNotifications),
+                                    .put("notifications", permNotifications)
+                                    .put("activity", AjustesPermisos.actividadFisica(context)),
                             )
                             .put(
                                 "journey",
@@ -178,6 +200,8 @@ object ServiceHeartbeat {
                     ),
                 )
             }
+            // Si se concedió el permiso de pasos con el servicio ya encendido.
+            TrackingService.reintentarPasos()
             // Configuración remota: cada 10 min, y solo reinicia si cambió.
             RemoteConfig.applyAndRestartIfChanged(context)
             // Actualización sin abrir la app: aviso en la barra (cada 6 h).

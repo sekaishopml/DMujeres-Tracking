@@ -47,6 +47,7 @@ class TrackingService : Service() {
     private var trackingController: TrackingController? = null
     private var powerReceiver: android.content.BroadcastReceiver? = null
     private var gpsReceiver: android.content.BroadcastReceiver? = null
+    private var pasos: Pasos? = null
 
     override fun onCreate() {
         val sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this)
@@ -56,6 +57,8 @@ class TrackingService : Service() {
             isRunning = true
             // Estado del teléfono visible en el panel (lastDiagnostics).
             ServiceHeartbeat.start(this)
+            pasos = Pasos(this).also { it.iniciar() }
+            pasosRef = pasos
             sendBroadcast(Intent(ACTION_STARTED).setPackage(packageName))
             StatusActivity.addMessage(getString(R.string.status_service_create))
 
@@ -150,6 +153,9 @@ class TrackingService : Service() {
         powerReceiver = null
         gpsReceiver?.let { runCatching { unregisterReceiver(it) } }
         gpsReceiver = null
+        pasos?.detener()
+        pasos = null
+        pasosRef = null
         controllerRef = null
         ServiceHeartbeat.stop()
         // Sin servicio no hay rescate: se cancela la alarma (el próximo
@@ -176,11 +182,19 @@ class TrackingService : Service() {
         @Volatile
         private var controllerRef: TrackingController? = null
 
+        @Volatile
+        private var pasosRef: Pasos? = null
+
         /** Refresco manual desde el home: true si el servicio está activo. */
         fun refreshNow(): Boolean {
             val controller = controllerRef ?: return false
             controller.refreshNow()
             return true
+        }
+
+        /** Enciende el contador de pasos si el permiso llegó después de arrancar el servicio. */
+        fun reintentarPasos() {
+            pasosRef?.iniciar()
         }
 
         /**

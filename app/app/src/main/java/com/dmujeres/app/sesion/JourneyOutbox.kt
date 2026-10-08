@@ -13,12 +13,13 @@ object JourneyOutbox {
     private const val KEY = "journeyOutbox"
     private const val MAX_EVENTS = 50
 
-    data class Event(val action: String, val journeyId: Long, val at: Long)
+    /** [steps]: pasos de la jornada, solo en el aviso de fin. */
+    data class Event(val action: String, val journeyId: Long, val at: Long, val steps: Long = 0L)
 
     @Synchronized
-    fun enqueue(context: Context, action: String, journeyId: Long, at: Long) {
+    fun enqueue(context: Context, action: String, journeyId: Long, at: Long, steps: Long = 0L) {
         val list = read(context)
-        list.add(Event(action, journeyId, at))
+        list.add(Event(action, journeyId, at, steps))
         write(context, list.takeLast(MAX_EVENTS))
     }
 
@@ -46,14 +47,14 @@ object JourneyOutbox {
             val array = JSONArray(raw)
             MutableList(array.length()) { i ->
                 val o = array.getJSONObject(i)
-                Event(o.getString("action"), o.getLong("journeyId"), o.getLong("at"))
+                Event(o.getString("action"), o.getLong("journeyId"), o.getLong("at"), o.optLong("steps", 0L))
             }
         }.getOrDefault(mutableListOf())
     }
 
     private fun write(context: Context, list: List<Event>) {
         val array = JSONArray()
-        list.forEach { array.put(JSONObject().put("action", it.action).put("journeyId", it.journeyId).put("at", it.at)) }
+        list.forEach { array.put(JSONObject().put("action", it.action).put("journeyId", it.journeyId).put("at", it.at).put("steps", it.steps)) }
         PreferenceManager.getDefaultSharedPreferences(context).edit().putString(KEY, array.toString()).commit()
     }
 }

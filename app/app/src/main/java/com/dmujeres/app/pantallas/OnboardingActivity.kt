@@ -26,6 +26,7 @@ import com.dmujeres.app.datos.Prefs
 import com.dmujeres.app.datos.RemoteConfig
 import com.dmujeres.app.red.DmujeresApi
 import com.dmujeres.app.seguimiento.TrackingService
+import com.dmujeres.app.sistema.AjustesPermisos
 import com.dmujeres.app.sistema.OemAutostart
 import com.judemanutd.autostarter.AutoStartPermissionHelper
 
@@ -263,6 +264,13 @@ class OnboardingActivity : AppCompatActivity() {
                 requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), REQUEST_NOTIFICATIONS)
             }
         }
+        // Pasos: comprueba que el teléfono va con la persona. No es obligatorio.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            row(R.drawable.ds_ic_pasos, R.string.perm_activity, R.string.perm_activity_why,
+                isGranted(Manifest.permission.ACTIVITY_RECOGNITION), false, R.string.onboarding_perms_allow) {
+                requestPermissions(arrayOf(Manifest.permission.ACTIVITY_RECOGNITION), REQUEST_ACTIVITY)
+            }
+        }
         row(R.drawable.ds_ic_battery, R.string.perm_battery, R.string.perm_battery_why,
             ignoringBatteryOptimizations(), true, R.string.onboarding_perms_allow) { requestBattery() }
         // El inicio automático del fabricante no se puede consultar: queda
@@ -347,15 +355,9 @@ class OnboardingActivity : AppCompatActivity() {
 
     private fun requestBackground() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            // Desde Android 11 no hay diálogo: se abre la ficha de la app.
-            runCatching {
-                startActivity(
-                    Intent(
-                        Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-                        Uri.parse("package:$packageName"),
-                    ),
-                )
-            }
+            // Desde Android 11 no hay diálogo: se abre Permisos > Ubicación de
+            // la app para elegir "Permitir todo el tiempo".
+            AjustesPermisos.abrirUbicacion(this)
         } else {
             requestPermissions(arrayOf(Manifest.permission.ACCESS_BACKGROUND_LOCATION), REQUEST_BACKGROUND)
         }
@@ -426,6 +428,7 @@ class OnboardingActivity : AppCompatActivity() {
         private const val REQUEST_LOCATION = 100
         private const val REQUEST_BACKGROUND = 101
         private const val REQUEST_NOTIFICATIONS = 102
+        private const val REQUEST_ACTIVITY = 103
 
         const val STEP_WELCOME = "welcome"
         const val STEP_LOGIN = "login"

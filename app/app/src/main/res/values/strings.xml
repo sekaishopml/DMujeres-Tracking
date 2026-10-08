@@ -80,6 +80,8 @@
   <string name="perm_background">Ubicación siempre</string>
   <string name="perm_notifications">Notificaciones</string>
   <string name="perm_battery">Batería sin restricción</string>
+  <string name="perm_activity">Actividad física</string>
+  <string name="perm_activity_why">Cuenta tus pasos para comprobar que llevas el teléfono contigo.</string>
   <string name="perm_autostart">Inicio automático</string>
   <string name="ota_notification_title">Actualización disponible</string>
   <string name="ota_notification_text">Toca para instalar la versión %1$s. El seguimiento mejora con cada versión.</string>
@@ -122,6 +124,9 @@ Se registrará el cierre en el panel.</string>
   <string name="pill_disabled">Deshabilitado</string>
   <string name="pill_location_off">Ubicación apagada</string>
   <string name="location_warning_text">Ubicación apagada · Toca para activarla</string>
+  <string name="permission_warning_background">Falta elegir “Permitir todo el tiempo” · Toca para abrir el permiso</string>
+  <string name="permission_warning_location">Falta el permiso de ubicación · Toca para permitirlo</string>
+  <string name="permission_warning_activity">Falta el permiso de actividad física · Toca para permitirlo</string>
   <string name="pill_none">Sin jornada</string>
   <string name="refresh_button">Actualizar</string>
   <string name="version_footer_fmt">Versión %1$s · código %2$d</string>
