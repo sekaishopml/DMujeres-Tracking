@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { detectarParadas } from '../src/paradas.js';
+import { MIN_PARADA_S, detectarParadas } from '../src/paradas.js';
 
 const p = (hora, latitud, longitud, precisionM = 15) => ({
   registradoEn: `2026-09-30T${hora}Z`,
@@ -140,4 +140,44 @@ test('salir caminando despacio no queda dentro de la parada', () => {
   const [parada] = detectarParadas(puntos);
   assert.ok(parada, 'hay parada');
   assert.ok(parada.fin.getTime() <= Date.parse('2026-09-30T15:10:20Z'), `la parada no se come la salida (${parada.fin.toISOString()})`);
+});
+
+// Propiedades que deben cumplirse con cualquier recorrido, probadas con
+// recorridos al azar (siempre los mismos): paradas ordenadas, sin solaparse,
+// del largo mínimo y con el centro dentro del recorrido.
+function azar(semilla) {
+  let s = semilla;
+  return () => {
+    s = (s * 1664525 + 1013904223) % 4294967296;
+    return s / 4294967296;
+  };
+}
+
+test('con recorridos al azar las paradas son válidas y no se solapan', () => {
+  for (let semilla = 1; semilla <= 40; semilla += 1) {
+    const r = azar(semilla);
+    const puntos = [];
+    let lat = -2.2;
+    let lon = -79.9;
+    let t = Date.UTC(2026, 9, 7, 13, 0);
+    for (let i = 0; i < 300; i += 1) {
+      const quieto = r() < 0.6;
+      const paso = quieto ? 0.00003 : 0.002;
+      lat += (r() - 0.5) * paso;
+      lon += (r() - 0.5) * paso;
+      t += (r() < 0.05 ? 40 * 60 : 20 + r() * 90) * 1000;
+      puntos.push({
+        registradoEn: new Date(t).toISOString(),
+        latitud: lat,
+        longitud: lon,
+        precisionM: r() < 0.15 ? 120 + r() * 800 : 5 + r() * 40,
+      });
+    }
+    const paradas = detectarParadas(puntos);
+    paradas.forEach((p, i) => {
+      assert.ok(p.segundos >= MIN_PARADA_S, `semilla ${semilla}: parada más corta que el mínimo`);
+      assert.ok(p.fin > p.inicio, `semilla ${semilla}: fin antes del inicio`);
+      if (i > 0) assert.ok(p.inicio >= paradas[i - 1].fin, `semilla ${semilla}: paradas solapadas`);
+    });
+  }
 });

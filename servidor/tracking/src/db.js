@@ -715,7 +715,7 @@ export class Almacen {
     return creado.rows[0] ? Number(creado.rows[0].id) : null;
   }
 
-  async cerrarJornada({ dispositivoId, journeyId, soloJornada = null, finEn, bateriaFin, parcheDispositivo }) {
+  async cerrarJornada({ dispositivoId, journeyId, soloJornada = null, finEn, bateriaFin, parcheDispositivo, pasos = null }) {
     const conexion = await this.#pool.connect();
     try {
       await conexion.query('BEGIN');
@@ -729,10 +729,12 @@ export class Almacen {
                 fin_en = $2,
                 duracion_s = GREATEST(0, EXTRACT(EPOCH FROM ($2 - inicio_en))::bigint),
                 bateria_fin_pct = $3,
+                atributos = CASE WHEN $5::bigint IS NULL THEN atributos
+                                 ELSE atributos || jsonb_build_object('pasos', $5::bigint) END,
                 actualizado_en = now()
           WHERE dispositivo_id = $1 AND estado = 'abierta'
             AND ($4::text IS NULL OR atributos->>'journeyId' IS NULL OR atributos->>'journeyId' = $4::text)`,
-        [dispositivoId, finEn, bateriaFin, soloJornada == null ? null : String(soloJornada)],
+        [dispositivoId, finEn, bateriaFin, soloJornada == null ? null : String(soloJornada), pasos],
       );
       // Si el cierre se repite, ya no hay jornada abierta y no se duplica el evento.
       if (cerradas.rowCount > 0) {
@@ -762,11 +764,20 @@ export class Almacen {
     }
   }
 
-  async registrarDiagnostico({ dispositivoId, parcheDispositivo, bateria, salud }) {
+  async registrarDiagnostico({ dispositivoId, parcheDispositivo, bateria, salud, pasos = null }) {
     const conexion = await this.#pool.connect();
     try {
       await conexion.query('BEGIN');
       await this.#fusionarAtributos(conexion, dispositivoId, parcheDispositivo);
+      // Los pasos de la jornada abierta se van guardando; al cerrar queda el total.
+      if (pasos !== null) {
+        await conexion.query(
+          `UPDATE operations.dmt_jornada
+              SET atributos = atributos || jsonb_build_object('pasos', $2::bigint)
+            WHERE dispositivo_id = $1 AND estado = 'abierta'`,
+          [dispositivoId, pasos],
+        );
+      }
       if (bateria) {
         await conexion.query(
           `INSERT INTO telemetry.dmt_bateria (

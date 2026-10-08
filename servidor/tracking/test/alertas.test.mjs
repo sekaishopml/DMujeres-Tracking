@@ -39,3 +39,19 @@ test('fuera de jornada no avisa pero recuerda el estado', () => {
 test('si llega mal sin estado previo, avisa', () => {
   assert.deepEqual(alertasDeDiagnostico({}, reporte({ gps: false })).eventos, ['mobileGpsDisabled']);
 });
+
+test('ahorro de batería del sistema y reloj cambiado avisan una vez y al volver', () => {
+  const ahora = Date.UTC(2026, 9, 7, 15, 0);
+  const conReloj = (clockMs, saver = false) => ({ ...reporte(), power: { exempt: true, battery: 80, charging: false, saver }, device: { clockMs } });
+  const base = alertasDeDiagnostico({}, conReloj(ahora), ahora).parche;
+  const mal = alertasDeDiagnostico(base, conReloj(ahora + 20 * 60_000, true), ahora);
+  assert.deepEqual(mal.eventos.sort(), ['mobileClockOff', 'mobilePowerSaveOn']);
+  const igual = alertasDeDiagnostico(mal.parche, conReloj(ahora + 20 * 60_000, true), ahora);
+  assert.deepEqual(igual.eventos, []);
+  const bien = alertasDeDiagnostico(mal.parche, conReloj(ahora + 30_000, false), ahora);
+  assert.deepEqual(bien.eventos.sort(), ['mobileClockOk', 'mobilePowerSaveOff']);
+});
+
+test('sin hora del teléfono no se afirma nada del reloj', () => {
+  assert.deepEqual(alertasDeDiagnostico({}, reporte(), Date.now()).eventos, []);
+});

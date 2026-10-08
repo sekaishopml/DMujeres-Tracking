@@ -168,6 +168,7 @@ export async function obtenerReplay(ctx) {
   await explicarHuecos(ctx, dispositivo.id, huecos);
   const sinSenal = huecos.filter((h) => h.motivo !== 'FUERA_DE_JORNADA').length;
   const resumen = resumirRecorrido(posiciones, sinSenal);
+  resumen.pasos = await pasosDeJornadas(ctx, [...new Set(jornadaDe.values())]);
   if (grupos.length > 1) {
     // Distancia y tiempo solo dentro de las jornadas, sin el salto entre ellas.
     const km = grupos.reduce((t, g) => t + sumarDistanciasKm(g.posiciones, { omitirImposibles: true }), 0);
@@ -218,5 +219,24 @@ async function explicarHuecos(ctx, dispositivoId, huecos) {
     for (const hueco of cortes) hueco.motivo = causaDeHueco(hueco, listaEventos, listaDiagnosticos);
   } catch (error) {
     ctx.log?.warn?.(`replay: no se pudo explicar los cortes: ${error.message}`);
+  }
+}
+
+// Pasos que contó el teléfono en esas jornadas. null si ninguna los trae
+// (sin permiso, sin sensor o una app vieja): "sin dato", nunca cero inventado.
+async function pasosDeJornadas(ctx, ids) {
+  if (ids.length === 0) return null;
+  try {
+    const { rows } = await consultar(
+      ctx.pool,
+      `SELECT atributos->>'pasos' AS pasos FROM operations.dmt_jornada WHERE id = ANY($1::bigint[])`,
+      [ids.map(Number)],
+      { signal: ctx.signal },
+    );
+    const con = rows.map((f) => Number(f.pasos)).filter((n) => Number.isFinite(n));
+    return con.length > 0 ? con.reduce((a, b) => a + b, 0) : null;
+  } catch (error) {
+    ctx.log?.warn?.(`replay: no se pudieron leer los pasos: ${error.message}`);
+    return null;
   }
 }

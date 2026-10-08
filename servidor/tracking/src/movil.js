@@ -532,6 +532,7 @@ export async function atenderJornada(req, res, ctx) {
         dispositivoId: dispositivo.id,
         journeyId: jornadaId,
         soloJornada,
+        pasos: numeroFinito(cuerpo.steps) !== null && cuerpo.steps >= 0 ? Math.trunc(cuerpo.steps) : null,
         finEn: new Date(instante),
         bateriaFin: bateria >= 0 && bateria <= 100 ? bateria : null,
         parcheDispositivo: {
@@ -750,7 +751,29 @@ export async function atenderDiagnosticos(req, res, ctx) {
   }
   const crash = texto(reporte.crash);
   if (crash) parche['mobile.lastCrashAt'] = ahora;
-  const alertas = alertasDeDiagnostico(dispositivo.atributos, reporte);
+  const dispositivoInfo = objeto(reporte.device);
+  if (dispositivoInfo) {
+    const conexion = texto(dispositivoInfo.net);
+    if (conexion) parche['mobile.net'] = conexion.slice(0, 12);
+    const memoria = numero(dispositivoInfo.memFreeMb);
+    if (memoria !== null && memoria >= 0) parche['mobile.memFreeMb'] = Math.round(memoria);
+    const play = texto(dispositivoInfo.play);
+    if (play) parche['mobile.play'] = play.slice(0, 24);
+    const relojMs = numero(dispositivoInfo.clockMs);
+    if (relojMs !== null) parche['mobile.clockSkewMs'] = Math.round(relojMs - ahora);
+  }
+  const actividad = objeto(reporte.activity);
+  if (actividad) {
+    const permiso = booleanoJson(actividad.permission);
+    if (permiso !== null) parche['mobile.permActivity'] = permiso;
+    const sensor = booleanoJson(actividad.sensor);
+    if (sensor !== null) parche['mobile.stepSensor'] = sensor;
+    const pasos = numero(actividad.steps);
+    if (pasos !== null && pasos >= 0) parche['mobile.steps'] = Math.trunc(pasos);
+  }
+  const energiaSaver = objeto(reporte.power);
+  if (energiaSaver && booleanoJson(energiaSaver.saver) !== null) parche['mobile.powerSave'] = booleanoJson(energiaSaver.saver);
+  const alertas = alertasDeDiagnostico(dispositivo.atributos, reporte, ahora);
   Object.assign(parche, alertas.parche);
 
   let bateria = null;
@@ -771,6 +794,7 @@ export async function atenderDiagnosticos(req, res, ctx) {
       dispositivoId: dispositivo.id,
       parcheDispositivo: parche,
       bateria,
+      pasos: actividad && numero(actividad.steps) !== null && numero(actividad.steps) >= 0 ? Math.trunc(numero(actividad.steps)) : null,
       // Historial: cada diagnóstico queda como fila (salud.js).
       salud: filaSalud(datos, agenteCliente(req), ahora),
     });

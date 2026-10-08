@@ -27,6 +27,10 @@ const TIPOS = {
   mobilePermissionRestored: { categoria: 'recuperacion', texto: 'Devolvió el permiso de ubicación' },
   mobileBatterySaverOn: { categoria: 'alerta', texto: 'Puso la app en ahorro de batería' },
   mobileBatterySaverOff: { categoria: 'recuperacion', texto: 'Quitó la app del ahorro de batería' },
+  mobilePowerSaveOn: { categoria: 'alerta', texto: 'Activó el ahorro de batería del teléfono' },
+  mobilePowerSaveOff: { categoria: 'recuperacion', texto: 'Quitó el ahorro de batería del teléfono' },
+  mobileClockOff: { categoria: 'alerta', texto: 'La hora del teléfono no coincide con la real' },
+  mobileClockOk: { categoria: 'recuperacion', texto: 'La hora del teléfono volvió a ser la correcta' },
   mobileSilent: { categoria: 'alerta', texto: 'Dejó de reportar con la jornada abierta' },
   mobileResumed: { categoria: 'recuperacion', texto: 'Volvió a reportar' },
 };

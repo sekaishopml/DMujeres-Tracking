@@ -4,10 +4,12 @@
 // Fuera de jornada no se avisa nada: el teléfono no está registrando.
 
 export const BATERIA_CRITICA_PCT = 5;
+// Diferencia entre la hora del teléfono y la del servidor que ya es sospechosa.
+export const RELOJ_DESFASE_MAX_MS = 5 * 60_000;
 
 // Lo que importa del diagnóstico, en el mismo formato en que se guarda en el
 // equipo. null cuando la app no lo informó.
-export function estadoDeDiagnostico(reporte) {
+export function estadoDeDiagnostico(reporte, ahoraMs = Date.now()) {
   const gps = reporte?.gps ?? {};
   const permisos = reporte?.perms ?? {};
   const energia = reporte?.power ?? {};
@@ -20,6 +22,8 @@ export function estadoDeDiagnostico(reporte) {
     permisos: fino === null && fondo === null ? null : fino !== false && fondo !== false,
     ahorro: bool(energia.exempt) === null ? null : !energia.exempt,
     bateriaCritica: nivel === null ? null : nivel <= BATERIA_CRITICA_PCT && energia.charging !== true,
+    ahorroSistema: bool(energia.saver),
+    reloj: Number.isFinite(reporte?.device?.clockMs) ? Math.abs(reporte.device.clockMs - ahoraMs) > RELOJ_DESFASE_MAX_MS : null,
   };
 }
 
@@ -29,6 +33,8 @@ export const CLAVES_ESTADO = {
   permisos: 'alerta.permisos',
   ahorro: 'alerta.ahorro',
   bateriaCritica: 'alerta.bateriaCritica',
+  ahorroSistema: 'alerta.ahorroSistema',
+  reloj: 'alerta.reloj',
 };
 
 const EVENTOS = {
@@ -36,13 +42,15 @@ const EVENTOS = {
   permisos: { mal: 'mobilePermissionLost', bien: 'mobilePermissionRestored', malSi: false },
   ahorro: { mal: 'mobileBatterySaverOn', bien: 'mobileBatterySaverOff', malSi: true },
   bateriaCritica: { mal: 'mobileBatteryCritical', bien: null, malSi: true },
+  ahorroSistema: { mal: 'mobilePowerSaveOn', bien: 'mobilePowerSaveOff', malSi: true },
+  reloj: { mal: 'mobileClockOff', bien: 'mobileClockOk', malSi: true },
 };
 
 // Devuelve {eventos, parche}: los eventos a registrar y los atributos a
 // guardar. Un estado desconocido antes no avisa "se arregló", pero sí avisa
 // si ya llega mal.
-export function alertasDeDiagnostico(atributos, reporte) {
-  const actual = estadoDeDiagnostico(reporte);
+export function alertasDeDiagnostico(atributos, reporte, ahoraMs = Date.now()) {
+  const actual = estadoDeDiagnostico(reporte, ahoraMs);
   const enJornada = reporte?.journey?.active === true;
   const eventos = [];
   const parche = {};
