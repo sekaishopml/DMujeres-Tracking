@@ -36,7 +36,7 @@ abstract class PositionProvider(
     }
 
     protected var preferences: SharedPreferences = PreferenceManager.getDefaultSharedPreferences(context)
-    protected var deviceId = preferences.getString(Prefs.DEVICE, "undefined")!!.lowercase()
+    protected var deviceId = preferences.getString(Prefs.DEVICE, "undefined")!!
     protected var distance: Double = preferences.getString(Prefs.DISTANCE, "10")!!.toInt().toDouble()
     protected var angle: Double = preferences.getString(Prefs.ANGLE, "15")!!.toInt().toDouble()
     private var lastLocation: Location? = null

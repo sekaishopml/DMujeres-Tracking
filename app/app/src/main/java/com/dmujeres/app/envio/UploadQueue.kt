@@ -138,10 +138,10 @@ object UploadPolicy {
         currentDeviceId: String,
         deviceIdOf: (T) -> String,
     ): List<DeviceBatch<T>> {
-        val fallback = currentDeviceId.trim().lowercase()
+        val fallback = currentDeviceId.trim()
         val groups = LinkedHashMap<String, MutableList<T>>()
         for (row in rows) {
-            val device = deviceIdOf(row).trim().lowercase().ifBlank { fallback }
+            val device = deviceIdOf(row).trim().ifBlank { fallback }
             groups.getOrPut(device) { ArrayList() }.add(row)
         }
         return groups.map { DeviceBatch(it.key, it.value) }
@@ -475,7 +475,7 @@ class UploadQueue(
 
     private fun deviceId(): String =
         PreferenceManager.getDefaultSharedPreferences(appContext)
-            .getString(Prefs.DEVICE, "").orEmpty().trim().lowercase()
+            .getString(Prefs.DEVICE, "").orEmpty().trim()
 
     @Throws(Exception::class)
     private fun postJson(url: String, deviceId: String, body: JSONObject): Triple<Int, String, Boolean> {

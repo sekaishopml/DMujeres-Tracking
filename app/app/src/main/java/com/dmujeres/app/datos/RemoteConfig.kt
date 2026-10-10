@@ -29,7 +29,7 @@ object RemoteConfig {
     fun refresh(context: Context, onApplied: (Boolean) -> Unit) {
         val base = DmujeresApi.webBase(context)
         val device = PreferenceManager.getDefaultSharedPreferences(context)
-            .getString(Prefs.DEVICE, "").orEmpty().trim().lowercase()
+            .getString(Prefs.DEVICE, "").orEmpty().trim()
         if (base.isBlank() || device.isBlank()) {
             onApplied(false)
             return

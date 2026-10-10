@@ -172,7 +172,7 @@ class JourneyManager(context: Context) {
     private fun fetchRemote(): RemoteJourney? {
         val base = DmujeresApi.webBase(appContext)
         val prefs = PreferenceManager.getDefaultSharedPreferences(appContext)
-        val device = prefs.getString(Prefs.DEVICE, "").orEmpty().trim().lowercase()
+        val device = prefs.getString(Prefs.DEVICE, "").orEmpty().trim()
         if (base.isBlank() || device.isBlank()) return null
         val connection = URL(base + PATH_JOURNEY).openConnection() as HttpURLConnection
         try {

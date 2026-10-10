@@ -39,10 +39,10 @@ class UploadDeviceGroupingTest {
         )
         val grupos = UploadPolicy.groupByCaptureDevice(cola, "Equipo-B") { it.equipo }
         assertEquals(2, grupos.size)
-        assertEquals("equipo-b", grupos[0].deviceId)
+        assertEquals("Equipo-B", grupos[0].deviceId)
         assertEquals(listOf(1L), grupos[0].items.map { it.id })
-        // El equipo de captura se normaliza: misma fila, un solo grupo.
-        assertEquals("equipo-a", grupos[1].deviceId)
+        // Solo se recortan los espacios: las mayúsculas cuentan.
+        assertEquals("EQUIPO-A", grupos[1].deviceId)
         assertEquals(listOf(2L), grupos[1].items.map { it.id })
     }
 

@@ -83,7 +83,7 @@ class LoginActivity : AppCompatActivity() {
     }
 
     private fun doLogin() {
-        val user = userField.text.toString().trim().lowercase()
+        val user = userField.text.toString().trim()
         if (user.isEmpty()) {
             showError(R.string.login_error_user)
             return

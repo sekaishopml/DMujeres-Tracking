@@ -47,7 +47,7 @@ object DmujeresApi {
         PreferenceManager.getDefaultSharedPreferences(context)
 
     private fun deviceId(context: Context): String =
-        prefs(context).getString(Prefs.DEVICE, "").orEmpty().trim().lowercase()
+        prefs(context).getString(Prefs.DEVICE, "").orEmpty().trim()
 
     /**
      * Clave compartida del canal: la que se cargó en el teléfono o, si no, la
@@ -466,7 +466,7 @@ object DmujeresApi {
                 // En vivo). Sin equipo vinculado, el móvil conserva el suyo.
                 val equipo = SessionAuth.extractEquipoIdentificador(body)
                 if (equipo.isNotBlank()) {
-                    prefs(context).edit().putString(Prefs.DEVICE, equipo.lowercase()).apply()
+                    prefs(context).edit().putString(Prefs.DEVICE, equipo).apply()
                     Log.i(TAG, "la sesión adoptó el equipo $equipo")
                 }
                 val config = SessionAuth.extractConfigBlock(body)

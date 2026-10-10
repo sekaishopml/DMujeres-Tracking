@@ -118,7 +118,7 @@ object SessionCloser {
         if (window.isEmpty()) return SessionClosePlan.SendResult(0, SessionClosePlan.BatchOutcome.EMPTY)
         // Un lote por equipo de captura, el más viejo primero.
         val current = PreferenceManager.getDefaultSharedPreferences(app)
-            .getString(Prefs.DEVICE, "").orEmpty().trim().lowercase()
+            .getString(Prefs.DEVICE, "").orEmpty().trim()
         val group = UploadPolicy
             .groupByCaptureDevice(window, current) { it.captureDeviceId }
             .first()
@@ -321,7 +321,7 @@ object SessionCloser {
     private fun postJourneyStop(app: Context, journeyId: Long): SessionClosePlan.JourneyOutcome {
         val base = DmujeresApi.webBase(app)
         val device = PreferenceManager.getDefaultSharedPreferences(app)
-            .getString(Prefs.DEVICE, "").orEmpty().trim().lowercase()
+            .getString(Prefs.DEVICE, "").orEmpty().trim()
         if (base.isBlank() || device.isBlank()) {
             return SessionClosePlan.JourneyOutcome.OFFLINE
         }

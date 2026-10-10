@@ -179,7 +179,7 @@ class DatabaseHelper(private val appContext: Context?) :
     private fun currentDeviceId(): String =
         appContext?.let {
             PreferenceManager.getDefaultSharedPreferences(it)
-                .getString(Prefs.DEVICE, "").orEmpty().trim().lowercase()
+                .getString(Prefs.DEVICE, "").orEmpty().trim()
         }.orEmpty()
 
     /**

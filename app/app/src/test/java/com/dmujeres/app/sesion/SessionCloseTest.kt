@@ -183,8 +183,10 @@ class SessionCloseTest {
 
     @Test
     fun `mismo usuario no repite el cierre y otro usuario si lo exige`() {
-        // Mismo usuario (normalizado): la ruta en curso sigue, sin cierre.
-        assertFalse(SessionClosePlan.requiresCleanCloseBeforeLogin(true, "ana", "Ana"))
+        // Mismo usuario exacto: la ruta en curso sigue, sin cierre.
+        assertFalse(SessionClosePlan.requiresCleanCloseBeforeLogin(true, "ana", "ana"))
+        // Mayúsculas distintas: es otra cuenta, cierre limpio antes del login.
+        assertTrue(SessionClosePlan.requiresCleanCloseBeforeLogin(true, "ana", "Ana"))
         // Otro usuario: cierre limpio con el equipo anterior antes del login.
         assertTrue(SessionClosePlan.requiresCleanCloseBeforeLogin(true, "ana", "luis"))
         // Sin sesión guardada no hay nada que cerrar.

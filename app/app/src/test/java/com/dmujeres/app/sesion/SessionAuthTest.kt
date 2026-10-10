@@ -142,8 +142,8 @@ class SessionAuthTest {
     // ── Normalización y cuerpo ──────────────────────────────────────────────
 
     @Test
-    fun `usuario se normaliza sin espacios y en minusculas`() {
-        assertEquals("ana", SessionAuth.normalizeUser("  Ana "))
+    fun `usuario se recorta de espacios y conserva mayusculas`() {
+        assertEquals("Ana", SessionAuth.normalizeUser("  Ana "))
     }
 
     @Test

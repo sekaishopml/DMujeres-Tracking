@@ -21,8 +21,8 @@ object SessionAuth {
     /** Ruta del endpoint de sesión (contrato). */
     const val PATH_SESION = "/api/mobile/v1/sesion"
 
-    /** Normaliza el usuario: sin espacios y en minúsculas (como el login actual). */
-    fun normalizeUser(raw: String): String = raw.trim().lowercase()
+    /** Normaliza el usuario: sin espacios. Distingue mayúsculas: "Santiago" y "santiago" son cuentas distintas. */
+    fun normalizeUser(raw: String): String = raw.trim()
 
     /** Cuerpo JSON del POST /sesion (escapado mínimo, sin dependencias). */
     // La instalación deja al servidor saber si la cuenta ya está abierta en

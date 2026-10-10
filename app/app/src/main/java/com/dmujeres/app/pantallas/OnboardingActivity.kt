@@ -185,7 +185,7 @@ class OnboardingActivity : AppCompatActivity() {
             error.setText(messageRes)
             error.visibility = View.VISIBLE
         }
-        val userId = userField.text.toString().trim().lowercase()
+        val userId = userField.text.toString().trim()
         if (userId.isEmpty()) {
             showError(R.string.login_error_user)
             return
