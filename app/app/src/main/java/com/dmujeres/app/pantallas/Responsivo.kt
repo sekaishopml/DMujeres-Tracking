@@ -10,8 +10,8 @@ import kotlin.math.roundToInt
 /**
  * Adaptación a tablets (ancho mínimo de 600 dp o más).
  *
- * - El teléfono se queda en vertical: sus pantallas están pensadas para ese
- *   alto y en horizontal no caben. La tablet gira libremente.
+ * - Teléfono y tablet se quedan en vertical: las pantallas están pensadas
+ *   para ese formato y en horizontal no caben.
  * - En tablet el contenido no se estira de borde a borde: se centra con un
  *   ancho máximo agregando margen interno a los lados. Las cabeceras y los
  *   pies conservan su fondo a todo el ancho; solo su contenido se centra.
@@ -24,19 +24,11 @@ object Responsivo {
     /** Listas y paneles con más información por fila. */
     const val ANCHO_PANEL_DP = 760
 
-    /** Pantalla principal en tablet horizontal (dos columnas). */
-    const val ANCHO_DOS_COLUMNAS_DP = 1100
-
     fun esTablet(context: Context): Boolean =
         context.resources.configuration.smallestScreenWidthDp >= 600
 
-    /** Teléfono: solo vertical. Tablet: sigue al sensor. */
     fun fijarOrientacion(activity: Activity) {
-        activity.requestedOrientation = if (esTablet(activity)) {
-            ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
-        } else {
-            ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
-        }
+        activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
     }
 
     /** Margen extra a cada lado para que el contenido mida como mucho [maxDp]. */

@@ -258,6 +258,7 @@ class UploadQueue(
                 .getOrDefault(emptyList())
                 .filter { it.status != com.dmujeres.app.seguimiento.STATUS_DEAD }
             if (window.isEmpty()) {
+                DmujeresApi.revisarCierreTrasBaja(appContext)
                 finishOk(0)
                 return
             }

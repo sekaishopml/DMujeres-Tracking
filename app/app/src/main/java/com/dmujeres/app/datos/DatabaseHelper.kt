@@ -223,6 +223,17 @@ class DatabaseHelper(private val appContext: Context?) :
         return 0
     }
 
+    /** Ubicaciones que aún se pueden enviar (las descartadas por el servidor no cuentan). */
+    fun countPorEnviar(): Int {
+        readableDatabase.rawQuery(
+            "SELECT COUNT(*) FROM position WHERE COALESCE(status, '') <> ?",
+            arrayOf(STATUS_DEAD),
+        ).use { cursor ->
+            if (cursor.moveToFirst()) return cursor.getInt(0)
+        }
+        return 0
+    }
+
     fun selectPosition(): Position? {
         // Siempre el más viejo primero.
         return selectPositions(1).firstOrNull()

@@ -8,8 +8,9 @@ import androidx.preference.PreferenceManager
  *
  * - Sin sesión la app sigue funcionando con la clave compartida.
  * - Entrar con otro usuario reemplaza la sesión anterior.
- * - Ante un 401 con token se borra la sesión y se pide entrar de nuevo
- *   ([clearOnUnauthorized]); lo capturado en el teléfono no se toca.
+ * - Ante un 401 con token se borra la sesión y, cuando la cola ya no tiene
+ *   puntos por enviar, se lleva a entrar de nuevo ([clearOnUnauthorized]);
+ *   lo capturado en el teléfono no se toca.
  *
  * [State] es una copia de lo guardado en las preferencias que se puede
  * probar sin Android; las funciones con Context la leen y la guardan.
@@ -22,10 +23,13 @@ object SessionStore {
     const val KEY_EXPIRES_AT = "sesionExpiraEnMs"
 
     /**
-     * Marca de "hay que pedir login": se activa al limpiar por 401 y la
-     * consume [takeAuthFailed] (una sola vez) para mostrar el aviso.
+     * Cierre pendiente: se activa al limpiar por 401 con token y se pasa a
+     * [KEY_IR_A_LOGIN] cuando la cola se vacía (sin red, espera).
      */
     const val KEY_AUTH_FAILED = "sesionRequiereLogin"
+
+    /** Cierre listo: la pantalla principal lleva a entrar (una sola vez). */
+    const val KEY_IR_A_LOGIN = "sesionIrALogin"
 
     /** Réplica pura del contenido de la sesión (sin Android). */
     data class State(
@@ -77,6 +81,7 @@ object SessionStore {
             .putString(KEY_NAME, displayName)
             .putLong(KEY_EXPIRES_AT, expiresAtMs)
             .putBoolean(KEY_AUTH_FAILED, false)
+            .putBoolean(KEY_IR_A_LOGIN, false)
             .apply()
     }
 
@@ -88,6 +93,7 @@ object SessionStore {
             .remove(KEY_NAME)
             .remove(KEY_EXPIRES_AT)
             .putBoolean(KEY_AUTH_FAILED, false)
+            .putBoolean(KEY_IR_A_LOGIN, false)
             .apply()
     }
 
@@ -114,14 +120,23 @@ object SessionStore {
     fun hasSession(context: Context): Boolean =
         token(context).isNotBlank()
 
-    /**
-     * Lee la marca de "entrar de nuevo" una sola vez: true = mostrar el aviso
-     * ahora y no repetirlo hasta el próximo 401 con token.
-     */
-    fun takeAuthFailed(context: Context): Boolean {
+    /** ¿Hay un cierre tras 401 con token esperando a que la cola se vacíe? */
+    fun cierrePendiente(context: Context): Boolean =
+        prefs(context).getBoolean(KEY_AUTH_FAILED, false)
+
+    /** Cola vacía con el cierre pendiente: pasa a "ir a entrar". */
+    fun cierreListo(context: Context) {
+        prefs(context).edit()
+            .putBoolean(KEY_AUTH_FAILED, false)
+            .putBoolean(KEY_IR_A_LOGIN, true)
+            .apply()
+    }
+
+    /** Lee la marca de "ir a entrar" una sola vez: true = llevar al login ahora. */
+    fun takeIrALogin(context: Context): Boolean {
         val prefs = prefs(context)
-        if (!prefs.getBoolean(KEY_AUTH_FAILED, false)) return false
-        prefs.edit().putBoolean(KEY_AUTH_FAILED, false).apply()
+        if (!prefs.getBoolean(KEY_IR_A_LOGIN, false)) return false
+        prefs.edit().putBoolean(KEY_IR_A_LOGIN, false).apply()
         return true
     }
 }

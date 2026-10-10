@@ -142,4 +142,11 @@ object SessionAuth {
      */
     fun shouldClearSession(httpCode: Int, hadToken: Boolean): Boolean =
         hadToken && httpCode == 401
+
+    /**
+     * ¿Se lleva a entrar de nuevo? Solo con el cierre pendiente y la cola sin
+     * puntos por enviar. Si no se pudo contar (-1) no se cierra.
+     */
+    fun puedeIrALogin(pendiente: Boolean, puntosPorEnviar: Int): Boolean =
+        pendiente && puntosPorEnviar == 0
 }

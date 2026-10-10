@@ -65,10 +65,6 @@
   <string name="login_hint">Los datos de acceso te los entregó el departamento de CCTV.</string>
   <string name="login_current_session_fmt">Sesión actual: %1$s · al entrar se reemplaza.</string>
   <string name="login_switch_pending_fmt">Quedan %1$d posiciones guardadas; se enviarán con el equipo con el que se capturaron.</string>
-  <string name="session_expired_title">Sesión vencida</string>
-  <string name="session_expired_body">Vuelve a entrar con tu usuario y clave para seguir sincronizando.</string>
-  <string name="session_expired_enter">Entrar</string>
-  <string name="session_expired_later">Ahora no</string>
   <string name="status_session_expired">Sesión vencida · vuelve a entrar con tu usuario y clave</string>
   <string name="onboarding_perms_title">Permisos</string>
   <string name="onboarding_perms_hint">Se usan para registrar la ubicación durante la jornada laboral, también con la pantalla apagada.</string>

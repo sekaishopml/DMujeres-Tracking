@@ -370,6 +370,7 @@ class MainActivity : AppCompatActivity() {
                 runCatching { refreshLockedHome() }
                 // Banner en vivo: con la app abierta se revisa cada minuto.
                 runCatching { maybeCheckOta() }
+                runCatching { maybeAskLogin() }
             }
         }
         refreshLockedHome()
@@ -430,9 +431,6 @@ class MainActivity : AppCompatActivity() {
         }
         // Y chequeo de actualización (con freno) al volver a la app.
         maybeCheckOta()
-        // Si el servidor cerró la sesión, se pide entrar de nuevo (una sola
-        // vez y sin bloquear). Mientras tanto la app sigue registrando y
-        // enviando con la clave compartida.
         maybeAskLogin()
     }
 
@@ -515,14 +513,12 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * Tablet: el contenido se centra con un ancho máximo (una columna en
-     * vertical, dos en horizontal). El pie azul sigue a todo el ancho y el
-     * aviso flotante se alinea con él.
+     * Tablet: el contenido se centra con un ancho máximo. El pie azul sigue
+     * a todo el ancho y el aviso flotante se alinea con él.
      */
     private fun adaptarATablet() {
         if (!Responsivo.esTablet(this)) return
-        val horizontal = resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
-        val ancho = if (horizontal) Responsivo.ANCHO_DOS_COLUMNAS_DP else Responsivo.ANCHO_COLUMNA_DP
+        val ancho = Responsivo.ANCHO_COLUMNA_DP
         val columnas = Responsivo.raiz(this)?.getChildAt(0) as? android.view.ViewGroup ?: return
         Responsivo.centrarHijos(columnas, ancho)
         val extra = Responsivo.margenLateralPx(this, ancho)
@@ -881,21 +877,13 @@ class MainActivity : AppCompatActivity() {
         !ConnectionState.isFailing() && cachedPending < PENDING_OFFLINE_THRESHOLD
 
     /**
-     * Aviso de sesión vencida (una vez): no bloquea y trae un botón para
-     * volver a entrar. "Ahora no" lo cierra y la app sigue con la clave
-     * compartida.
+     * Tras un 401 con token, cuando la cola ya subió lo pendiente, lleva a
+     * entrar de nuevo. Se revisa al volver y mientras la pantalla está abierta.
      */
     private fun maybeAskLogin() {
         if (isFinishing || isDestroyed) return
-        if (!SessionStore.takeAuthFailed(this)) return
-        AlertDialog.Builder(this)
-            .setTitle(R.string.session_expired_title)
-            .setMessage(R.string.session_expired_body)
-            .setPositiveButton(R.string.session_expired_enter) { _, _ ->
-                LoginActivity.start(this)
-            }
-            .setNegativeButton(R.string.session_expired_later, null)
-            .show()
+        if (!SessionStore.takeIrALogin(this)) return
+        LoginActivity.start(this)
     }
 
     /** Espera la configuración del servidor, con tope. NA = no se llegó a consultar. */

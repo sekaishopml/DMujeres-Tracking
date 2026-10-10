@@ -170,4 +170,16 @@ class SessionAuthTest {
         assertEquals("", SessionAuth.extractEquipoIdentificador("{}"))
         assertEquals("", SessionAuth.extractEquipoIdentificador(""))
     }
+
+    @Test
+    fun `cierre pendiente con la cola vacia lleva a entrar`() {
+        assertTrue(SessionAuth.puedeIrALogin(pendiente = true, puntosPorEnviar = 0))
+    }
+
+    @Test
+    fun `con puntos por enviar, sin cierre pendiente o sin contar no se va a entrar`() {
+        assertFalse(SessionAuth.puedeIrALogin(pendiente = true, puntosPorEnviar = 3))
+        assertFalse(SessionAuth.puedeIrALogin(pendiente = false, puntosPorEnviar = 0))
+        assertFalse(SessionAuth.puedeIrALogin(pendiente = true, puntosPorEnviar = -1))
+    }
 }
