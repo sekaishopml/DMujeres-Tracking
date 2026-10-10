@@ -423,6 +423,8 @@ export async function listarCuentas(ctx) {
     `SELECT ${CAMPOS_CUENTA}, ${SUBCONSULTA_DISPOSITIVOS},
             count(*) OVER() AS total_filas
        FROM iam.dmt_usuario u
+      -- La cuenta de sistemas (admin) no es un usuario del plantel.
+      WHERE NOT coalesce(u.atributos->>'sistema' = 'true', false)
        ORDER BY ${orden.sql}, u.id
        LIMIT $1 OFFSET $2`,
     [tamano, desplazamiento],
