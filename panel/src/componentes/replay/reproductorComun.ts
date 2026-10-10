@@ -89,20 +89,22 @@ export function movimientoReducido(): boolean {
 }
 
 // Velocidad base: la ruta completa se recorre en unos 150 s a 1×, con un
-// mínimo de 1× y un máximo de 120×, para que una ruta larga no sea eterna ni
-// una de varios días un parpadeo.
+// mínimo de 1× y un máximo de 20× el tiempo real: a 1× un trayecto de 10 min
+// dura 30 s y se alcanza a seguir. Para ir más rápido están 2× a 16×.
 export const FACTOR_MINIMO = 1;
-export const FACTOR_MAXIMO = 120;
+export const FACTOR_MAXIMO = 20;
 // Cada cuánto se actualiza la guía del recorrido al reproducir.
 export const INTERVALO_GUIA_MS = 0;
 // Opacidad de la parte del recorrido que todavía no se reproduce.
 export const OPACIDAD_POR_RECORRER = 0.22;
-// Un corte lleva etiqueta en el mapa si dejó un salto de al menos esto, y se
-// rotulan como mucho los primeros de la lista para no llenar el mapa.
-export const SALTO_ETIQUETA_M = 150;
+// Fundido al entrar y salir de esa vista.
+export const TRANSICION_GUIA_MS = 180;
+// Como mucho se marcan en el mapa las primeras novedades, para no llenarlo.
 export const MAX_ETIQUETAS_CORTE = 12;
 // Cuánto más rápido corre el reloj dentro de una parada o un corte de señal.
-export const FACTOR_ESPERA = 24;
+export const FACTOR_ESPERA = 60;
+// Tiempo máximo que tarda en pasar una parada o un corte a 1×.
+export const ESPERA_MAX_MS = 4000;
 export const SEGUNDOS_OBJETIVO = 150;
 
 export function factorBase(posiciones: Posicion[]): number {

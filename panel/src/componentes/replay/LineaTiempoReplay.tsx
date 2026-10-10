@@ -310,12 +310,23 @@ function PistaTiempo({ ampliada }: { ampliada: boolean }) {
     paradaSeleccionada,
     punto,
     sliderRef,
+    sostener,
+    deslizarA,
     mover,
     pausar,
     seleccionarParada,
     resumen,
   } = useReproductor();
   const [bajo, setBajo] = useState<{ fraccion: number; instante: number; marca: MarcaPista } | null>(null);
+  // Mientras se arrastra la barra, el reloj sigue la posición del cursor.
+  const arrastrando = useRef(false);
+  // Instante de la barra bajo el cursor: el mismo lugar del cursor, en cada
+  // movimiento, sin acumular diferencias.
+  const instanteEnCursor = (evento: { clientX: number; currentTarget: EventTarget | null }) => {
+    const caja = (evento.currentTarget as HTMLElement).getBoundingClientRect();
+    const fraccion = caja.width > 0 ? (evento.clientX - caja.left) / caja.width : 0;
+    return inicio + Math.min(Math.max(fraccion, 0), 1) * total;
+  };
   const primera = posiciones[0] ?? null;
   const ultima = posiciones[posiciones.length - 1] ?? null;
   const inicio = primera ? milisegundos(primera.registradoEn) : 0;
@@ -466,6 +477,27 @@ function PistaTiempo({ ampliada }: { ampliada: boolean }) {
           defaultValue={0}
           disabled={posiciones.length < 2}
           aria-label="Posición del recorrido"
+          onPointerDown={(evento) => {
+            if (posiciones.length < 2) return;
+            // Sin el arrastre nativo del navegador: la posición la pone el reloj.
+            evento.preventDefault();
+            evento.currentTarget.setPointerCapture(evento.pointerId);
+            arrastrando.current = true;
+            sostener(true);
+            deslizarA(instanteEnCursor(evento));
+          }}
+          onPointerMove={(evento) => {
+            if (arrastrando.current) deslizarA(instanteEnCursor(evento));
+          }}
+          onPointerUp={() => {
+            arrastrando.current = false;
+          }}
+          onPointerCancel={() => {
+            arrastrando.current = false;
+          }}
+          onKeyDown={() => sostener(true)}
+          onKeyUp={() => sostener(false)}
+          onBlur={() => sostener(false)}
           onChange={(evento) => {
             pausar();
             mover(indicePorInstante(posiciones, inicio + Number(evento.target.value)));

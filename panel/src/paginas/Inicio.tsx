@@ -175,7 +175,7 @@ export default function Inicio() {
 
 
   const jornadaPorPersona = useMemo(() => {
-    const mapa = new Map<string, { inicioEn: string; finEn: string | null; duracionMin: number | null }>();
+    const mapa = new Map<string, { inicioEn: string; finEn: string | null; duracionMin: number | null; soloApp?: boolean }>();
     const lista = [...(jornadas.data?.datos ?? [])].sort((a, b) => b.inicioEn.localeCompare(a.inicioEn));
     // La más reciente de cada persona, si sigue abierta o se cerró hoy.
     const inicioHoy = new Date(inicioDeDia(hoy)).getTime();
@@ -224,7 +224,7 @@ export default function Inicio() {
       if ((e.pendientes ?? 0) > 0) motivos.push(`${e.pendientes} puntos sin enviar`);
       // Jornada abierta de más de JORNADA_LARGA_H: casi siempre olvidó finalizar.
       const jornada = jornadaPorPersona.get(e.idPublico);
-      if (jornada && !jornada.finEn) {
+      if (jornada && !jornada.soloApp && !jornada.finEn) {
         const horas = (Date.now() - new Date(jornada.inicioEn).getTime()) / 3_600_000;
         if (horas > JORNADA_LARGA_H) motivos.push(`Jornada abierta hace ${Math.floor(horas)} h`);
       }
@@ -458,7 +458,7 @@ function FilaPersona({
             </span>
           </>
         ) : (
-          <span className="text-texto-3">Sin jornada</span>
+          <span className="text-texto-3">{equipo.plataforma === 'ios' ? 'App sin activar hoy' : 'Sin jornada'}</span>
         )}
       </td>
       <td className="px-3 py-2 text-right whitespace-nowrap cifras">

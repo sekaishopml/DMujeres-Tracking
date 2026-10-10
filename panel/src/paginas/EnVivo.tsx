@@ -10,7 +10,6 @@ import {
   BatteryLow,
   BatteryMedium,
   FileText,
-  Focus,
   Route,
   Search,
   X,
@@ -252,11 +251,6 @@ export default function EnVivo() {
     else mapa.flyTo({ center: centro, zoom: ZOOM_PERSONA, padding: { bottom: 180, top: 0, left: 0, right: 0 }, duration: 900, curve: 1.42 });
   }
 
-  function verTodas() {
-    setSeleccionado(null);
-    if (mapa) encuadrar(mapa, [...posiciones.values()]);
-  }
-
   const conteos = useMemo(() => {
     const c = { todas: equipos.length, enLinea: 0, detenido: 0, sinSenal: 0, deshabilitado: 0 };
     for (const e of equipos) c[grupoDe(claveEstado(e))] += 1;
@@ -365,8 +359,7 @@ export default function EnVivo() {
                         <span className="block truncate text-[13.5px] font-semibold text-marino-900">{equipo.nombre}</span>
                         <span className="block truncate text-[12px] text-texto-3">
                           {posicion ? hace(posicion.registradoEn) : 'Sin posición'}
-                          {' · '}
-                          {equipo.jornadaActiva ? 'en jornada' : 'jornada cerrada'}
+                          {equipo.plataforma !== 'ios' && ` · ${equipo.jornadaActiva ? 'en jornada' : 'jornada cerrada'}`}
                         </span>
                       </span>
                       <span className="flex flex-none flex-col items-end gap-1">
@@ -390,16 +383,7 @@ export default function EnVivo() {
 
       {/* Mapa */}
       <section className="relative min-h-[420px] flex-1 overflow-hidden rounded-tarjeta border border-borde shadow-tarjeta">
-        <MapaBase alListo={setMapa} selectorIzquierda zoomAbajoDerecha />
-        <button
-          type="button"
-          onClick={verTodas}
-          disabled={posiciones.size === 0}
-          className={cn(claseBoton('secundario', 'sm'), 'absolute top-14 left-3 z-[5] shadow-flotante sm:top-3 sm:right-3 sm:left-auto')}
-        >
-          <Focus className="size-3.5" />
-          Ver todas
-        </button>
+        <MapaBase alListo={setMapa} zoomAbajoDerecha selectorPegado escala={false} />
         {seleccion && (
           <FichaPersona
             equipo={seleccion}
@@ -515,7 +499,7 @@ function FichaPersona({
           <span>
             <span className="block text-texto-3">App</span>
             <span className="flex items-center gap-1.5">
-              <span className="font-semibold text-marino-900">{equipo.plataforma === 'ios' ? 'iPhone (Traccar Client)' : (equipo.versionApp ?? GUION)}</span>
+              <span className="font-semibold text-marino-900">{equipo.plataforma === 'ios' ? 'iPhone (Overland)' : (equipo.versionApp ?? GUION)}</span>
               {estadoApp && <span className={cn('rounded-full px-1.5 text-[10.5px] font-semibold', estadoApp.clase)}>{estadoApp.texto}</span>}
             </span>
           </span>

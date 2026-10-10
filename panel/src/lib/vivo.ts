@@ -29,7 +29,11 @@ export function useVivo(activo: boolean) {
   const cliente = useQueryClient();
   useEffect(() => {
     if (!activo || typeof EventSource === 'undefined') return;
-    const fuente = new EventSource('/api/v1/vivo');
+    // El sitio va por HTTP/1.1: el navegador abre como mucho 6 conexiones y
+    // cada canal abierto ocupa una para siempre. Con varias pestañas (o páginas
+    // guardadas al navegar) se llenaban y todo el panel quedaba "Cargando…".
+    // Por eso el canal solo está abierto mientras la pestaña se ve.
+    let fuente: EventSource | null = null;
     const porRefrescar = new Map<string, QueryKey>();
     let temporizador: number | undefined;
     let flotaPorPuntos = 0;
@@ -43,44 +47,63 @@ export function useVivo(activo: boolean) {
       }, ESPERA_REFRESCO_MS);
     }
 
-    fuente.onopen = () => {
-      conectado = true;
-    };
-    fuente.onerror = () => {
-      // El navegador reintenta solo; mientras tanto vuelven las consultas normales.
-      conectado = false;
-    };
-    fuente.onmessage = (evento) => {
-      let mensaje: MensajeVivo;
-      try {
-        mensaje = JSON.parse(evento.data) as MensajeVivo;
-      } catch {
-        return;
-      }
-      if (mensaje.posiciones.length > 0) {
-        cliente.setQueryData<PosicionesVivas>(['posiciones-vivas'], (previo) => {
-          if (!previo) return previo;
-          const nuevas = new Map(mensaje.posiciones.map((p) => [p.dispositivoId, p]));
-          const datos = previo.datos.map((p) => {
-            const nueva = nuevas.get(p.dispositivoId);
-            nuevas.delete(p.dispositivoId);
-            // Un punto viejo que llega tarde no hace retroceder al marcador.
-            return nueva && nueva.registradoEn >= p.registradoEn ? nueva : p;
-          });
-          return { ...previo, datos: [...datos, ...nuevas.values()] };
-        });
-        if (Date.now() - flotaPorPuntos > FLOTA_POR_PUNTOS_MS) {
-          flotaPorPuntos = Date.now();
-          refrescar(CLAVE_FLOTA);
+    const escuchar = (fuente: EventSource) => {
+      fuente.onopen = () => {
+        conectado = true;
+      };
+      fuente.onerror = () => {
+        // El navegador reintenta solo; mientras tanto vuelven las consultas normales.
+        conectado = false;
+      };
+      fuente.onmessage = (evento) => {
+        let mensaje: MensajeVivo;
+        try {
+          mensaje = JSON.parse(evento.data) as MensajeVivo;
+        } catch {
+          return;
         }
-      }
-      if (mensaje.eventos.length > 0) refrescar(CLAVE_FLOTA, ['inicio'], ['notificaciones'], ['salud']);
-      if (mensaje.actividades.length > 0) refrescar(CLAVE_NOVEDADES_CRONOGRAMA, ['inicio'], ['cronograma']);
+        if (mensaje.posiciones.length > 0) {
+          cliente.setQueryData<PosicionesVivas>(['posiciones-vivas'], (previo) => {
+            if (!previo) return previo;
+            const nuevas = new Map(mensaje.posiciones.map((p) => [p.dispositivoId, p]));
+            const datos = previo.datos.map((p) => {
+              const nueva = nuevas.get(p.dispositivoId);
+              nuevas.delete(p.dispositivoId);
+              // Un punto viejo que llega tarde no hace retroceder al marcador.
+              return nueva && nueva.registradoEn >= p.registradoEn ? nueva : p;
+            });
+            return { ...previo, datos: [...datos, ...nuevas.values()] };
+          });
+          if (Date.now() - flotaPorPuntos > FLOTA_POR_PUNTOS_MS) {
+            flotaPorPuntos = Date.now();
+            refrescar(CLAVE_FLOTA);
+          }
+        }
+        if (mensaje.eventos.length > 0) refrescar(CLAVE_FLOTA, ['inicio'], ['notificaciones'], ['salud']);
+        if (mensaje.actividades.length > 0) refrescar(CLAVE_NOVEDADES_CRONOGRAMA, ['inicio'], ['cronograma']);
+      };
     };
 
-    return () => {
+    const abrir = () => {
+      if (fuente || document.hidden) return;
+      fuente = new EventSource('/api/v1/vivo');
+      escuchar(fuente);
+    };
+    const cerrar = () => {
       conectado = false;
-      fuente.close();
+      fuente?.close();
+      fuente = null;
+    };
+    const alCambiarVista = () => (document.hidden ? cerrar() : abrir());
+    abrir();
+    document.addEventListener('visibilitychange', alCambiarVista);
+    window.addEventListener('pagehide', cerrar);
+    window.addEventListener('pageshow', abrir);
+    return () => {
+      cerrar();
+      document.removeEventListener('visibilitychange', alCambiarVista);
+      window.removeEventListener('pagehide', cerrar);
+      window.removeEventListener('pageshow', abrir);
       window.clearTimeout(temporizador);
     };
   }, [activo, cliente]);

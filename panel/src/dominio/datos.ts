@@ -68,6 +68,8 @@ export interface Jornada {
   finEn: string | null;
   duracionMin: number | null;
   abierta: boolean;
+  // iPhone: del primer al último punto del día, no una jornada marcada.
+  soloApp?: boolean;
 }
 
 export interface RespuestaJornadas {

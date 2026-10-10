@@ -28,6 +28,8 @@ export interface Reproductor {
   // Estado del fix en curso (movimiento, detenido, sin señal).
   estado: EstadoUnidad;
   reproduciendo: boolean;
+  // Clic sostenido en la barra o en la ruta (arrastrando).
+  sosteniendo: boolean;
   velocidad: number;
   seguir: boolean;
   seleccionado: number | null;
@@ -37,6 +39,10 @@ export interface Reproductor {
   // La barra de tiempo no la controla React: el reproductor escribe su valor y
   // su relleno en cada cuadro, así el avance se ve continuo.
   sliderRef: RefObject<HTMLInputElement | null>;
+  // Mientras se mantiene el clic en la barra o en la ruta, se colorea el avance.
+  sostener: (activo: boolean) => void;
+  // Arrastre fino de la barra: lleva el reloj a un instante exacto.
+  deslizarA: (instante: number) => void;
   alternar: () => void;
   alternarSeguir: () => void;
   // Paso a paso por el recorrido: ±1 punto reproducible por pulsación.
@@ -51,6 +57,7 @@ export interface Reproductor {
   // movimiento reducido), igual que elegir un colaborador en En vivo.
   // Con indiceParada null (microparada) hace lo mismo sin resaltar parada.
   seleccionarParada: (indiceParada: number | null, latitud: number, longitud: number, instante: number) => void;
+  cerrarParada: () => void;
   // Selección de un fix al pulsar la ruta: pausa y ubica el reproductor.
   seleccionar: (indice: number) => void;
   quitarSeleccion: () => void;
@@ -75,6 +82,16 @@ export function useDireccion(
   habilitada: boolean,
   precisionM: number | null = null,
 ): string | null {
+  return useDireccionConCarga(lat, lon, habilitada, precisionM).direccion;
+}
+
+// Igual que useDireccion, y dice si todavía se está consultando.
+export function useDireccionConCarga(
+  lat: number | null,
+  lon: number | null,
+  habilitada: boolean,
+  precisionM: number | null = null,
+): { direccion: string | null; cargando: boolean } {
   const consulta = useQuery({
     queryKey: [
       'geocode',
@@ -90,5 +107,5 @@ export function useDireccion(
     retry: false,
     staleTime: Infinity,
   });
-  return consulta.data?.direccion ?? null;
+  return { direccion: consulta.data?.direccion ?? null, cargando: consulta.isFetching };
 }

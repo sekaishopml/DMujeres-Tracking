@@ -24,7 +24,7 @@ import {
 // Tocar una insignia hace lo mismo que tocar su fila: pausa, ubica el reloj,
 // resalta la parada y lleva el mapa hasta ella.
 export function InsigniasParadas({ mapa, paradas }: { mapa: TipoMapa | null; paradas: Parada[] }) {
-  const { paradaSeleccionada, seleccionarParada, microparadas, resumen, posiciones } = useReproductor();
+  const { paradaSeleccionada, seleccionarParada, cerrarParada, microparadas, resumen, posiciones } = useReproductor();
   const elementos = useRef<Map<number, HTMLDivElement>>(new Map());
 
   // Microparadas: punto chico sin número, debajo de las insignias. Pulsarlo
@@ -54,6 +54,7 @@ export function InsigniasParadas({ mapa, paradas }: { mapa: TipoMapa | null; par
       const nombre = etiquetaVisita(resumen?.numeroVisita[orden] ?? null);
       const elemento = document.createElement('div');
       elemento.className = 'marcador-parada';
+      elemento.dataset.parada = String(orden);
       elemento.setAttribute('aria-label', `${nombre}: desde ${horaCorta(parada.inicio)} hasta ${horaCorta(parada.fin)}`);
       const insignia = document.createElement('span');
       insignia.className = 'parada-insignia';
@@ -106,8 +107,8 @@ export function InsigniasParadas({ mapa, paradas }: { mapa: TipoMapa | null; par
   }, [paradas, paradaSeleccionada, resumen]);
 
   // Ficha desplegable de la parada elegida (desde, hasta, duración y
-  // dirección), con apertura suave sobre la insignia. Se cierra al elegir un
-  // punto u otra parada.
+  // dirección), con apertura suave sobre la insignia. Queda abierta hasta un
+  // clic en otro lado del mapa o arrastrarlo (o al elegir otro punto o parada).
   const fichaParada = useRef<Popup | null>(null);
   useEffect(() => {
     const parada = paradaSeleccionada != null ? paradas[paradaSeleccionada] : undefined;
@@ -159,10 +160,18 @@ export function InsigniasParadas({ mapa, paradas }: { mapa: TipoMapa | null; par
       .setLngLat([parada.longitud, parada.latitud])
       .setDOMContent(contenido)
       .addTo(mapa);
+    // El vuelo hasta la parada no cuenta: solo lo que hace la persona.
+    const cerrar = (evento: { originalEvent?: Event }) => {
+      if (evento.originalEvent) cerrarParada();
+    };
+    mapa.on('click', cerrar);
+    mapa.on('dragstart', cerrar);
     return () => {
       vigente = false;
+      mapa.off('click', cerrar);
+      mapa.off('dragstart', cerrar);
     };
-  }, [mapa, paradas, paradaSeleccionada, posiciones]);
+  }, [mapa, paradas, paradaSeleccionada, posiciones, cerrarParada]);
   useEffect(
     () => () => {
       fichaParada.current?.remove();

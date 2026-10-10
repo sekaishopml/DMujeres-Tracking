@@ -1,7 +1,7 @@
 import { cn } from '@/lib/cn';
 import { useCallback, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Eye, EyeOff, LockOpen, Pencil, Plus, SlidersHorizontal, Smartphone, Trash2, Users } from 'lucide-react';
+import { Archive, Eye, EyeOff, LockOpen, Pencil, Plus, SlidersHorizontal, Smartphone, Trash2, Users } from 'lucide-react';
 import { toast } from 'sonner';
 import type {
   ActualizacionUsuarioPlataforma,
@@ -90,11 +90,13 @@ type Modal =
   | { modo: 'crear' }
   | { modo: 'editar'; usuario: UsuarioPlataforma }
   | { modo: 'baja'; usuario: UsuarioPlataforma }
+  | { modo: 'borrar'; usuario: UsuarioPlataforma }
+  | { modo: 'bajas' }
   | { modo: 'ajustes'; usuario: UsuarioPlataforma };
 
 // En edición la clave vacía significa "no cambiar"; en creación es obligatoria.
-// Receptor OsmAnd al que envía Traccar Client en iPhone.
-const SERVIDOR_IPHONE = 'http://68.168.20.219:5055';
+// Receptor al que envía Overland en iPhone; el equipo va en `?id=`.
+const SERVIDOR_IPHONE = 'https://tracking.sekaidevec.com/overland?id=';
 
 // El guardado nunca manda roles; al crear, el servidor siempre crea su equipo.
 function DialogoCuenta({
@@ -134,7 +136,7 @@ function DialogoCuenta({
 
   function enviar() {
     const iphone = !usuario && plataforma === 'ios';
-    if (iphone && !idIphone.trim()) return setValidacion('Escribe el identificador de dispositivo que muestra Traccar Client.');
+    if (iphone && !idIphone.trim()) return setValidacion('Escribe un identificador para el iPhone.');
     if (!usuario && !iphone && !cuenta.trim()) return setValidacion('Escribe el nombre con el que la persona va a entrar.');
     if (!nombre.trim()) return setValidacion('Escribe el nombre completo de la persona.');
     if (!usuario && !iphone && !clave) return setValidacion('Escribe una contraseña para la cuenta nueva.');
@@ -219,14 +221,14 @@ function DialogoCuenta({
       {!usuario && plataforma === 'ios' && (
           <Campo
             etiqueta="Identificador de dispositivo"
-            ayuda="El que muestra Traccar Client en el iPhone, en «Identificador de dispositivo»."
+            ayuda="Invéntalo: letras, números o guiones, sin espacios. Va al final de la dirección que se pone en Overland."
           >
             <Entrada
               value={idIphone}
               onChange={(evento) => setIdIphone(evento.target.value)}
               autoComplete="off"
               inputMode="text"
-              placeholder="Por ejemplo: 482913"
+              placeholder="Por ejemplo: iphone-maria"
             />
           </Campo>
       )}
@@ -309,13 +311,18 @@ function DialogoCuenta({
       </fieldset>
       {!usuario && plataforma === 'ios' && (
         <div className="rounded-control bg-marino-50 px-3 py-2.5 text-[12.5px] leading-relaxed text-texto-2">
-          <p className="mb-1 font-semibold text-marino-900">En el iPhone, dentro de Traccar Client:</p>
+          <p className="mb-1 font-semibold text-marino-900">En el iPhone, con la app Overland GPS Tracker (App Store):</p>
           <ol className="list-decimal space-y-0.5 pl-4">
             <li>
-              Dirección del servidor: <b className="text-marino-900">{SERVIDOR_IPHONE}</b>
+              En Settings → Server URL:{' '}
+              <b className="break-all text-marino-900">
+                {SERVIDOR_IPHONE}
+                {idIphone.trim() || 'identificador'}
+              </b>
             </li>
+            <li>En Settings: Tracking Enabled activado, Desired Accuracy en Best y Pause Updates Automatically apagado.</li>
             <li>En Ajustes del iPhone: ubicación «Siempre» con ubicación exacta, y actualización en segundo plano activada.</li>
-            <li>Encender el seguimiento al empezar el día. La jornada se abre sola con el primer punto y se cierra tras unas 2 h sin puntos.</li>
+            <li>No cerrar la app deslizándola: sin conexión guarda los puntos y los envía al volver la señal.</li>
           </ol>
         </div>
       )}
@@ -642,6 +649,23 @@ export default function Usuarios() {
     },
   });
 
+  const borrarDefinitivo = useMutation({
+    mutationFn: (usuario: UsuarioPlataforma) =>
+      api.borrar<{ zip: { nombre: string } }>(`/api/v1/usuarios/${idEnUrl(usuario)}/definitivo`),
+    onSuccess: (respuesta) => {
+      invalidar();
+      void cliente.invalidateQueries({ queryKey: ['bajas'] });
+      toast.success(`Cuenta eliminada. Su ruta quedó en ${respuesta.zip.nombre}.`);
+      setModal(null);
+    },
+  });
+
+  const bajas = useQuery({
+    queryKey: ['bajas'],
+    queryFn: () => api.get<{ archivos: { nombre: string; bytes: number; creadoEn: string }[] }>('/api/v1/bajas'),
+    enabled: modal?.modo === 'bajas',
+  });
+
   const reactivar = useMutation({
     mutationFn: (usuario: UsuarioPlataforma) =>
       api.patch<{ usuario: UsuarioPlataforma }>(`/api/v1/usuarios/${idEnUrl(usuario)}`, { habilitado: true }),
@@ -724,6 +748,9 @@ export default function Usuarios() {
           }}
           placeholder="Buscar cuenta o persona"
         />
+        <Boton icono={Archive} onClick={() => setModal({ modo: 'bajas' })}>
+          Rutas de bajas
+        </Boton>
         {!soloLectura && (
           <Boton variante="principal" icono={Plus} onClick={abrirCrear}>
             Agregar cuenta
@@ -830,6 +857,15 @@ export default function Usuarios() {
                             onClick={() => abrirBaja(usuario)}
                           />
                         ) : (
+                          <>
+                          {!soloLectura && (
+                            <BotonIcono
+                              icono={Trash2}
+                              peligro
+                              etiqueta={`Eliminar definitivamente a ${usuario.nombre}`}
+                              onClick={() => setModal({ modo: 'borrar', usuario })}
+                            />
+                          )}
                           <Boton
                             tamano="sm"
                             title="Reactivar la cuenta"
@@ -839,6 +875,7 @@ export default function Usuarios() {
                           >
                             {reactivar.isPending && reactivar.variables === usuario ? 'Reactivando…' : 'Reactivar'}
                           </Boton>
+                          </>
                         )}
                       </div>
                     </Td>
@@ -893,6 +930,46 @@ export default function Usuarios() {
           </p>
           {darDeBaja.error != null && <AvisoError>{mensajeError(darDeBaja.error)}</AvisoError>}
         </DialogoConfirmar>
+      )}
+
+      {modal?.modo === 'borrar' && (
+        <DialogoConfirmar
+          titulo="Eliminar definitivamente"
+          alCerrar={cerrarModal}
+          alConfirmar={() => borrarDefinitivo.mutate(modal.usuario)}
+          trabajando={borrarDefinitivo.isPending}
+          etiqueta="Eliminar"
+          etiquetaTrabajando="Eliminando…"
+        >
+          <p>
+            ¿Eliminar a <b className="text-marino-900">{modal.usuario.nombre}</b> ({modal.usuario.usuario}) y su equipo?
+            Su ruta se guarda en un ZIP antes de borrar y queda en «Rutas de bajas». Esto no se puede deshacer.
+          </p>
+          {borrarDefinitivo.error != null && <AvisoError>{mensajeError(borrarDefinitivo.error)}</AvisoError>}
+        </DialogoConfirmar>
+      )}
+
+      {modal?.modo === 'bajas' && (
+        <Dialogo abierto alCerrar={cerrarModal} titulo="Rutas de cuentas eliminadas" descripcion="Cada ZIP guarda la ruta, las jornadas y los eventos de la cuenta.">
+          {bajas.isPending ? (
+            <Cargando />
+          ) : bajas.error != null ? (
+            <ErrorCarga mensaje={mensajeError(bajas.error)} alReintentar={() => void bajas.refetch()} />
+          ) : (bajas.data?.archivos.length ?? 0) === 0 ? (
+            <Vacio titulo="Sin rutas guardadas" />
+          ) : (
+            <ul className="divide-y divide-borde">
+              {bajas.data?.archivos.map((archivo) => (
+                <li key={archivo.nombre} className="flex items-center justify-between gap-3 py-2.5 text-[13px]">
+                  <a className="truncate font-medium text-marca hover:underline" href={`/api/v1/bajas/${encodeURIComponent(archivo.nombre)}`} download>
+                    {archivo.nombre}
+                  </a>
+                  <span className="flex-none text-texto-3 cifras">{Math.max(1, Math.round(archivo.bytes / 1024))} KB</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Dialogo>
       )}
 
       {modal?.modo === 'ajustes' && (

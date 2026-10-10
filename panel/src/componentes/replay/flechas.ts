@@ -142,10 +142,11 @@ export function lineasDeRecorrido(
   segmentos: SegmentoRecorrido[],
   reconstruidos: TramoReconstruido[],
 ): Vertice[][] {
+  // Las horas se leen una sola vez: con miles de puntos, leer la fecha por
+  // cada tramo dejaba el panel congelado.
+  const tiempos = precisas.map((p) => milisegundos(p.registradoEn));
   const siguienteFix = new Map<number, number>();
-  for (let i = 0; i + 1 < precisas.length; i += 1) {
-    siguienteFix.set(milisegundos(precisas[i].registradoEn), milisegundos(precisas[i + 1].registradoEn));
-  }
+  for (let i = 0; i + 1 < precisas.length; i += 1) siguienteFix.set(tiempos[i], tiempos[i + 1]);
   const finReconstruido = new Map(reconstruidos.map((tramo) => [milisegundos(tramo.desde), milisegundos(tramo.hasta)]));
 
   const dibujados = segmentos
@@ -167,10 +168,7 @@ export function lineasDeRecorrido(
             segmento.coordenadas,
             inicio,
             fin,
-            precisas.filter((p) => {
-              const t = milisegundos(p.registradoEn);
-              return t > inicio && t < fin;
-            }),
+            precisas.filter((_, i) => tiempos[i] > inicio && tiempos[i] < fin),
           )
         : [
             { lon: segmento.coordenadas[0][0], lat: segmento.coordenadas[0][1], t: inicio },
@@ -206,6 +204,23 @@ export function puntoEnLineas(lineas: Vertice[][], t: number): [number, number] 
 // vuelta. Si queda a más de 40 m de la línea, null.
 const VENTANA_PROYECCION_MS = 2 * 60_000;
 const MAX_DISTANCIA_PROYECCION_M = 40;
+
+// Punto del trazo dibujado más cercano a (lon, lat), sin mirar la hora. Sirve
+// para asentar una microparada sobre la línea. Null si ningún trazo está a
+// menos de `maxM` metros.
+export function puntoSobreTrazo(lineas: Vertice[][], lon: number, lat: number, maxM = 60): [number, number] | null {
+  const fix: Vertice = { lon, lat, t: 0 };
+  let mejor: { punto: [number, number]; d: number } | null = null;
+  for (const linea of lineas) {
+    for (let k = 0; k < linea.length - 1; k += 1) {
+      const a = linea[k];
+      const b = linea[k + 1];
+      const { f, d } = proyectar(fix, a, b);
+      if (!mejor || d < mejor.d) mejor = { punto: [a.lon + (b.lon - a.lon) * f, a.lat + (b.lat - a.lat) * f], d };
+    }
+  }
+  return mejor && mejor.d <= maxM ? mejor.punto : null;
+}
 
 export function puntoCercanoEnLineas(lineas: Vertice[][], t: number, lon: number, lat: number): [number, number] | null {
   const fix: Vertice = { lon, lat, t };
@@ -245,8 +260,14 @@ export function flechasDeLineas(lineas: Vertice[][]): FeatureCollection<Point> {
     for (let k = 1; k < linea.length; k += 1) acumulada.push(acumulada[k - 1] + distanciaM(linea[k - 1], linea[k]));
     const total = acumulada[acumulada.length - 1];
     const puntoEn = (s: number): Vertice => {
+      // Búsqueda binaria del tramo: una línea larga tiene miles de vértices.
       let k = 0;
-      while (k < linea.length - 2 && acumulada[k + 1] < s) k += 1;
+      let alto = linea.length - 2;
+      while (k < alto) {
+        const medio = (k + alto) >> 1;
+        if (acumulada[medio + 1] < s) k = medio + 1;
+        else alto = medio;
+      }
       const largo = acumulada[k + 1] - acumulada[k];
       const f = largo > 0 ? Math.min(Math.max((s - acumulada[k]) / largo, 0), 1) : 0;
       const a = linea[k];

@@ -166,7 +166,6 @@ export function fechaHoraCorta(valor?: string | null): string {
 // con los componentes locales (Date normaliza el desborde de mes o año) y se
 // compensa la zona para leer la fecha con toISOString, el mismo criterio local
 // que usa fechaHoyLocal.
-export { fechaAyerLocal } from './rango';
 
 const RADIO_TIERRA_KM = 6371;
 
@@ -391,6 +390,8 @@ export const SUAVIZADO_RADIO_HORQUILLA_M = 2.5;
 // cuenta).
 export const SALTO_SIN_OBSERVAR_SEGUNDOS = 120;
 export const SALTO_SIN_OBSERVAR_M = 150;
+// Tramo recto entre dos puntos que no quedó ajustado a calles: a partir de
+// esta distancia no se dibuja (una recta cortaría manzanas). Quieto no cuenta.
 export const VELOCIDAD_IMPOSIBLE_KMH = 180;
 
 function esSaltoSinObservar(anterior: Posicion, actual: Posicion): boolean {
@@ -399,6 +400,8 @@ function esSaltoSinObservar(anterior: Posicion, actual: Posicion): boolean {
   if (metros > 50 && !(segundos > 0 && (metros / segundos) * 3.6 <= VELOCIDAD_IMPOSIBLE_KMH)) return true;
   return segundos > SALTO_SIN_OBSERVAR_SEGUNDOS && metros >= SALTO_SIN_OBSERVAR_M;
 }
+
+export const RECTA_SIN_OBSERVAR_M = 30;
 
 export function segmentosDeRecorrido(
   posiciones: Posicion[],
@@ -430,9 +433,12 @@ export function segmentosDeRecorrido(
             Array.isArray(par) && Number.isFinite(par[0]) && Number.isFinite(par[1]),
         )
       : [];
+    // Un tramo ESTIMATED es un camino por calles sin puntos en el medio: no se
+    // dibuja, porque parecería un lugar visitado.
+    if (tramo.metodo !== 'MATCHED') continue;
     if (trazado.length >= 2) {
       segmentos.push({
-        tipo: tramo.metodo === 'MATCHED' ? 'matched' : 'estimated',
+        tipo: 'matched',
         // Solo presentación: el trazado ajustado a vía y el estimado se
         // redondean; el GPS registrado y los huecos rectos quedan crudos.
         // Sin suavizar: el marcador del reproductor recorre este mismo
@@ -461,14 +467,17 @@ export function segmentosDeRecorrido(
       [anterior.longitud, anterior.latitud],
       [actual.longitud, actual.latitud],
     ];
-    if (paresHueco.has(`${anterior.registradoEn}|${actual.registradoEn}`) || esSaltoSinObservar(anterior, actual)) {
-      segmentos.push({ tipo: 'hueco', coordenadas, instante: milisegundos(anterior.registradoEn) });
+    const modo = modoDePar(quietos, velocidades, i);
+    const rectaSinObservar = modo !== 'quieto' && distanciaKm(anterior, actual) * 1000 > RECTA_SIN_OBSERVAR_M;
+    // Lo no observado no se dibuja: ni recta sólida (cortaría manzanas) ni
+    // punteada (parecería un lugar visitado). La falta de señal se marca aparte.
+    if (paresHueco.has(`${anterior.registradoEn}|${actual.registradoEn}`) || rectaSinObservar || esSaltoSinObservar(anterior, actual)) {
       continue;
     }
     segmentos.push({
       tipo: 'ruta',
       banda: bandaVelocidad(velocidadEfectivaKmh(actual, anterior)),
-      modo: modoDePar(quietos, velocidades, i),
+      modo,
       coordenadas,
       instante: milisegundos(anterior.registradoEn),
     });

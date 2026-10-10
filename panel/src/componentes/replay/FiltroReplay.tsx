@@ -1,8 +1,7 @@
 import type { ReactNode } from 'react';
 import type { Dispositivo } from '@contratos';
 import { OpcionesPersonas } from '@/componentes/ui/OpcionesPersonas';
-import { fechaHoyLocal } from '@/dominio/rango';
-import { fechaAyerLocal } from '@/dominio/replay';
+import { fechaAyerLocal, fechaHoyLocal } from '@/dominio/rango';
 
 interface Props {
   equipos: Dispositivo[];
@@ -39,13 +38,10 @@ export default function FiltroReplay({
   conTodas = false,
   acciones,
 }: Props) {
-  // Los atajos cubren lo de todos los días (hoy, ayer y de ayer a hoy). Se
-  // calculan en cada render: son dos fechas y cuesta nada.
-  const hoy = fechaHoyLocal();
-  const ayer = fechaAyerLocal();
-  const rangoHoy = desde === hoy && hasta === hoy;
-  const rangoAyer = desde === ayer && hasta === ayer;
-  const rangoHoyAyer = desde === ayer && hasta === hoy;
+  const atajos = [
+    { etiqueta: 'Ayer', fecha: fechaAyerLocal() },
+    { etiqueta: 'Hoy', fecha: fechaHoyLocal() },
+  ];
   return (
     <div className={compacto ? 'filtro-replay' : 'tarjeta filtro-replay'}>
       <div className="fila-equipo">
@@ -73,42 +69,24 @@ export default function FiltroReplay({
         <span>Hasta</span>
         <input type="date" value={hasta} onChange={(evento) => alCambiarHasta(evento.target.value)} />
       </label>
-      {/* Los campos de fecha siguen disponibles para el ajuste manual; estos
-          botones solo mueven ambos extremos a la vez. */}
-      <div className="rango-rapido" role="group" aria-label="Rangos rápidos">
-        <button
-          type="button"
-          className={`suave${rangoHoy ? ' activo' : ''}`}
-          aria-pressed={rangoHoy}
-          onClick={() => {
-            alCambiarDesde(hoy);
-            alCambiarHasta(hoy);
-          }}
-        >
-          Hoy
-        </button>
-        <button
-          type="button"
-          className={`suave${rangoAyer ? ' activo' : ''}`}
-          aria-pressed={rangoAyer}
-          onClick={() => {
-            alCambiarDesde(ayer);
-            alCambiarHasta(ayer);
-          }}
-        >
-          Ayer
-        </button>
-        <button
-          type="button"
-          className={`suave${rangoHoyAyer ? ' activo' : ''}`}
-          aria-pressed={rangoHoyAyer}
-          onClick={() => {
-            alCambiarDesde(ayer);
-            alCambiarHasta(hoy);
-          }}
-        >
-          Hoy y ayer
-        </button>
+      <div className="rango-rapido" role="group" aria-label="Día">
+        {atajos.map(({ etiqueta, fecha }) => {
+          const activo = desde === fecha && hasta === fecha;
+          return (
+            <button
+              key={etiqueta}
+              type="button"
+              className={`suave${activo ? ' activo' : ''}`}
+              aria-pressed={activo}
+              onClick={() => {
+                alCambiarDesde(fecha);
+                alCambiarHasta(fecha);
+              }}
+            >
+              {etiqueta}
+            </button>
+          );
+        })}
       </div>
     </div>
   );

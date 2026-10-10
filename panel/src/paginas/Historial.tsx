@@ -83,7 +83,7 @@ function celdasPorPersona(jornadas: JornadaFlota[], ahora: number): Map<string, 
     const inicio = new Date(j.inicioEn).getTime();
     const fin = j.finEn ? new Date(j.finEn).getTime() : ahora;
     if (!(fin > inicio)) continue;
-    const abiertaLarga = !j.finEn && (ahora - inicio) / 3_600_000 > JORNADA_LARGA_H;
+    const abiertaLarga = !j.soloApp && !j.finEn && (ahora - inicio) / 3_600_000 > JORNADA_LARGA_H;
     const porDia = mapa.get(j.idPublico) ?? new Map<string, Celda>();
     for (let dia = DIA.format(new Date(inicio)); ; dia = sumarDias(dia, 1)) {
       const desdeDia = new Date(inicioDeDia(dia)).getTime();

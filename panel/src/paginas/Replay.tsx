@@ -7,6 +7,7 @@ import { GUION } from '@/dominio/formatoBase';
 import type { Cobertura } from '@/dominio/dia';
 import Icono from '@/componentes/replay/Icono';
 import MapaRaster, { CAPAS_REPLAY, CAPA_INICIAL_REPLAY } from '@/componentes/mapa/MapaBase';
+import { GruposEnLugar } from '@/componentes/replay/GruposEnLugar';
 import ReproductorReplay, {
   InsigniasParadas,
   LineaTiempoReplay,
@@ -15,7 +16,7 @@ import ReproductorReplay, {
 } from '@/componentes/replay/ReproductorReplay';
 import { etiquetaCorte } from '@/componentes/replay/globos';
 import FiltroReplay from '@/componentes/replay/FiltroReplay';
-import { flechasDeLineas, lineasDeRecorrido, sinPicos } from '@/componentes/replay/flechas';
+import { flechasDeLineas, lineasDeRecorrido, puntoSobreTrazo, sinPicos } from '@/componentes/replay/flechas';
 import {
   COLOR_POR_HORA,
   fraccionDelDia,
@@ -39,7 +40,7 @@ import {
   puntosQuietos,
 } from '@/dominio/replay';
 import type { Parada, TramoReconstruido } from '@/dominio/replay';
-import { fechaHoyLocal, finDeDia, inicioDeDia } from '@/dominio/rango';
+import { fechaAyerLocal, fechaHoyLocal, finDeDia, inicioDeDia } from '@/dominio/rango';
 import '@/componentes/replay/replay.css';
 import type { Hueco, ReplayCalidad } from '@contratos';
 
@@ -50,16 +51,12 @@ import type { Hueco, ReplayCalidad } from '@contratos';
 function IntegridadRecorrido({
   totalFixes,
   simuladas,
-  pasos,
-  distanciaKm,
   huecos,
   reconstruidos,
   calidad,
 }: {
   totalFixes: number;
   simuladas: number;
-  pasos: number | null;
-  distanciaKm: number;
   huecos: Hueco[];
   reconstruidos: TramoReconstruido[];
   calidad?: ReplayCalidad;
@@ -67,7 +64,11 @@ function IntegridadRecorrido({
   const cortes = huecos.filter((hueco) => hueco.motivo !== 'FUERA_DE_JORNADA');
   const minutosSinSenal = Math.round(cortes.reduce((suma, hueco) => suma + hueco.duracionSegundos, 0) / 60);
   const estimados = reconstruidos.filter((tramo) => tramo.metodo === 'ESTIMATED').length;
-  const apartados = (calidad?.descartadasFueraDeZona ?? 0) + (calidad?.descartadasSalto ?? 0);
+  const apartados =
+    (calidad?.descartadasFueraDeZona ?? 0) +
+    (calidad?.descartadasSalto ?? 0) +
+    (calidad?.descartadasImprecisas ?? 0) +
+    (calidad?.descartadasExcursion ?? 0);
   const sinSenal =
     cortes.length === 0
       ? 'sin cortes de señal'
@@ -85,14 +86,6 @@ function IntegridadRecorrido({
         <p className="replay-nota">
           {apartados} {apartados === 1 ? 'punto imposible apartado' : 'puntos imposibles apartados'} del trazado
           {calidad?.descartadasFueraDeZona ? ` (${calidad.descartadasFueraDeZona} fuera de zona)` : ''}.
-        </p>
-      )}
-      {pasos != null && (
-        <p className="replay-nota">
-          {pasos.toLocaleString('es-EC')} {pasos === 1 ? 'paso' : 'pasos'} en la jornada
-          {pasos < PASOS_MINIMOS && distanciaKm >= KM_SIN_PASOS
-            ? `: con ${distanciaKm.toFixed(1)} km de recorrido, viajó en vehículo o el teléfono no iba con la persona.`
-            : '.'}
         </p>
       )}
       {simuladas > 0 && (
@@ -128,17 +121,11 @@ function causasDeCortes(cortes: Hueco[]): string {
   return [...cuenta].map(([etiqueta, n]) => `${n} ${etiqueta.charAt(0).toLowerCase()}${etiqueta.slice(1)}`).join(', ');
 }
 
-// Con tantos kilómetros y menos de estos pasos, la persona no iba caminando.
-const KM_SIN_PASOS = 3;
-const PASOS_MINIMOS = 200;
-
 // Botón de información sobre el mapa (abajo a la derecha): abre la lectura de
 // auditoría del recorrido y la cobertura de señal.
 function InfoRecorrido({
   totalFixes,
   simuladas,
-  pasos,
-  distanciaKm,
   huecos,
   reconstruidos,
   calidad,
@@ -146,8 +133,6 @@ function InfoRecorrido({
 }: {
   totalFixes: number;
   simuladas: number;
-  pasos: number | null;
-  distanciaKm: number;
   huecos: Hueco[];
   reconstruidos: TramoReconstruido[];
   calidad?: ReplayCalidad;
@@ -163,7 +148,7 @@ function InfoRecorrido({
             <span>Cobertura</span>
             <strong>{cobertura.porcentaje == null ? GUION : `${Math.round(cobertura.porcentaje)} %`}</strong>
           </p>
-          <IntegridadRecorrido totalFixes={totalFixes} simuladas={simuladas} pasos={pasos} distanciaKm={distanciaKm} huecos={huecos} reconstruidos={reconstruidos} calidad={calidad} />
+          <IntegridadRecorrido totalFixes={totalFixes} simuladas={simuladas} huecos={huecos} reconstruidos={reconstruidos} calidad={calidad} />
         </section>
       )}
       {/* Mismo control y mismo aspecto que el botón de atribución del mapa,
@@ -217,13 +202,18 @@ function imagenDireccion(nucleo: string): ImageData | null {
   const contexto = lienzo.getContext('2d');
   if (!contexto) return null;
   const c = LADO_FLECHA / 2;
+  // Centrada en el lienzo para que gire sobre la línea y no se corra.
   contexto.beginPath();
-  contexto.moveTo(c, 14);
-  contexto.lineTo(c + 13, 44);
-  contexto.lineTo(c, 36);
-  contexto.lineTo(c - 13, 44);
+  contexto.moveTo(c, c - 17);
+  contexto.lineTo(c + 13, c + 13);
+  contexto.lineTo(c, c + 6);
+  contexto.lineTo(c - 13, c + 13);
   contexto.closePath();
   contexto.fillStyle = nucleo;
+  contexto.lineJoin = 'round';
+  contexto.lineWidth = 6;
+  contexto.strokeStyle = '#0b2545';
+  contexto.stroke();
   contexto.fill();
   return contexto.getImageData(0, 0, LADO_FLECHA, LADO_FLECHA);
 }
@@ -384,8 +374,8 @@ export default function Replay() {
   const [dispositivoId, setDispositivoId] = useState(parametros.get('dispositivo') ?? '');
   // Por defecto se muestra el día anterior completo: lo que se revisa es lo
   // que pasó ayer. La dirección o el filtro lo pueden cambiar.
-  const [desde, setDesde] = useState(parametros.get('desde') ?? fechaHoyLocal());
-  const [hasta, setHasta] = useState(parametros.get('hasta') ?? fechaHoyLocal());
+  const [desde, setDesde] = useState(parametros.get('desde') ?? fechaAyerLocal());
+  const [hasta, setHasta] = useState(parametros.get('hasta') ?? fechaAyerLocal());
   const [mapa, setMapa] = useState<TipoMapa | null>(null);
   const [panelRecogido, setPanelRecogido] = useState(false);
   // Posiciones ocupadas por las etiquetas de los extremos, para que dos pines
@@ -461,6 +451,7 @@ export default function Replay() {
   }, [replay.data]);
 
   const huecos = useMemo(() => replay.data?.huecos ?? [], [replay.data]);
+  const esIphone = replay.data?.dispositivo.plataforma === 'ios';
   // Tramos reconstruidos por el servidor (`reconstruidos`, con método; la
   // forma anterior `estimados` se toma como ESTIMATED en replay.ts). Se quitan
   // los picos de ida y vuelta del ajuste a calles: ese pedacito nunca se
@@ -531,10 +522,6 @@ export default function Replay() {
     () => (desde === hasta ? resumenDia({ posiciones, paradas, huecos }) : null),
     [desde, hasta, posiciones, paradas, huecos],
   );
-  // Detenciones de 40 s a 3 min (semáforo largo, entrega rápida) que no
-  // llegan a parada: se marcan aparte.
-  const microparadas = useMemo(() => microparadasDeRecorrido(posiciones, paradas), [posiciones, paradas]);
-
   // Tramos por modo (vehículo, caminata, quieto). Quieto no dibuja línea: se
   // muestra como un halo con puntos, para no hacer una maraña.
   const segmentos = useMemo(
@@ -564,6 +551,19 @@ export default function Replay() {
   // aproximados (antena o wifi); el globo del punto avisa "Ubicación
   // aproximada ±N m".
   const lineas = useMemo(() => lineasDeRecorrido(posiciones, segmentos, reconstruidos), [posiciones, segmentos, reconstruidos]);
+  // Detenciones de 40 s a 3 min (semáforo largo, entrega rápida) que no
+  // llegan a parada: se marcan aparte.
+  const microparadasSuelta = useMemo(() => microparadasDeRecorrido(posiciones, paradas), [posiciones, paradas]);
+  // La microparada se asienta sobre el trazo dibujado (el GPS crudo de una
+  // parada corta se separa de la calle y queda "fantasma").
+  const microparadas = useMemo(
+    () =>
+      microparadasSuelta.map((m) => {
+        const sobre = puntoSobreTrazo(lineas, m.longitud, m.latitud);
+        return sobre ? { ...m, longitud: sobre[0], latitud: sobre[1] } : m;
+      }),
+    [microparadasSuelta, lineas],
+  );
   const direccion = useMemo(() => {
     const base = flechasDeLineas(lineas);
     return {
@@ -613,9 +613,6 @@ export default function Replay() {
       if (mapa.getLayer(vieja)) mapa.removeLayer(vieja);
     }
     const trazo = ['in', ['get', 'tipo'], ['literal', ['ruta', 'matched', 'estimated']]];
-    // Cada tramo se corre a la derecha de su sentido de marcha al acercar el
-    // zoom: la ida y la vuelta por la misma calle se ven como dos líneas.
-    const desplazamiento = ['interpolate', ['linear'], ['zoom'], 13, 0, 15, 2.5, 18, 5];
     const noQuieto = ['!=', ['get', 'modo'], 'quieto'];
     // Superficie de acierto: toda la traza, casi transparente.
     if (!mapa.getLayer('replay-linea-hit')) {
@@ -649,8 +646,7 @@ export default function Replay() {
         layout: { 'line-cap': 'round', 'line-join': 'round' },
         paint: {
           'line-color': COLOR_BORDE,
-          'line-width': ['interpolate', ['linear'], ['zoom'], 10, 5.5, 14, 8, 17, 11],
-          'line-offset': desplazamiento as never,
+          'line-width': ['interpolate', ['linear'], ['zoom'], 10, 3.6, 14, 5.2, 17, 7.2],
         },
       });
     }
@@ -663,8 +659,7 @@ export default function Replay() {
         layout: { 'line-cap': 'round', 'line-join': 'round' },
         paint: {
           'line-color': COLOR_POR_HORA as never,
-          'line-width': ['interpolate', ['linear'], ['zoom'], 10, 3, 14, 5, 17, 7.5],
-          'line-offset': desplazamiento as never,
+          'line-width': ['interpolate', ['linear'], ['zoom'], 10, 2.0, 14, 3.2, 17, 4.9],
         },
       });
     }
@@ -678,8 +673,7 @@ export default function Replay() {
         // A pie, un poco más fina que en vehículo pero con borde blanco.
         paint: {
           'line-color': COLOR_POR_HORA as never,
-          'line-width': ['interpolate', ['linear'], ['zoom'], 10, 2.4, 14, 3.8, 17, 5.5],
-          'line-offset': desplazamiento as never,
+          'line-width': ['interpolate', ['linear'], ['zoom'], 10, 1.6, 14, 2.5, 17, 3.6],
         },
       });
     }
@@ -692,8 +686,7 @@ export default function Replay() {
         layout: { 'line-join': 'round' },
         paint: {
           'line-color': COLOR_POR_HORA as never,
-          'line-width': ['interpolate', ['linear'], ['zoom'], 10, 2.2, 16, 4],
-          'line-offset': desplazamiento as never,
+          'line-width': ['interpolate', ['linear'], ['zoom'], 10, 1.4, 16, 2.6],
           'line-dasharray': [1.2, 1.2],
         },
       });
@@ -712,7 +705,7 @@ export default function Replay() {
         layout: { 'line-cap': 'butt' },
         paint: {
           'line-color': COLOR_BORDE,
-          'line-width': ['interpolate', ['linear'], ['zoom'], 10, 4.5, 16, 7],
+          'line-width': ['interpolate', ['linear'], ['zoom'], 10, 2.9, 16, 4.5],
           'line-opacity': 0.85,
         },
       });
@@ -726,7 +719,7 @@ export default function Replay() {
         layout: { 'line-cap': 'butt' },
         paint: {
           'line-color': COLOR_SIN_SENAL,
-          'line-width': ['interpolate', ['linear'], ['zoom'], 10, 2.5, 16, 4],
+          'line-width': ['interpolate', ['linear'], ['zoom'], 10, 1.6, 16, 2.6],
           'line-dasharray': [1.6, 1.4],
         },
       });
@@ -751,20 +744,6 @@ export default function Replay() {
     if (mapa.hasImage(ID_FLECHA)) mapa.removeImage(ID_FLECHA);
     const imagenFlecha = imagenDireccion(NUCLEO_FLECHA);
     if (imagenFlecha) mapa.addImage(ID_FLECHA, imagenFlecha, { pixelRatio: PIXEL_RATIO_FLECHA });
-    if (!mapa.getLayer('replay-flechas-disco')) {
-      mapa.addLayer({
-        id: 'replay-flechas-disco',
-        type: 'circle',
-        source: 'replay-flechas',
-        filter: ['<=', ['get', 'n'], ['zoom']] as never,
-        paint: {
-          'circle-color': COLOR_POR_HORA as never,
-          'circle-radius': ['interpolate', ['linear'], ['zoom'], 12, 6, 15, 7.5, 18, 9.5],
-          'circle-stroke-color': COLOR_BORDE,
-          'circle-stroke-width': 1.5,
-        },
-      });
-    }
     // Las flechas de versiones anteriores se reemplazan por una por punto.
     if (mapa.getLayer('replay-flechas') && mapa.getLayoutProperty('replay-flechas', 'symbol-placement') === 'line') {
       mapa.removeLayer('replay-flechas');
@@ -780,7 +759,7 @@ export default function Replay() {
           'icon-image': ID_FLECHA,
           'icon-rotate': ['get', 'r'],
           'icon-rotation-alignment': 'map',
-          'icon-size': ['interpolate', ['linear'], ['zoom'], 12, 0.42, 15, 0.52, 18, 0.66],
+          'icon-size': ['interpolate', ['linear'], ['zoom'], 12, 0.46, 15, 0.58, 18, 0.74],
           'icon-allow-overlap': true,
           'icon-ignore-placement': true,
           'icon-padding': 0,
@@ -826,13 +805,12 @@ export default function Replay() {
     for (const capa of mapa.getStyle().layers ?? []) {
       if (capa.id.startsWith('replay-hecho-')) mapa.removeLayer(capa.id);
     }
-    const desplazamiento = ['interpolate', ['linear'], ['zoom'], 13, 0, 15, 2.5, 18, 5];
     const antes = mapa.getLayer('replay-hueco-borde') ? 'replay-hueco-borde' : undefined;
     const sinAvance = ['interpolate', ['linear'], ['line-progress'], 0, 'rgba(0,0,0,0)', 1, 'rgba(0,0,0,0)'];
     lineas.forEach((_, i) => {
       for (const [tipo, ancho] of [
-        ['borde', ['interpolate', ['linear'], ['zoom'], 10, 5.5, 14, 8, 17, 11]],
-        ['linea', ['interpolate', ['linear'], ['zoom'], 10, 3, 14, 5, 17, 7.5]],
+        ['borde', ['interpolate', ['linear'], ['zoom'], 10, 3.6, 14, 5.2, 17, 7.2]],
+        ['linea', ['interpolate', ['linear'], ['zoom'], 10, 2.0, 14, 3.2, 17, 4.9]],
       ] as const) {
         mapa.addLayer(
           {
@@ -841,7 +819,7 @@ export default function Replay() {
             source: 'replay-hecho',
             filter: ['==', ['id'], i],
             layout: { 'line-cap': 'round', 'line-join': 'round' },
-            paint: { 'line-gradient': sinAvance as never, 'line-width': ancho as never, 'line-offset': desplazamiento as never },
+            paint: { 'line-gradient': sinAvance as never, 'line-width': ancho as never },
           },
           antes,
         );
@@ -882,8 +860,10 @@ export default function Replay() {
       const camara = mapa.cameraForBounds(limites, { padding: 64, maxZoom: 14 });
       if (camara) mapa.jumpTo(camara);
     }
-    const textoInicio = `Inicio ${horaCorta(primera.registradoEn)}`;
-    const textoFin = `${enVivo ? 'Último' : 'Fin'} ${horaCorta(ultima.registradoEn)}`;
+    // El iPhone no tiene jornada: su día va de que se activa la app a que se
+    // desactiva.
+    const textoInicio = `${esIphone ? 'App activada' : 'Inicio'} ${horaCorta(primera.registradoEn)}`;
+    const textoFin = `${enVivo ? 'Último' : esIphone ? 'App desactivada' : 'Fin'} ${horaCorta(ultima.registradoEn)}`;
     const inicio = marcadorExtremo(
       mapa,
       'inicio',
@@ -905,7 +885,7 @@ export default function Replay() {
       fin.remove();
       liberarUbicaciones(etiquetasExtremos, ['inicio', 'fin']);
     };
-  }, [mapa, posiciones, seleccionado, desde, hasta, enVivo]);
+  }, [mapa, posiciones, seleccionado, desde, hasta, enVivo, esIphone]);
 
   // Inicio y fin de jornada. Solo se tienen las horas, así que cada uno se
   // ubica en el punto más cercano en el tiempo y solo si cae dentro del
@@ -1004,8 +984,6 @@ export default function Replay() {
           <InfoRecorrido
             totalFixes={posiciones.length}
             simuladas={posiciones.filter((posicion) => posicion.simulada).length}
-            pasos={replay.data.resumen.pasos ?? null}
-            distanciaKm={replay.data.resumen.distanciaKm}
             huecos={huecos}
             reconstruidos={reconstruidos}
             calidad={replay.data.calidad}
@@ -1016,6 +994,7 @@ export default function Replay() {
             reproductor: comparten selección con la lista y llevan el mapa a la
             parada con un vuelo suave al pulsarlas. No pintan nada en el DOM. */}
         <InsigniasParadas mapa={mapa} paradas={paradas} />
+        <GruposEnLugar mapa={mapa} enVivo={enVivo} />
         <aside className={`replay-panel${panelRecogido ? ' colapsado' : ''}`}>
           <div className="cuerpo-panel">
             <FiltroReplay

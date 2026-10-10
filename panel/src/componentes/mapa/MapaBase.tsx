@@ -87,11 +87,11 @@ interface Props {
   // Replay pide el zoom abajo a la derecha: la esquina superior queda libre
   // para el selector de capas pegado al top bar.
   zoomAbajoDerecha?: boolean;
-  // En vivo pide el selector a la izquierda para dejar libre el zoom.
-  selectorIzquierda?: boolean;
-  // Replay lo pide pegado a la esquina superior derecha, sin margen, contra
-  // la barra superior del panel.
+  // Seguimiento y Replay lo piden pegado a la esquina superior derecha, sin
+  // margen, contra la barra superior del panel.
   selectorPegado?: boolean;
+  // Seguimiento no muestra la escala (barra de 1, 5 o 10 km) al hacer zoom.
+  escala?: boolean;
 }
 
 // memo: las páginas con mapa se redibujan en cada sondeo (cada 5 o 10 s) y
@@ -104,8 +104,8 @@ export default memo(function MapaRaster({
   capas = IDS_CAPAS,
   capaInicial,
   zoomAbajoDerecha = false,
-  selectorIzquierda = false,
   selectorPegado = false,
+  escala = true,
 }: Props) {
   const contenedor = useRef<HTMLDivElement>(null);
   const instancia = useRef<MapaMaplibre | null>(null);
@@ -151,7 +151,7 @@ export default memo(function MapaRaster({
     // En Repetición de ruta el zoom va abajo a la derecha para que el selector
     // de capas no lo tape.
     mapa.addControl(new NavigationControl({ showCompass: false }), zoomAbajoDerecha ? 'bottom-right' : 'top-right');
-    mapa.addControl(new ScaleControl({ unit: 'metric' }), 'bottom-left');
+    if (escala) mapa.addControl(new ScaleControl({ unit: 'metric' }), 'bottom-left');
     // El mapa se entrega con el estilo ya cargado: maplibre falla si se le
     // agregan fuentes o capas antes.
     let montado = true;
@@ -176,7 +176,7 @@ export default memo(function MapaRaster({
     // centro y zoom son el encuadre inicial y el lado del control de zoom es de
     // creación: si cambiaran, el mapa se recrea. Las páginas los dejan por
     // defecto y reencuadran al llegar los datos.
-  }, [centro, zoom, zoomAbajoDerecha]);
+  }, [centro, zoom, zoomAbajoDerecha, escala]);
 
   // Cambia la capa base: la nueva aparece desde opacidad 0 y las otras se
   // apagan. No agrega ni quita capas, solo cambia opacidad y visibilidad.
@@ -260,7 +260,7 @@ export default memo(function MapaRaster({
           'absolute z-[5] flex border-borde bg-superficie/95 p-0.5 shadow-flotante backdrop-blur [isolation:isolate]',
           selectorPegado
             ? 'top-0 right-0 rounded-bl-control border-b border-l'
-            : cn('top-3 rounded-control border', selectorIzquierda ? 'left-3' : 'right-3'),
+            : cn('top-3 right-3 rounded-control border'),
         )}
       >
         {pildora && (

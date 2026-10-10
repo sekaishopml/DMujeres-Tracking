@@ -22,6 +22,7 @@ function FilaParada({
   primera,
   ultima,
   activa,
+  alcanzada,
   etiquetaDelRol,
 }: {
   parada: Parada;
@@ -29,6 +30,8 @@ function FilaParada({
   primera: boolean;
   ultima: boolean;
   activa: boolean;
+  // La reproducción ya llegó a esta parada (o la está pasando).
+  alcanzada: boolean;
   etiquetaDelRol: string | null;
 }) {
   const { seleccionarParada } = useReproductor();
@@ -53,7 +56,7 @@ function FilaParada({
             Desde {horaCorta(parada.inicio)} hasta {horaCorta(parada.fin)}
           </span>
           {etiquetaDelRol ? (
-            <span className="parada-rol">{etiquetaDelRol}</span>
+            <span className={`parada-rol${alcanzada ? ' alcanzada' : ''}`}>{etiquetaDelRol}</span>
           ) : (
             (primera || ultima) && <span className="parada-extremo">{primera ? 'Primera' : 'Última'}</span>
           )}
@@ -81,7 +84,10 @@ export function ListaParadas({
   const [microAbiertas, setMicroAbiertas] = useState(false);
   // La parada activa vive en el reproductor: elegirla desde su insignia del
   // mapa también resalta su fila, y viceversa.
-  const { paradaSeleccionada, microparadas, seleccionarParada, resumen } = useReproductor();
+  const { paradaSeleccionada, microparadas, seleccionarParada, resumen, punto } = useReproductor();
+  // Las visitas se pintan a medida que la reproducción pasa por ellas (y se
+  // despintan si se vuelve atrás).
+  const instante = punto ? milisegundos(punto.registradoEn) : null;
   if (paradas.length === 0 && microparadas.length === 0) return null;
   // El total del servidor puede superar las filas cargadas (tope de la
   // consulta): "y N más" cuenta lo que quedó fuera de la carga.
@@ -109,6 +115,7 @@ export function ListaParadas({
                 primera={posicion === 0}
                 ultima={posicion === paradas.length - 1}
                 activa={paradaSeleccionada === posicion}
+                alcanzada={instante != null && instante >= milisegundos(parada.inicio)}
                 etiquetaDelRol={resumen ? etiquetaVisita(resumen.numeroVisita[posicion]) : null}
               />
             ))}

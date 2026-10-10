@@ -128,8 +128,8 @@ export function construirBitacora(entradas: EntradasBitacora): EventoBitacora[] 
       id: `jornada-inicio-${j.inicioEn}`,
       tipo: 'jornadaInicio',
       instante: j.inicioEn,
-      titulo: 'Inició jornada',
-      detalle: 'Activó el registro en la app.',
+      titulo: j.soloApp ? 'App activada' : 'Inició jornada',
+      detalle: j.soloApp ? 'Primer punto del día.' : 'Activó el registro en la app.',
       lugar: lugarDe(posicionCercana(posiciones, inicio)),
       bateriaPct: bateriaDespues(entradas, inicio),
     });
@@ -139,8 +139,11 @@ export function construirBitacora(entradas: EntradasBitacora): EventoBitacora[] 
         id: `jornada-fin-${j.finEn}`,
         tipo: 'jornadaFin',
         instante: j.finEn,
-        titulo: 'Finalizó jornada',
-        detalle: j.duracionMin != null ? `Jornada de ${duracionTexto(j.duracionMin * 60)}.` : undefined,
+        titulo: j.soloApp ? 'App desactivada' : 'Finalizó jornada',
+        detalle:
+          j.duracionMin != null
+            ? `${j.soloApp ? 'App activa' : 'Jornada de'} ${duracionTexto(j.duracionMin * 60)}.`
+            : undefined,
         lugar: lugarDe(posicionCercana(posiciones, fin)),
         bateriaPct: bateriaAntes(entradas, fin),
       });

@@ -58,6 +58,15 @@ export const ETIQUETA_ESTADO: Record<string, string> = {
   detenido: 'Detenido',
   enLinea: 'En línea',
 };
+// iPhone: no tiene jornada, su día va de que se activa la app a que se
+// desactiva.
+export const ETIQUETA_ESTADO_IPHONE: Record<string, string> = {
+  deshabilitado: 'App desactivada',
+  sinSenal: 'App desactivada',
+  senalDebil: 'Señal débil',
+  detenido: 'Detenido',
+  enLinea: 'App activa',
+};
 
 // Colores de estado: los mismos tokens del sistema de diseño (estilos/index.css)
 // para que el chip, el marcador del mapa y los gráficos digan lo mismo.

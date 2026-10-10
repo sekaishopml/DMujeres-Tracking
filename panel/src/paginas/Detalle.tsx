@@ -158,6 +158,7 @@ export default function Detalle() {
     : '/replay';
 
   const dispositivo = equipo.data;
+  const esIphone = dispositivo?.plataforma === 'ios';
   const ultima = posicion.data;
   const puntoMapa: PuntoMapa | null = seleccionado?.lugar
     ? {
@@ -280,11 +281,11 @@ export default function Detalle() {
           {esHoy && ' · hoy'}
         </div>
         <dl className="grid grid-cols-2 divide-borde bg-fondo/60 sm:grid-cols-3 sm:divide-x xl:grid-cols-6">
-          <Hito etiqueta="Inició jornada" icono={Play} valor={hora(resumen.inicioJornada?.instante)} />
+          <Hito etiqueta={esIphone ? 'App activada' : 'Inició jornada'} icono={Play} valor={hora(resumen.inicioJornada?.instante)} />
           <Hito etiqueta="Primera salida" icono={ArrowUpRight} valor={hora(resumen.primeraSalida?.instante)} tono="text-movimiento" />
           <Hito etiqueta="Primera llegada" icono={MapPin} valor={hora(resumen.primeraLlegada?.instante)} tono="text-detenido" />
           <Hito
-            etiqueta="Finalizó jornada"
+            etiqueta={esIphone ? 'App desactivada' : 'Finalizó jornada'}
             icono={Flag}
             valor={resumen.finJornada ? hora(resumen.finJornada.instante) : resumen.inicioJornada ? 'En curso' : GUION}
           />
@@ -322,7 +323,7 @@ export default function Detalle() {
               <Cargando texto="Armando la bitácora…" />
             ) : eventos.length === 0 ? (
               <Vacio titulo="Sin eventos registrados">
-                No hay jornadas, paradas ni cortes de señal para este día.
+                No hay registros, paradas ni cortes de señal para este día.
               </Vacio>
             ) : (
               <LineaTiempo eventos={eventos} seleccionado={seleccionado?.id ?? null} alSeleccionar={setSeleccionado} />
