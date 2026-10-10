@@ -3,6 +3,7 @@ import { createServer, request as httpRequest } from 'node:http';
 import { readFile, stat } from 'node:fs/promises';
 import { extname, join, normalize, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createGzip, gzipSync } from 'node:zlib';
 
 const AQUI = fileURLToPath(new URL('.', import.meta.url));
 // DMJ_WEB_DIST permite servir otra carpeta compilada.
@@ -24,6 +25,12 @@ const TIPOS = {
   '.map': 'application/json; charset=utf-8',
 };
 
+// Texto que vale la pena comprimir (JS, CSS, JSON, SVG, HTML): baja ~4 veces.
+const COMPRIMIBLE = /^(text\/|application\/json|image\/svg)/;
+const aceptaGzip = (req) => /\bgzip\b/.test(req.headers['accept-encoding'] ?? '');
+// Archivos ya comprimidos, por ruta y fecha: se comprimen una sola vez.
+const comprimidos = new Map();
+
 async function servirEstatico(req, res) {
   const url = new URL(req.url, `http://${req.headers.host}`);
   let ruta = decodeURIComponent(url.pathname);
@@ -37,12 +44,30 @@ async function servirEstatico(req, res) {
   try {
     const info = await stat(destino);
     if (info.isFile()) {
-      const cuerpo = await readFile(destino);
-      res.writeHead(200, {
-        'Content-Type': TIPOS[extname(destino)] ?? 'application/octet-stream',
-        'Cache-Control': destino.endsWith('index.html') ? 'no-cache' : 'public, max-age=3600',
-      });
-      res.end(cuerpo);
+      const tipo = TIPOS[extname(destino)] ?? 'application/octet-stream';
+      const cabeceras = {
+        'Content-Type': tipo,
+        // Lo de /assets lleva el hash en el nombre: nunca cambia, se guarda un año.
+        'Cache-Control': destino.endsWith('index.html')
+          ? 'no-cache'
+          : ruta.startsWith('/assets/')
+            ? 'public, max-age=31536000, immutable'
+            : 'public, max-age=3600',
+        Vary: 'Accept-Encoding',
+      };
+      if (COMPRIMIBLE.test(tipo) && aceptaGzip(req)) {
+        const clave = `${destino}:${info.mtimeMs}`;
+        let cuerpo = comprimidos.get(clave);
+        if (!cuerpo) {
+          cuerpo = gzipSync(await readFile(destino), { level: 9 });
+          comprimidos.set(clave, cuerpo);
+        }
+        res.writeHead(200, { ...cabeceras, 'Content-Encoding': 'gzip' });
+        res.end(cuerpo);
+        return;
+      }
+      res.writeHead(200, cabeceras);
+      res.end(await readFile(destino));
       return;
     }
   } catch {
@@ -64,6 +89,14 @@ function proxyApi(req, res) {
       headers: { ...req.headers, host: destino.host },
     },
     (respuesta) => {
+      // El JSON de la API (la ruta de un día pesa ~100 kB) va comprimido.
+      const tipo = respuesta.headers['content-type'] ?? '';
+      if (tipo.startsWith('application/json') && !respuesta.headers['content-encoding'] && aceptaGzip(req)) {
+        const { 'content-length': _largo, ...cabeceras } = respuesta.headers;
+        res.writeHead(respuesta.statusCode ?? 502, { ...cabeceras, 'content-encoding': 'gzip', vary: 'Accept-Encoding' });
+        respuesta.pipe(createGzip()).pipe(res);
+        return;
+      }
       res.writeHead(respuesta.statusCode ?? 502, respuesta.headers);
       respuesta.pipe(res);
     },

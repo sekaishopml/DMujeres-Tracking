@@ -103,7 +103,7 @@ export class Almacen {
     const resultado = await this.#pool.query(
       `SELECT id, identificador, estado, habilitado, atributos
          FROM tracking.dmt_dispositivo
-        WHERE lower(identificador) = lower($1)
+        WHERE identificador = $1
         LIMIT 1`,
       [identificador],
     );
@@ -860,7 +860,7 @@ export class Almacen {
     return String(resultado.rows[0].id);
   }
 
-  // Traccar Client de iOS no avisa inicio ni fin de jornada: la abre su primer
+  // La app del iPhone no avisa inicio ni fin de jornada: la abre su primer
   // punto reciente (los viejos que llegan del búfer no abren nada). Si la
   // abierta viene de otro día, se parte a medianoche como hace la app Android.
   async #abrirJornadaIos(dispositivoId, posicion) {

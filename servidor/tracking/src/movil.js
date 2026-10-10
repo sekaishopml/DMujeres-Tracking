@@ -154,6 +154,33 @@ export async function autorizacionMovil(req, ctx) {
   return sesion ? { modo: 'sesion', sesion } : null;
 }
 
+// Motivo de un token que ya no sirve (sesión revocada o cuenta dada de baja).
+async function motivoSesionCaducada(pool, token) {
+  try {
+    const { rows } = await pool.query(
+      `SELECT CASE WHEN NOT u.habilitado THEN 'cuenta_dada_de_baja' ELSE 'sesion_revocada' END AS motivo
+         FROM iam.dmt_sesion s
+         JOIN iam.dmt_usuario u ON u.id = s.usuario_id
+        WHERE s.token_hash = $1
+          AND (s.revocada_en IS NOT NULL OR NOT u.habilitado)
+        LIMIT 1`,
+      [hashSesion(token)],
+    );
+    return rows[0]?.motivo ?? null;
+  } catch {
+    return null;
+  }
+}
+
+// 401 de los endpoints de la app. Con motivo solo si el token es de una sesión
+// revocada o de una cuenta dada de baja: la app cierra sesión y jornada.
+export async function responderNoAutorizado(req, res, ctx) {
+  const token = tokenPortador(req);
+  const motivo = token && ctx.almacen?.pool ? await motivoSesionCaducada(ctx.almacen.pool, token) : null;
+  if (motivo) return responderJson(res, 401, { error: motivo });
+  return responderSinCuerpo(res, 401);
+}
+
 function direccionCliente(req) {
   const reenviada = String(req.headers['x-forwarded-for'] ?? '').split(',')[0].trim();
   const candidata = reenviada || req.socket?.remoteAddress || '';
@@ -203,7 +230,7 @@ export async function atenderSesion(req, res, ctx) {
       `SELECT u.id, u.nombre, u.nombre_usuario, u.correo, u.habilitado,
               u.hash_clave, u.sal, u.atributos, u.bloqueado_hasta
          FROM iam.dmt_usuario u
-        WHERE lower(u.nombre_usuario) = lower($1) OR lower(u.correo) = lower($1)
+        WHERE u.nombre_usuario = $1 OR lower(u.correo) = lower($1)
         LIMIT 1`,
       [identificador],
     );
@@ -403,7 +430,7 @@ function idCoincide(reportado, dispositivo) {
   const valor = String(reportado).trim();
   if (valor === '') return true;
   if (/^\d+$/.test(valor)) return valor === String(dispositivo.id);
-  return valor.toLowerCase() === dispositivo.identificador.toLowerCase();
+  return valor === dispositivo.identificador;
 }
 
 export async function buscarOFallar(ctx, res, identificador, codigoDesconocido) {
@@ -429,7 +456,7 @@ export async function buscarOFallar(ctx, res, identificador, codigoDesconocido) 
 export async function atenderConfig(req, res, ctx) {
   if (!ctx.configuracion.canalMovilActivo) return responderSinCuerpo(res, 503);
   if (!(await autorizacionMovil(req, ctx))) {
-    return responderSinCuerpo(res, 401);
+    return responderNoAutorizado(req, res, ctx);
   }
   const identificador = identificadorDe(req, ctx.url);
   if (!identificador) return responderSinCuerpo(res, 400);
@@ -481,7 +508,7 @@ export async function atenderConfig(req, res, ctx) {
 export async function atenderJornada(req, res, ctx) {
   if (!ctx.configuracion.canalMovilActivo) return responderSinCuerpo(res, 404);
   if (!(await autorizacionMovil(req, ctx))) {
-    return responderSinCuerpo(res, 401);
+    return responderNoAutorizado(req, res, ctx);
   }
   const lectura = await leerJson(req, LIMITE_JSON);
   if (!lectura.ok) return responderSinCuerpo(res, lectura.motivo === 'grande' ? 413 : 400);
@@ -569,7 +596,7 @@ function recortar(valor, maximo) {
 
 export async function atenderActividadesConsulta(req, res, ctx) {
   if (!ctx.configuracion.canalMovilActivo) return responderSinCuerpo(res, 404);
-  if (!(await autorizacionMovil(req, ctx))) return responderSinCuerpo(res, 401);
+  if (!(await autorizacionMovil(req, ctx))) return responderNoAutorizado(req, res, ctx);
   const identificador = identificadorDe(req, ctx.url);
   if (!identificador) return responderSinCuerpo(res, 400);
   const dispositivo = await buscarOFallar(ctx, res, identificador, 404);
@@ -602,7 +629,7 @@ export async function atenderActividadesConsulta(req, res, ctx) {
 
 export async function atenderActividad(req, res, ctx) {
   if (!ctx.configuracion.canalMovilActivo) return responderSinCuerpo(res, 404);
-  if (!(await autorizacionMovil(req, ctx))) return responderSinCuerpo(res, 401);
+  if (!(await autorizacionMovil(req, ctx))) return responderNoAutorizado(req, res, ctx);
   const lectura = await leerJson(req, LIMITE_JSON);
   if (!lectura.ok) return responderSinCuerpo(res, lectura.motivo === 'grande' ? 413 : 400);
   const cuerpo = objeto(lectura.datos);
@@ -663,7 +690,7 @@ export async function atenderActividad(req, res, ctx) {
 
 export async function atenderEnergia(req, res, ctx) {
   if (!ctx.configuracion.canalMovilActivo) return responderSinCuerpo(res, 404);
-  if (!(await autorizacionMovil(req, ctx))) return responderSinCuerpo(res, 401);
+  if (!(await autorizacionMovil(req, ctx))) return responderNoAutorizado(req, res, ctx);
   const lectura = await leerJson(req, LIMITE_JSON);
   if (!lectura.ok) return responderSinCuerpo(res, lectura.motivo === 'grande' ? 413 : 400);
   const cuerpo = objeto(lectura.datos);
@@ -705,7 +732,7 @@ export async function atenderEnergia(req, res, ctx) {
 export async function atenderDiagnosticos(req, res, ctx) {
   if (!ctx.configuracion.canalMovilActivo) return responderSinCuerpo(res, 404);
   if (!(await autorizacionMovil(req, ctx))) {
-    return responderSinCuerpo(res, 401);
+    return responderNoAutorizado(req, res, ctx);
   }
   const identificador = identificadorDe(req, ctx.url);
   if (!identificador) return responderSinCuerpo(res, 400);
@@ -882,7 +909,7 @@ async function auditarOta(ctx, dispositivo, versionCode, actualiza, userAgent) {
 export async function atenderOta(req, res, ctx) {
   if (!ctx.configuracion.canalMovilActivo) return responderSinCuerpo(res, 503);
   if (!(await autorizacionMovil(req, ctx))) {
-    return responderSinCuerpo(res, 401);
+    return responderNoAutorizado(req, res, ctx);
   }
   const identificador = identificadorDe(req, ctx.url);
   const versionTexto = (ctx.url.searchParams.get('versionCode') ?? '').trim();
@@ -925,7 +952,7 @@ export async function atenderOta(req, res, ctx) {
 
 export async function atenderTokenFcm(req, res, ctx) {
   if (!(await autorizacionMovil(req, ctx))) {
-    return responderSinCuerpo(res, 401);
+    return responderNoAutorizado(req, res, ctx);
   }
   const identificador = identificadorDeCabecera(req);
   if (!identificador) return responderSinCuerpo(res, 400);
@@ -964,7 +991,7 @@ export async function atenderTokenFcm(req, res, ctx) {
 
 export async function atenderRecuperacionAck(req, res, ctx) {
   if (!(await autorizacionMovil(req, ctx))) {
-    return responderSinCuerpo(res, 401);
+    return responderNoAutorizado(req, res, ctx);
   }
   const identificador = identificadorDeCabecera(req);
   if (!identificador) return responderSinCuerpo(res, 400);
@@ -1009,7 +1036,7 @@ export async function atenderRecuperacionAck(req, res, ctx) {
 export async function atenderJornadaConsulta(req, res, ctx) {
   if (!ctx.configuracion.canalMovilActivo) return responderSinCuerpo(res, 404);
   if (!(await autorizacionMovil(req, ctx))) {
-    return responderSinCuerpo(res, 401);
+    return responderNoAutorizado(req, res, ctx);
   }
   const identificador = identificadorDe(req, ctx.url);
   if (!identificador) return responderSinCuerpo(res, 400);
@@ -1073,7 +1100,7 @@ export function numeroFinito(valor) {
 export async function atenderLotePosiciones(req, res, ctx) {
   if (!ctx.configuracion.canalMovilActivo) return responderSinCuerpo(res, 503);
   if (!(await autorizacionMovil(req, ctx))) {
-    return responderSinCuerpo(res, 401);
+    return responderNoAutorizado(req, res, ctx);
   }
   const lectura = await leerJson(req, LIMITE_LOTE);
   if (!lectura.ok) return responderSinCuerpo(res, lectura.motivo === 'grande' ? 413 : 400);
