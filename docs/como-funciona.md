@@ -127,16 +127,22 @@ ubicación nueva.
 
 ## Teléfonos iPhone
 
-No hay app propia para iPhone. Esas personas usan Traccar Client, que se baja
-gratis de la App Store. Al crear la cuenta en el panel se elige iPhone y se
-copia el identificador de dispositivo que muestra Traccar Client; en el iPhone
-se pone como servidor `http://68.168.20.219:5055`.
+No hay app propia para iPhone. Esas personas usan Overland GPS Tracker, que
+se baja gratis de la App Store. Al crear la cuenta en el panel se elige iPhone
+y se inventa un identificador para el equipo; en el iPhone se pone como
+servidor `https://tracking.sekaidevec.com/overland?id=` seguido de ese
+identificador.
 
-Traccar Client no avisa cuándo empieza ni cuándo termina el trabajo, así que
-de eso se encarga el servidor: el primer punto del día abre la jornada y, tras
-unas dos horas sin puntos, la cierra con la hora del último. También la parte
-a medianoche, igual que la app Android. Lo que no tienen los iPhone es el
-cronograma de actividades.
+Overland guarda los puntos en el teléfono y los manda por lotes. Solo los
+borra cuando el servidor le confirma que los recibió, así que sin conexión no
+se pierde la ruta: llega completa al volver la señal. Si un lote llega dos
+veces, el servidor descarta los repetidos.
+
+Por ahora los iPhone quedan fuera del control de jornadas: solo se guardan sus
+puntos. Tampoco tienen el cronograma de actividades.
+
+El receptor OsmAnd (puerto 5055) sigue abierto para las versiones viejas de la
+app Android y para Traccar Client.
 
 ## El panel
 
