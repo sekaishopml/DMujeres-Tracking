@@ -8,6 +8,8 @@ export interface Jornada {
   /** Duración en minutos; si está abierta se calcula hasta el momento de la consulta. */
   duracionMin: number;
   abierta: boolean;
+  /** iPhone: no es una jornada marcada, es del primer al último punto del día. */
+  soloApp?: boolean;
 }
 
 /** Respuesta de GET /api/v1/fleet/{id}/journeys. */

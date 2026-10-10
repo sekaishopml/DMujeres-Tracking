@@ -7,6 +7,7 @@ import * as cronograma from './cronograma.js';
 import * as eventos from './eventos.js';
 import * as clientes from './clientes.js';
 import * as cuentas from './cuentas.js';
+import * as bajas from './bajas.js';
 import * as esquema from './esquema.js';
 import * as flota from './flota.js';
 import * as geocodigo from './geocodigo.js';
@@ -52,6 +53,9 @@ export const DEFINICIONES = [
   { metodo: 'PATCH', ruta: '/api/v1/usuarios/:id', manejar: cuentas.actualizarCuenta },
   { metodo: 'DELETE', ruta: '/api/v1/usuarios/:id', manejar: cuentas.eliminarCuenta },
   { metodo: 'POST', ruta: '/api/v1/usuarios/:id/desbloquear', manejar: cuentas.desbloquearCuenta },
+  { metodo: 'DELETE', ruta: '/api/v1/usuarios/:id/definitivo', manejar: bajas.eliminarDefinitivamente },
+  { metodo: 'GET', ruta: '/api/v1/bajas', manejar: bajas.listarBajas },
+  { metodo: 'GET', ruta: '/api/v1/bajas/:nombre', manejar: bajas.descargarBaja },
   { metodo: 'POST', ruta: '/api/v1/usuarios/:id/cerrar-sesion-telefono', manejar: cuentas.cerrarSesionTelefono },
   { metodo: 'GET', ruta: '/api/v1/usuarios/:id/equipos', manejar: cuentas.obtenerEquiposCuenta },
   { metodo: 'PUT', ruta: '/api/v1/usuarios/:id/equipos', manejar: cuentas.reemplazarEquiposCuenta },

@@ -56,7 +56,7 @@ export async function iniciarSesion(ctx) {
     `SELECT u.id, u.id_publico, u.nombre, u.correo, u.administrador, u.solo_lectura, u.habilitado,
             u.hash_clave, u.sal, u.bloqueado_hasta, ${SUBCONSULTA_DISPOSITIVOS}
      FROM iam.dmt_usuario u
-     WHERE lower(u.nombre_usuario) = lower($1) OR lower(u.correo) = lower($1)
+     WHERE u.nombre_usuario = $1 OR lower(u.correo) = lower($1)
      LIMIT 1`,
     [identificador],
   );

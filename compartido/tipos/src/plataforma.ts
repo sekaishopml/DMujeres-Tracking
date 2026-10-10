@@ -56,8 +56,8 @@ export interface CreacionUsuarioPlataforma {
   // Pide que se cree también el equipo de la persona (identificador = usuario
   // en minúsculas) y su asignación. El servidor responde `equipo` o null.
   crearEquipo?: boolean;
-  // `ios`: el equipo usa Traccar Client y su identificador es el ID que
-  // muestra esa app (`identificadorEquipo`, obligatorio en ese caso).
+  // `ios`: el equipo usa Overland y su identificador es el que se inventa al
+  // darlo de alta (`identificadorEquipo`, obligatorio en ese caso).
   plataforma?: "android" | "ios";
   identificadorEquipo?: string;
 }

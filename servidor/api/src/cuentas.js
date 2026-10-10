@@ -471,9 +471,9 @@ export async function crearCuenta(ctx) {
   // Si no se indica, una persona de campo nace con su equipo; una cuenta de
   // administración no (no se rastrea).
   const crearEquipoSolicitado = booleanoOpcional(cuerpo.crearEquipo, 'crearEquipo');
-  // iPhone: el equipo usa Traccar Client y se da de alta como en Traccar, con
-  // nombre e identificador de dispositivo. No entra a ninguna app: su usuario
-  // es el identificador y la clave es aleatoria.
+  // iPhone: el equipo usa Overland y se da de alta con nombre e identificador
+  // de dispositivo (el que va en la dirección del servidor). No entra a
+  // ninguna app: su usuario es el identificador y la clave es aleatoria.
   const ios = cuerpo.plataforma === 'ios';
   if (cuerpo.plataforma != null && !['android', 'ios'].includes(cuerpo.plataforma)) {
     throw datosInvalidos('plataforma debe ser android o ios.');
@@ -488,7 +488,7 @@ export async function crearCuenta(ctx) {
 
   const resultado = await enTransaccion(ctx.pool, async (cliente) => {
     const duplicado = await cliente.query(
-      'SELECT 1 FROM iam.dmt_usuario WHERE lower(nombre_usuario) = lower($1) LIMIT 1',
+      'SELECT 1 FROM iam.dmt_usuario WHERE nombre_usuario = $1 LIMIT 1',
       [usuario],
     );
     if (duplicado.rowCount > 0) {
@@ -533,7 +533,7 @@ export async function crearCuenta(ctx) {
     // persona aparezca en replay/en vivo.
     let equipo = null;
     if (crearEquipo) {
-      const identificador = (idTraccar ?? usuario).toLowerCase();
+      const identificador = idTraccar ?? usuario;
       const ocupado = await cliente.query(
         'SELECT 1 FROM tracking.dmt_dispositivo WHERE identificador = $1 LIMIT 1',
         [identificador],
@@ -690,7 +690,7 @@ export async function actualizarCuenta(ctx) {
       await cliente.query(
         `UPDATE tracking.dmt_dispositivo
             SET habilitado = false, actualizado_en = now()
-          WHERE identificador = lower($1)`,
+          WHERE identificador = $1`,
         [actual.nombre_usuario],
       );
     }
@@ -699,7 +699,7 @@ export async function actualizarCuenta(ctx) {
       await cliente.query(
         `UPDATE tracking.dmt_dispositivo
             SET habilitado = true, actualizado_en = now()
-          WHERE identificador = lower($1)`,
+          WHERE identificador = $1`,
         [actual.nombre_usuario],
       );
       const reactivadas = await cliente.query(
@@ -707,7 +707,7 @@ export async function actualizarCuenta(ctx) {
             SET activa = true, desde_en = now(), hasta_en = NULL, actualizado_en = now()
           WHERE usuario_id = $1
             AND dispositivo_id IN (
-              SELECT id FROM tracking.dmt_dispositivo WHERE identificador = lower($2)
+              SELECT id FROM tracking.dmt_dispositivo WHERE identificador = $2
             )
           RETURNING dispositivo_id`,
         [actual.id, actual.nombre_usuario],
@@ -717,7 +717,7 @@ export async function actualizarCuenta(ctx) {
           `INSERT INTO operations.dmt_asignacion (usuario_id, dispositivo_id, activa, desde_en)
            SELECT $1, d.id, true, now()
              FROM tracking.dmt_dispositivo d
-            WHERE d.identificador = lower($2)
+            WHERE d.identificador = $2
               AND NOT EXISTS (
                 SELECT 1 FROM operations.dmt_asignacion a
                  WHERE a.usuario_id = $1 AND a.dispositivo_id = d.id AND a.activa)`,
@@ -793,7 +793,7 @@ export async function eliminarCuenta(ctx) {
     const { rows: equiposDadosDeBaja } = await cliente.query(
       `UPDATE tracking.dmt_dispositivo
           SET habilitado = false, actualizado_en = now()
-        WHERE identificador = lower($1) AND habilitado
+        WHERE identificador = $1 AND habilitado
         RETURNING id`,
       [actual.nombre_usuario],
     );

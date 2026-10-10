@@ -12,7 +12,19 @@ export const SELECT_DISPOSITIVO = `
   SELECT d.id, d.id_publico, d.nombre, d.identificador, d.habilitado, d.atributos,
          CASE
            WHEN NOT d.habilitado THEN 'DESHABILITADO'
-           WHEN d.atributos ? 'mobile.journeyId' AND NOT ja.activa THEN 'DESHABILITADO'
+           -- iPhone: no tiene jornadas; su estado sale solo de sus puntos (manda
+           -- uno cada 10 s mientras la app rastrea, también estando quieto).
+           --   más de 15 min sin puntos (o nunca): DESHABILITADO (app desactivada)
+           --   de 3 a 15 min sin puntos, o último punto con más de 50 m de
+           --   error: SENAL_DEBIL (sin internet o GPS malo; los puntos
+           --   guardados llegan al volver la señal)
+           --   si no, EN_LINEA o DETENIDO según la velocidad, como abajo
+           WHEN d.atributos->>'plataforma' = 'ios'
+                AND (ct.contacto IS NULL OR ct.contacto < now() - interval '15 minutes') THEN 'DESHABILITADO'
+           WHEN d.atributos->>'plataforma' = 'ios'
+                AND (ct.contacto < now() - interval '3 minutes' OR pa.precision_m > 50) THEN 'SENAL_DEBIL'
+           WHEN d.atributos->>'plataforma' IS DISTINCT FROM 'ios'
+                AND d.atributos ? 'mobile.journeyId' AND NOT ja.activa THEN 'DESHABILITADO'
            -- Contacto: la última vez que el teléfono respondió, con un punto o
            -- con el diagnóstico que manda cada 10 min aunque esté quieto.
            --   más de 60 min sin responder (o nunca): SIN_SENAL

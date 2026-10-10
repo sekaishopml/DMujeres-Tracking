@@ -7,6 +7,11 @@
 //  - SALTO: ir y volver a más de 180 km/h. Pasa cuando dos teléfonos reportan
 //    con la misma cuenta y los puntos alternan entre dos sitios. Se conserva
 //    la secuencia coherente y, si se repite, se avisa.
+//  - IMPRECISO: al salir de un lugar cerrado el teléfono da ubicaciones de
+//    wifi o antenas (20 a 100 m de error) hasta que el GPS engancha; dibujadas
+//    hacen zigzag. Se quitan si hay puntos precisos a menos de 5 min.
+//  - EXCURSIÓN: el GPS se va unos metros y vuelve en segundos, a una velocidad
+//    que no cuadra con la que él mismo reporta (54 m en 1 s diciendo 7 km/h).
 
 import { LAT_MAX_OP, LAT_MIN_OP, LON_MAX_OP, LON_MIN_OP } from './segmentos.js';
 import { VELOCIDAD_IMPOSIBLE_KMH, distanciaKm } from './geo.js';
@@ -35,6 +40,24 @@ const PICO_QUIETO_VECINOS_KMH = 6;
 const PICO_QUIETO_DISTANCIA_KM = 0.04;
 const PICO_QUIETO_ENTRE_VECINOS_KM = 0.03;
 
+// Imprecisión: una racha de puntos de más de 20 m entre dos puntos precisos que
+// están a 5 min o menos uno del otro se quita entera (es la salida o la
+// llegada a un lugar cerrado). Si la racha dura más o no tiene punto preciso a
+// un lado, se conserva: es lo único que hay de ese momento.
+// Con 20 m (no 30) salen también los de 24 a 26 m que, al dejar una parada,
+// caen dentro de la manzana del frente y desvían el trazo.
+const IMPRECISO_M = 20;
+const IMPRECISO_RACHA_MAX_MS = 5 * 60_000;
+
+// Excursión: se aleja 25 m o más del último punto bueno, a más de 3 veces la
+// velocidad reportada + 20 km/h, y en 60 s vuelve a quedar cerca de donde
+// estaba. Si no vuelve, es un movimiento real y se conserva.
+const EXCURSION_MIN_M = 25;
+const EXCURSION_VENTANA_MS = 60_000;
+const EXCURSION_FACTOR = 3;
+const EXCURSION_MARGEN_KMH = 20;
+const EXCURSION_REGRESO_M = 15;
+
 function enZona(p) {
   return (
     Number.isFinite(p.latitud) && Number.isFinite(p.longitud)
@@ -61,20 +84,67 @@ function esPicoQuieto(anterior, actual, siguiente) {
   );
 }
 
+const ms = (p) => new Date(p.registradoEn).getTime();
+const esPreciso = (p) => !(p.precisionM > IMPRECISO_M);
+const metros = (a, b) => distanciaKm(a.latitud, a.longitud, b.latitud, b.longitud) * 1000;
+
+function sinImprecisos(posiciones) {
+  const salida = [];
+  let i = 0;
+  while (i < posiciones.length) {
+    if (esPreciso(posiciones[i])) {
+      salida.push(posiciones[i]);
+      i += 1;
+      continue;
+    }
+    let j = i;
+    while (j < posiciones.length && !esPreciso(posiciones[j])) j += 1;
+    const antes = posiciones[i - 1];
+    const despues = posiciones[j];
+    const corta = antes && despues && ms(despues) - ms(antes) <= IMPRECISO_RACHA_MAX_MS;
+    if (!corta) salida.push(...posiciones.slice(i, j));
+    i = j;
+  }
+  return salida;
+}
+
+// Cuántos puntos desde i forman una excursión desde el ancla (0 si no la hay).
+function largoExcursion(ancla, lista, i) {
+  const actual = lista[i];
+  const lejos = metros(ancla, actual);
+  if (lejos < EXCURSION_MIN_M || ms(actual) - ms(ancla) > EXCURSION_VENTANA_MS) return 0;
+  const reportada = Math.max(ancla.velocidadKmh, actual.velocidadKmh);
+  if (!Number.isFinite(reportada)) return 0;
+  if (!(velocidadKmh(ancla, actual) > EXCURSION_FACTOR * reportada + EXCURSION_MARGEN_KMH)) return 0;
+  for (let j = i + 1; j < lista.length && ms(lista[j]) - ms(ancla) <= EXCURSION_VENTANA_MS; j += 1) {
+    if (metros(ancla, lista[j]) <= Math.max(EXCURSION_REGRESO_M, lejos / 3)) return j - i;
+  }
+  return 0;
+}
+
 export function depurarPosiciones(posiciones) {
-  const enArea = [];
+  const dentro = [];
   let fueraDeZona = 0;
   for (const p of posiciones) {
-    if (enZona(p)) enArea.push(p);
+    if (enZona(p)) dentro.push(p);
     else fueraDeZona += 1;
   }
+  const enArea = sinImprecisos(dentro);
+  const imprecisas = dentro.length - enArea.length;
   const conservadas = [];
   let saltos = 0;
   let saltosLargos = 0;
+  let excursiones = 0;
   for (let i = 0; i < enArea.length; i += 1) {
     const actual = enArea[i];
     const anterior = conservadas[conservadas.length - 1];
     const siguiente = enArea[i + 1];
+    const excursion = anterior ? largoExcursion(anterior, enArea, i) : 0;
+    if (excursion > 0) {
+      excursiones += excursion;
+      i += excursion - 1;
+      continue;
+    }
     if (anterior && siguiente) {
       const ida = velocidadKmh(anterior, actual);
       const vuelta = velocidadKmh(actual, siguiente);
@@ -111,6 +181,8 @@ export function depurarPosiciones(posiciones) {
     calidad: {
       descartadasFueraDeZona: fueraDeZona,
       descartadasSalto: saltos,
+      descartadasImprecisas: imprecisas,
+      descartadasExcursion: excursiones,
       posibleOrigenMultiple: saltosLargos >= MIN_SALTOS_ORIGEN_MULTIPLE,
     },
   };

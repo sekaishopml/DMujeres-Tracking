@@ -62,6 +62,10 @@ export interface ReplayResumen {
 export interface ReplayCalidad {
   descartadasFueraDeZona: number;
   descartadasSalto: number;
+  /** Ubicaciones de wifi o antenas (más de 30 m) entre puntos precisos. */
+  descartadasImprecisas?: number;
+  /** Idas y vueltas del GPS en segundos que no cuadran con su velocidad. */
+  descartadasExcursion?: number;
   posibleOrigenMultiple: boolean;
 }
 

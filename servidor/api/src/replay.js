@@ -130,9 +130,17 @@ export async function obtenerReplay(ctx) {
   }
   // Solo se traza dentro de una jornada: fuera de ella la app manda puntos de
   // presencia, espaciados y poco precisos, que no son un recorrido.
+  // El iPhone es un caso aparte: no tiene jornadas (su app no las avisa), así
+  // que se traza todo lo que mandó y cada día va por separado. El panel marca
+  // el primer punto del día como "App activada" y el último como "App
+  // desactivada".
+  const ios = dispositivo.atributos?.plataforma === 'ios';
+  const diaLocal = new Intl.DateTimeFormat('en-CA', { timeZone: ctx.entorno.zonaHoraria });
   const jornadaDe = new Map();
-  const enJornada = rows.filter((fila) => fila.jornada_id != null);
-  for (const fila of enJornada) jornadaDe.set(Number(fila.id), String(fila.jornada_id));
+  const enJornada = ios ? rows : rows.filter((fila) => fila.jornada_id != null);
+  for (const fila of enJornada) {
+    jornadaDe.set(Number(fila.id), ios ? diaLocal.format(fila.registrado_en) : String(fila.jornada_id));
+  }
   if (enJornada.length === 0) {
     throw noEncontrado('No hubo jornada en la ventana pedida: sin jornada no se traza recorrido.');
   }
@@ -168,7 +176,7 @@ export async function obtenerReplay(ctx) {
   await explicarHuecos(ctx, dispositivo.id, huecos);
   const sinSenal = huecos.filter((h) => h.motivo !== 'FUERA_DE_JORNADA').length;
   const resumen = resumirRecorrido(posiciones, sinSenal);
-  resumen.pasos = await pasosDeJornadas(ctx, [...new Set(jornadaDe.values())]);
+  resumen.pasos = ios ? null : await pasosDeJornadas(ctx, [...new Set(jornadaDe.values())]);
   if (grupos.length > 1) {
     // Distancia y tiempo solo dentro de las jornadas, sin el salto entre ellas.
     const km = grupos.reduce((t, g) => t + sumarDistanciasKm(g.posiciones, { omitirImposibles: true }), 0);
