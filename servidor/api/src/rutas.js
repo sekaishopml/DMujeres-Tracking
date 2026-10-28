@@ -6,6 +6,7 @@ import * as config from './config.js';
 import * as cronograma from './cronograma.js';
 import * as eventos from './eventos.js';
 import * as clientes from './clientes.js';
+import * as geocercas from './geocercas.js';
 import * as cuentas from './cuentas.js';
 import * as bajas from './bajas.js';
 import * as esquema from './esquema.js';
@@ -13,9 +14,11 @@ import * as flota from './flota.js';
 import * as geocodigo from './geocodigo.js';
 import * as grupos from './grupos.js';
 import * as jornadas from './jornadas.js';
+import * as panel from './panel.js';
 import * as posiciones from './posiciones.js';
 import * as replay from './replay.js';
 import * as reportes from './reportes.js';
+import * as reporteMarketing from './reporteMarketing.js';
 import * as roles from './roles.js';
 import * as salud from './salud.js';
 import * as usuarios from './usuarios.js';
@@ -40,6 +43,7 @@ export const DEFINICIONES = [
   { metodo: 'GET', ruta: '/api/v1/reports/trips', manejar: reportes.listarViajes },
   { metodo: 'GET', ruta: '/api/v1/reports/stops', manejar: reportes.listarParadas },
   { metodo: 'GET', ruta: '/api/v1/reports/summary', manejar: reportes.obtenerResumen },
+  { metodo: 'GET', ruta: '/api/v1/reports/marketing', manejar: reporteMarketing.descargarReporteMarketing },
   { metodo: 'GET', ruta: '/api/v1/battery', manejar: bateria.listarBateriaFlota },
   { metodo: 'GET', ruta: '/api/v1/battery/:deviceId', manejar: bateria.obtenerBateriaDispositivo },
   { metodo: 'GET', ruta: '/api/v1/users', manejar: usuarios.listarUsuarios },
@@ -59,6 +63,11 @@ export const DEFINICIONES = [
   { metodo: 'POST', ruta: '/api/v1/usuarios/:id/cerrar-sesion-telefono', manejar: cuentas.cerrarSesionTelefono },
   { metodo: 'GET', ruta: '/api/v1/usuarios/:id/equipos', manejar: cuentas.obtenerEquiposCuenta },
   { metodo: 'PUT', ruta: '/api/v1/usuarios/:id/equipos', manejar: cuentas.reemplazarEquiposCuenta },
+  { metodo: 'GET', ruta: '/api/v1/panel/opciones', manejar: panel.listarOpciones },
+  { metodo: 'GET', ruta: '/api/v1/panel/cuentas', manejar: panel.listarCuentasPanel },
+  { metodo: 'POST', ruta: '/api/v1/panel/cuentas', manejar: panel.crearCuentaPanel },
+  { metodo: 'GET', ruta: '/api/v1/panel/cuentas/:id', manejar: panel.obtenerCuentaPanel },
+  { metodo: 'PATCH', ruta: '/api/v1/panel/cuentas/:id', manejar: panel.actualizarCuentaPanel },
   { metodo: 'GET', ruta: '/api/v1/grupos', manejar: grupos.listarGrupos },
   { metodo: 'POST', ruta: '/api/v1/grupos', manejar: grupos.crearGrupo },
   { metodo: 'GET', ruta: '/api/v1/grupos/:id', manejar: grupos.obtenerGrupo },
@@ -73,6 +82,11 @@ export const DEFINICIONES = [
   { metodo: 'GET', ruta: '/api/v1/clientes', manejar: clientes.listarClientes },
   { metodo: 'POST', ruta: '/api/v1/clientes', manejar: clientes.crearClientes },
   { metodo: 'PATCH', ruta: '/api/v1/clientes/:id', manejar: clientes.actualizarCliente },
+  { metodo: 'GET', ruta: '/api/v1/geocercas', manejar: geocercas.listarGeocercas },
+  { metodo: 'POST', ruta: '/api/v1/geocercas', manejar: geocercas.crearGeocerca },
+  { metodo: 'GET', ruta: '/api/v1/geocercas/visitas', manejar: geocercas.visitasGeocercas },
+  { metodo: 'PATCH', ruta: '/api/v1/geocercas/:id', manejar: geocercas.actualizarGeocerca },
+  { metodo: 'GET', ruta: '/api/v1/geocercas/:id/historial', manejar: geocercas.historialGeocerca },
   { metodo: 'GET', ruta: '/api/v1/eventos', manejar: eventos.listarEventos },
   { metodo: 'GET', ruta: '/api/v1/cronograma/novedades', manejar: cronograma.novedadesCronograma },
   { metodo: 'POST', ruta: '/api/v1/cronograma/visto', manejar: cronograma.marcarCronogramaVisto },

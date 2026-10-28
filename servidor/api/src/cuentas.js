@@ -18,7 +18,7 @@ import {
 } from './http.js';
 import { auditar, SUBCONSULTA_DISPOSITIVOS } from './sesiones.js';
 import { crearCredencial } from './auth.js';
-import { exigirOperativo } from './permisos.js';
+import { exigirAdministracion, exigirOperativo } from './permisos.js';
 import {
   CLAVES_CONFIG_APP,
   CONFIG_POR_DEFECTO,
@@ -90,7 +90,7 @@ function textoOpcional(valor, campo, maximo = 200) {
   return limpio;
 }
 
-function usuarioObligatorio(valor) {
+export function usuarioObligatorio(valor) {
   const limpio = textoObligatorio(valor, 'usuario', 40);
   if (!USUARIO_VALIDO.test(limpio)) {
     throw datosInvalidos('El campo usuario solo admite letras, números, punto, guion y guion bajo (2 a 40).');
@@ -98,7 +98,7 @@ function usuarioObligatorio(valor) {
   return limpio;
 }
 
-function claveObligatoria(valor) {
+export function claveObligatoria(valor) {
   if (typeof valor !== 'string' || valor === '') {
     throw datosInvalidos('El campo clave es obligatorio.');
   }
@@ -375,7 +375,8 @@ async function buscarCuentaInterna(cliente, valor) {
   const { rows } = await cliente.query(
     `SELECT ${CAMPOS_CUENTA}
        FROM iam.dmt_usuario u
-      WHERE u.id_publico::text = $1 OR u.id::text = $1 OR u.nombre_usuario = $1
+      WHERE (u.id_publico::text = $1 OR u.id::text = $1 OR u.nombre_usuario = $1)
+        AND NOT coalesce(u.atributos->>'sistema' = 'true', false)
       LIMIT 1
       FOR UPDATE`,
     [texto],
@@ -450,7 +451,8 @@ export async function obtenerCuenta(ctx) {
     ctx.pool,
     `SELECT ${CAMPOS_CUENTA}, ${SUBCONSULTA_DISPOSITIVOS}
        FROM iam.dmt_usuario u
-      WHERE u.id_publico::text = $1 OR u.id::text = $1 OR u.nombre_usuario = $1
+      WHERE (u.id_publico::text = $1 OR u.id::text = $1 OR u.nombre_usuario = $1)
+        AND NOT coalesce(u.atributos->>'sistema' = 'true', false)
       LIMIT 1`,
     [texto],
     { signal: ctx.signal },
@@ -512,6 +514,8 @@ export async function crearCuenta(ctx) {
       }
     }
     const administrador = pideAdministrador || codigos.includes('administrador');
+    // Dar administración solo lo puede hacer una administradora.
+    if (administrador) await exigirAdministracion(ctx);
     const soloLectura = !administrador && codigos.includes('solo_lectura');
     const crearEquipo = crearEquipoSolicitado ?? !administrador;
     const atributos = configApp && Object.keys(configApp).length > 0
@@ -619,6 +623,8 @@ export async function actualizarCuenta(ctx) {
       administrador = codigos.includes('administrador');
       soloLectura = codigos.includes('solo_lectura');
     }
+    // Tocar o crear administradoras solo lo puede hacer una administradora.
+    if (actual.administrador || administrador) await exigirAdministracion(ctx);
     if (administrador === false && actual.administrador && actual.habilitado) {
       const administradores = await contarAdministradoresActivos(cliente);
       if (administradores <= 1) {
@@ -757,6 +763,7 @@ export async function eliminarCuenta(ctx) {
   const resultado = await enTransaccion(ctx.pool, async (cliente) => {
     const actual = await buscarCuentaInterna(cliente, ctx.params.id);
     if (!actual) throw noEncontrado('El usuario no existe.');
+    if (actual.administrador) await exigirAdministracion(ctx);
     const objetivoEsAdminActivo = actual.administrador && actual.habilitado;
     const administradores = await contarAdministradoresActivos(cliente);
     const motivo = motivoRechazoEliminacion({
@@ -835,7 +842,8 @@ export async function obtenerEquiposCuenta(ctx) {
     ctx.pool,
     `SELECT u.id
        FROM iam.dmt_usuario u
-      WHERE u.id_publico::text = $1 OR u.id::text = $1 OR u.nombre_usuario = $1
+      WHERE (u.id_publico::text = $1 OR u.id::text = $1 OR u.nombre_usuario = $1)
+        AND NOT coalesce(u.atributos->>'sistema' = 'true', false)
       LIMIT 1`,
     [texto],
     { signal: ctx.signal },
@@ -958,7 +966,8 @@ export async function cerrarSesionTelefono(ctx) {
 async function idDeCuenta(ctx) {
   const { rows } = await ctx.pool.query(
     `SELECT id FROM iam.dmt_usuario
-      WHERE id_publico::text = $1 OR id::text = $1 OR nombre_usuario = $1 LIMIT 1`,
+      WHERE (id_publico::text = $1 OR id::text = $1 OR nombre_usuario = $1)
+        AND NOT coalesce(atributos->>'sistema' = 'true', false) LIMIT 1`,
     [String(ctx.params.id)],
   );
   if (rows.length === 0) throw noEncontrado('El usuario no existe.');

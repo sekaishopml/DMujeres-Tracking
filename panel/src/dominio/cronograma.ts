@@ -1,3 +1,5 @@
+import { useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { api, consulta } from '@/lib/api';
 import { sumarDias } from '@/dominio/rango';
 
@@ -89,3 +91,27 @@ const NOMBRE_DIA = new Intl.DateTimeFormat('es-EC', { timeZone: 'UTC', weekday: 
 const NOMBRE_MES = new Intl.DateTimeFormat('es-EC', { timeZone: 'UTC', month: 'long', year: 'numeric' });
 export const etiquetaDia = (f: string) => NOMBRE_DIA.format(new Date(`${f}T12:00:00Z`));
 export const etiquetaMes = (f: string) => NOMBRE_MES.format(new Date(`${f}T12:00:00Z`));
+
+// Lo que explica una ausencia (vacaciones, permisos) o pide revisar (novedad),
+// cargado para hoy: la de más peso por persona (clave idPublico). Inicio y
+// Seguimiento comparten la consulta del cronograma de hoy.
+export const PESO_AUSENCIA: Partial<Record<TipoActividad, number>> = { novedad: 1, permiso: 2, permiso_medico: 3, vacaciones: 4 };
+
+export function useAusenciasDeHoy(hoy: string, refrescoMs: number) {
+  const actividades = useQuery({
+    queryKey: ['inicio', 'cronograma', hoy],
+    queryFn: () => traerCronograma(hoy, hoy),
+    refetchInterval: () => (document.hidden ? false : refrescoMs),
+    retry: false,
+  });
+  const ausencias = useMemo(() => {
+    const mapa = new Map<string, Actividad>();
+    for (const a of actividades.data?.datos ?? []) {
+      const peso = PESO_AUSENCIA[a.tipo];
+      const previa = mapa.get(a.dispositivoId);
+      if (peso && (!previa || peso > (PESO_AUSENCIA[previa.tipo] ?? 0))) mapa.set(a.dispositivoId, a);
+    }
+    return mapa;
+  }, [actividades.data]);
+  return { actividades, ausencias };
+}

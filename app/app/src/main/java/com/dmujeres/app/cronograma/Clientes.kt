@@ -72,6 +72,19 @@ object ParadasDia {
 
     fun guardadas(fecha: String): List<ParadaGps> = cache[fecha]?.second ?: emptyList()
 
+    /** Paradas guardadas de [fecha] que ningún tramo ocupado cubre, con su horario en minutos del día. */
+    fun sinCubrir(fecha: String, ocupados: List<AgendaDia.Tramo>): List<Pair<ParadaGps, AgendaDia.Tramo>> {
+        val reloj = java.util.Calendar.getInstance(java.util.TimeZone.getTimeZone("America/Guayaquil"))
+        val minuto = { ms: Long ->
+            reloj.timeInMillis = ms
+            reloj.get(java.util.Calendar.HOUR_OF_DAY) * 60 + reloj.get(java.util.Calendar.MINUTE)
+        }
+        return guardadas(fecha).mapNotNull { p ->
+            val t = AgendaDia.Tramo(minuto(p.inicio), minuto(p.fin))
+            if (t.fin <= t.inicio || ocupados.any { it.inicio < t.fin && it.fin > t.inicio }) null else p to t
+        }
+    }
+
     fun cargar(context: Context, fecha: String, alTerminar: (List<ParadaGps>) -> Unit) {
         val previa = cache[fecha]
         if (previa != null && System.currentTimeMillis() - previa.first < VIGENCIA_MS) {

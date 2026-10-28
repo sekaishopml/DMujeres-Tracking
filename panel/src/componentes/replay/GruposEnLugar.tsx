@@ -6,15 +6,14 @@ import { horaCorta, milisegundos } from '@/dominio/replay';
 import { useReproductor } from './contextoReproductor';
 import { agruparEnPantalla } from './grupos';
 import type { ItemLugar } from './grupos';
-import { novedadesDelRecorrido } from './novedades';
-import { aislarDelMapa } from './reproductorComun';
+import { ZOOM_DETALLE, aislarDelMapa } from './reproductorComun';
 
 interface Fila {
   clave: string;
   lon: number;
   lat: number;
   orden: number;
-  tipo: 'inicio' | 'fin' | 'parada' | 'novedad';
+  tipo: 'inicio' | 'fin' | 'parada' | 'novedad' | 'recuperacion';
   // Etiqueta corta de color, hora y un detalle breve.
   etiqueta: string;
   hora: string;
@@ -26,12 +25,12 @@ interface Fila {
 // pantalla, se listan en una tarjeta con columnas (hora, qué fue, cuánto duró)
 // en vez de encimarse. Cada fila lleva al momento que describe.
 export function GruposEnLugar({ mapa, enVivo = false }: { mapa: TipoMapa | null; enVivo?: boolean }) {
-  const { posiciones, paradas, huecos, dispositivo, seleccionar, seleccionarParada } = useReproductor();
+  const { posiciones, paradas, novedades, dispositivo, seleccionar, seleccionarParada } = useReproductor();
   const esIphone = dispositivo?.plataforma === 'ios';
   const [version, setVersion] = useState(0);
   // Burbuja abierta (sus claves): sigue abierta aunque el mapa se mueva y las
-  // burbujas se vuelvan a armar. Se cierra con su X, un clic en otro lado del
-  // mapa o al arrastrarlo.
+  // burbujas se vuelvan a armar. Se cierra con su X o un clic en otro lado
+  // del mapa.
   const abierta = useRef<string | null>(null);
   // Grupos que ya estaban en pantalla: solo los nuevos entran con animación.
   const vistos = useRef<Set<string>>(new Set());
@@ -45,10 +44,8 @@ export function GruposEnLugar({ mapa, enVivo = false }: { mapa: TipoMapa | null;
       for (const e of mapa.getContainer().querySelectorAll('.grupo-lugar.abierto')) e.classList.remove('abierto');
     };
     mapa.on('click', cerrar);
-    mapa.on('dragstart', cerrar);
     return () => {
       mapa.off('click', cerrar);
-      mapa.off('dragstart', cerrar);
     };
   }, [mapa]);
 
@@ -60,6 +57,12 @@ export function GruposEnLugar({ mapa, enVivo = false }: { mapa: TipoMapa | null;
       mapa.off('moveend', alMover);
     };
   }, [mapa]);
+
+
+  useEffect(() => {
+    if (!mapa) return;
+    mapa.getContainer().classList.toggle('zoom-lejos', mapa.getZoom() < ZOOM_DETALLE);
+  }, [mapa, version]);
 
   useEffect(() => {
     if (!mapa || posiciones.length === 0) return;
@@ -84,7 +87,7 @@ export function GruposEnLugar({ mapa, enVivo = false }: { mapa: TipoMapa | null;
       orden: milisegundos(ultima.registradoEn),
       tipo: 'fin',
       // Con el día en curso todavía no terminó: es solo el último punto.
-      etiqueta: enVivo ? 'Último' : esIphone ? 'App desactivada' : 'Fin',
+      etiqueta: enVivo ? 'Último' : esIphone ? 'App sin cobertura' : 'Fin',
       hora: horaCorta(ultima.registradoEn),
       detalle: '',
       accion: () => seleccionar(posiciones.length - 1),
@@ -103,14 +106,14 @@ export function GruposEnLugar({ mapa, enVivo = false }: { mapa: TipoMapa | null;
         accion: () => seleccionarParada(i, p.latitud, p.longitud, inicio),
       });
     });
-    for (const [i, n] of novedadesDelRecorrido(posiciones, huecos).entries()) {
+    for (const [i, n] of novedades.entries()) {
       const fix = posiciones[n.indice];
       filas.push({
         clave: `novedad-${i}`,
         lon: n.lon,
         lat: n.lat,
         orden: fix ? milisegundos(fix.registradoEn) : 0,
-        tipo: 'novedad',
+        tipo: n.recuperacion ? 'recuperacion' : 'novedad',
         etiqueta: n.titulo.replace(/ desde aquí| aquí/g, ''),
         hora: n.detalle.split(' · ')[0].replace(' a ', '–'),
         detalle: '',
@@ -128,10 +131,12 @@ export function GruposEnLugar({ mapa, enVivo = false }: { mapa: TipoMapa | null;
     const agrupar = (lista: Fila[]) => {
       const porClave = new Map(lista.map((f) => [f.clave, f]));
       const items: ItemLugar[] = lista.map((f) => ({ clave: f.clave, lon: f.lon, lat: f.lat, orden: f.orden }));
-      return agruparEnPantalla(items, proyectar).map((grupo) => grupo.map((g) => porClave.get(g.clave)!));
+      const radioPx = mapa.getZoom() < ZOOM_DETALLE ? 56 : 36;
+      return agruparEnPantalla(items, proyectar, radioPx).map((grupo) => grupo.map((g) => porClave.get(g.clave)!));
     };
-    const gruposLugar = agrupar(filas.filter((f) => f.tipo !== 'novedad'));
-    const gruposNovedad = agrupar(filas.filter((f) => f.tipo === 'novedad'));
+    const esNovedad = (f: Fila) => f.tipo === 'novedad' || f.tipo === 'recuperacion';
+    const gruposLugar = agrupar(filas.filter((f) => !esNovedad(f)));
+    const gruposNovedad = agrupar(filas.filter(esNovedad));
     const alternar = (clave: string, tarjeta: HTMLElement) => {
       const abrir = abierta.current !== clave;
       for (const e of mapa.getContainer().querySelectorAll('.grupo-lugar.abierto')) e.classList.remove('abierto');
@@ -184,7 +189,7 @@ export function GruposEnLugar({ mapa, enVivo = false }: { mapa: TipoMapa | null;
       for (const marcador of marcadores) marcador.remove();
       estilo.remove();
     };
-  }, [mapa, posiciones, paradas, huecos, esIphone, enVivo, seleccionar, seleccionarParada, version]);
+  }, [mapa, posiciones, paradas, novedades, esIphone, enVivo, seleccionar, seleccionarParada, version]);
 
   return null;
 }

@@ -56,8 +56,10 @@ function indiceSemana(dia: string): number {
 }
 
 function horasTexto(minutos: number): string {
-  const h = Math.floor(minutos / 60);
-  const m = Math.round(minutos % 60);
+  // Se redondea el total antes de partir: 59,6 min salía "60 min".
+  const total = Math.round(minutos);
+  const h = Math.floor(total / 60);
+  const m = total % 60;
   return h > 0 ? `${h} h${m > 0 ? ` ${m}` : ''}` : `${m} min`;
 }
 

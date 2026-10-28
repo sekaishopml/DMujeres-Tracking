@@ -97,6 +97,32 @@ type Modal =
 // En edición la clave vacía significa "no cambiar"; en creación es obligatoria.
 // Receptor al que envía Overland en iPhone; el equipo va en `?id=`.
 const SERVIDOR_IPHONE = 'https://tracking.sekaidevec.com/overland?id=';
+const ENLACE_APP = 'https://tracking.sekaidevec.com/descargar-app';
+
+// Enlace para instalar la app en Android; el botón copia la dirección al portapapeles.
+function EnlaceApp() {
+  const [copiado, setCopiado] = useState(false);
+  function copiar() {
+    navigator.clipboard
+      .writeText(ENLACE_APP)
+      .then(() => {
+        setCopiado(true);
+        setTimeout(() => setCopiado(false), 2000);
+      })
+      .catch(() => toast.error('No se pudo copiar el enlace.'));
+  }
+  return (
+    <p className="flex flex-wrap items-center gap-2">
+      <span>Para instalar la app en Android, abre</span>
+      <a className="font-medium text-marca hover:underline" href={ENLACE_APP}>
+        {ENLACE_APP}
+      </a>
+      <Boton tamano="sm" onClick={copiar}>
+        {copiado ? 'Copiado' : 'Copiar'}
+      </Boton>
+    </p>
+  );
+}
 
 // El guardado nunca manda roles; al crear, el servidor siempre crea su equipo.
 function DialogoCuenta({
@@ -311,19 +337,29 @@ function DialogoCuenta({
       </fieldset>
       {!usuario && plataforma === 'ios' && (
         <div className="rounded-control bg-marino-50 px-3 py-2.5 text-[12.5px] leading-relaxed text-texto-2">
-          <p className="mb-1 font-semibold text-marino-900">En el iPhone, con la app Overland GPS Tracker (App Store):</p>
-          <ol className="list-decimal space-y-0.5 pl-4">
+          <p className="mb-1 font-semibold text-marino-900">Cómo dar de alta un iPhone</p>
+          <ol className="list-decimal space-y-1 pl-4">
+            <li>Escribe el nombre de la persona y el identificador de arriba, y guarda la cuenta.</li>
+            <li>En el iPhone, instala <b className="text-marino-900">Overland GPS Tracker</b> desde la App Store.</li>
             <li>
-              En Settings → Server URL:{' '}
+              Abre Overland → Settings → <b className="text-marino-900">Server URL</b> y pega:{' '}
               <b className="break-all text-marino-900">
                 {SERVIDOR_IPHONE}
                 {idIphone.trim() || 'identificador'}
               </b>
             </li>
-            <li>En Settings: Tracking Enabled activado, Desired Accuracy en Best y Pause Updates Automatically apagado.</li>
-            <li>En Ajustes del iPhone: ubicación «Siempre» con ubicación exacta, y actualización en segundo plano activada.</li>
-            <li>No cerrar la app deslizándola: sin conexión guarda los puntos y los envía al volver la señal.</li>
+            <li>En esa misma pantalla: Tracking Enabled activado, Desired Accuracy en Best y Pause Updates Automatically apagado.</li>
+            <li>En Ajustes del iPhone → Overland: ubicación «Siempre», ubicación exacta activada y actualización en segundo plano activada.</li>
+            <li>Prueba: sal a la calle dos minutos. En Seguimiento debe aparecer «App activa» (o «Detenido» si no te mueves).</li>
           </ol>
+          <p className="mt-2 text-[12px] text-texto-3">
+            No cierres Overland deslizándola: sin señal guarda los puntos y los envía al volver. El iPhone no tiene jornada: su ruta va del primer al último punto del día.
+          </p>
+        </div>
+      )}
+      {!usuario && plataforma === 'android' && (
+        <div className="rounded-control bg-marino-50 px-3 py-2.5 text-[12.5px] leading-relaxed text-texto-2">
+          <EnlaceApp />
         </div>
       )}
       {validacion !== '' ? (
@@ -785,10 +821,10 @@ export default function Usuarios() {
               <thead>
                 <tr>
                   <Th>Persona</Th>
-                  <Th>Teléfono</Th>
-                  <Th>Puesto</Th>
+                  <Th className="max-lg:hidden">Teléfono</Th>
+                  <Th className="max-lg:hidden">Puesto</Th>
                   <Th>Grupos</Th>
-                  <Th>Equipos</Th>
+                  <Th className="max-lg:hidden">Equipos</Th>
                   <Th>Estado</Th>
                   <Th className="text-right">Acciones</Th>
                 </tr>
@@ -805,10 +841,10 @@ export default function Usuarios() {
                         </div>
                       </div>
                     </Td>
-                    <Td>{usuario.telefono ?? GUION}</Td>
-                    <Td>{usuario.cargo ?? GUION}</Td>
+                    <Td className="max-lg:hidden">{usuario.telefono ?? GUION}</Td>
+                    <Td className="max-lg:hidden">{usuario.cargo ?? GUION}</Td>
                     <Td className="max-w-56">{textoGrupos(usuario)}</Td>
-                    <Td className="max-w-56">{textoEquipos(usuario, listaEquipos)}</Td>
+                    <Td className="max-w-56 max-lg:hidden">{textoEquipos(usuario, listaEquipos)}</Td>
                     <Td>
                       {!usuario.habilitado ? (
                         <Insignia tono="neutro">Dada de baja</Insignia>

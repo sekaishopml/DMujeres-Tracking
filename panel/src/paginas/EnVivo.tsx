@@ -15,8 +15,9 @@ import {
   X,
 } from 'lucide-react';
 import MapaBase from '@/componentes/mapa/MapaBase';
+import CapaGeocercas from '@/componentes/geocercas/CapaGeocercas';
 import { Avatar, colorDeNombre, iniciales } from '@/componentes/ui/Avatar';
-import { ChipEstado } from '@/componentes/ui/ChipEstado';
+import { Chip, ChipEstado } from '@/componentes/ui/ChipEstado';
 import { BotonIcono, claseBoton } from '@/componentes/ui/Boton';
 import { Selector } from '@/componentes/ui/Campo';
 import { Cargando, ErrorCarga, Vacio } from '@/componentes/ui/Estados';
@@ -31,10 +32,12 @@ import {
   traerPosicionesVivas,
 } from '@/dominio/datos';
 import { SIN_DEPARTAMENTO, agruparPorDepartamento, ordenarPorDepartamento } from '@/dominio/departamentos';
-import { claveEstado, colorEstado } from '@/dominio/estado';
+import { claveEstado, claveVisual, colorEquipo } from '@/dominio/estado';
 import { bateria, hace, hora, velocidad, GUION } from '@/dominio/formatoBase';
 import { fechaHoyLocal, finDeDia, inicioDeDia, sumarDias } from '@/dominio/rango';
-import { TIPOS, traerCronograma } from '@/dominio/cronograma';
+import { type Pista, agregarMuestra, enReposo, nuevaPista, posicionEn } from '@/dominio/movimiento';
+import { TIPOS, traerCronograma, useAusenciasDeHoy } from '@/dominio/cronograma';
+import type { Actividad } from '@/dominio/cronograma';
 import { api } from '@/lib/api';
 import { vivoConectado } from '@/lib/vivo';
 import { mensajeError } from '@/dominio/errores';
@@ -43,27 +46,28 @@ import { urlExpediente, urlReplay } from '@/dominio/enlaces';
 // Con el canal en vivo abierto los puntos llegan solos; la consulta queda
 // de respaldo. Sin canal se vuelve a consultar cada 5 s.
 const REFRESCO_MS = 5000;
-const REFRESCO_CON_VIVO_MS = 30_000;
+const REFRESCO_CON_VIVO_MS = 10_000;
 const refresco = () => (document.hidden ? false : vivoConectado() ? REFRESCO_CON_VIVO_MS : REFRESCO_MS);
-const DESLIZAR_MS = 1200;
 // Más de ~2 km de golpe no se anima (volvió la señal o cambió de equipo).
 const SALTO_MAXIMO_GRADOS = 0.02;
 const ZOOM_PERSONA = 15.5;
 
 // Filtros: "sin señal" junta SIN_SENAL, SEÑAL_DÉBIL y DESCONOCIDO porque en
-// los tres hay que revisar el equipo. Los equipos dados de baja no aparecen.
-type Filtro = 'todas' | 'enLinea' | 'detenido' | 'sinSenal' | 'deshabilitado';
+// los tres hay que revisar el equipo; fuera de jornada va aparte porque no es
+// una falla. Los equipos dados de baja no aparecen.
+type Filtro = 'todas' | 'enLinea' | 'detenido' | 'sinSenal' | 'fuera';
 
 const FILTROS: { valor: Filtro; etiqueta: string }[] = [
   { valor: 'todas', etiqueta: 'Todas' },
   { valor: 'enLinea', etiqueta: 'En ruta' },
   { valor: 'detenido', etiqueta: 'Detenidas' },
   { valor: 'sinSenal', etiqueta: 'Sin señal' },
-  { valor: 'deshabilitado', etiqueta: 'Fuera de jornada' },
+  { valor: 'fuera', etiqueta: 'Fuera' },
 ];
 
 function grupoDe(clave: string): Exclude<Filtro, 'todas'> {
-  if (clave === 'enLinea' || clave === 'detenido' || clave === 'deshabilitado') return clave;
+  if (clave === 'enLinea' || clave === 'detenido') return clave;
+  if (clave === 'deshabilitado') return 'fuera';
   return 'sinSenal';
 }
 
@@ -98,36 +102,62 @@ function crearElementoMarcador(equipo: Dispositivo): HTMLElement {
 function pintarMarcador(externo: HTMLElement, equipo: Dispositivo, seleccionado: boolean) {
   const boton = externo.firstElementChild as HTMLElement | null;
   if (!boton) return;
-  boton.style.outlineColor = seleccionado ? '#eb0045' : colorEstado(equipo);
+  boton.style.outlineColor = seleccionado ? '#eb0045' : colorEquipo(equipo);
   boton.style.transform = seleccionado ? 'scale(1.2)' : '';
   boton.title = equipo.nombre;
   externo.style.zIndex = seleccionado ? '2' : '1';
 }
 
-// Lleva el marcador a su nueva posición en un movimiento suave en vez de
-// saltar. Si llega otro punto a mitad de camino, sigue desde donde va.
+// Mueve el marcador reproduciendo el recorrido que llega (ver
+// dominio/movimiento.ts). Un salto de más de ~2 km, la pestaña oculta o la
+// preferencia de menos movimiento lo ponen directo en su sitio.
+const TEMBLOR_MIN_M = 5;
+const TEMBLOR_MAX_M = 25;
 const animaciones = new WeakMap<Marker, number>();
-function deslizar(marcador: Marker, lon: number, lat: number) {
-  const desde = marcador.getLngLat();
-  const distancia = Math.abs(desde.lng - lon) + Math.abs(desde.lat - lat);
-  cancelAnimationFrame(animaciones.get(marcador) ?? 0);
-  if (distancia === 0) return;
-  if (document.hidden || distancia > SALTO_MAXIMO_GRADOS || matchMedia('(prefers-reduced-motion: reduce)').matches) {
-    marcador.setLngLat([lon, lat]);
+const pistas = new WeakMap<Marker, Pista>();
+function deslizar(marcador: Marker, posicion: Posicion) {
+  const muestra = { t: Date.parse(posicion.registradoEn), lon: posicion.longitud, lat: posicion.latitud };
+  const ahora = Date.now();
+  const pista = pistas.get(marcador);
+  const actual = marcador.getLngLat();
+  const salto = Math.abs(actual.lng - muestra.lon) + Math.abs(actual.lat - muestra.lat) > SALTO_MAXIMO_GRADOS;
+  if (!pista || salto || document.hidden || matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    cancelAnimationFrame(animaciones.get(marcador) ?? 0);
+    animaciones.delete(marcador);
+    pistas.set(marcador, nuevaPista(muestra, ahora));
+    marcador.setLngLat([muestra.lon, muestra.lat]);
     return;
   }
-  const inicio = performance.now();
-  const paso = (ahora: number) => {
-    const k = Math.min(1, (ahora - inicio) / DESLIZAR_MS);
-    const suave = k * (2 - k);
-    marcador.setLngLat([desde.lng + (lon - desde.lng) * suave, desde.lat + (lat - desde.lat) * suave]);
-    if (k < 1) animaciones.set(marcador, requestAnimationFrame(paso));
+  // Un punto a menos distancia que su propio error es temblor, no movimiento.
+  const minimo = Math.min(TEMBLOR_MAX_M, Math.max(TEMBLOR_MIN_M, posicion.precisionM ?? TEMBLOR_MIN_M));
+  agregarMuestra(pista, muestra, ahora, minimo);
+  if (animaciones.has(marcador)) return;
+  const paso = () => {
+    const instante = Date.now();
+    marcador.setLngLat(posicionEn(pista, instante));
+    if (enReposo(pista, instante)) animaciones.delete(marcador);
+    else animaciones.set(marcador, requestAnimationFrame(paso));
   };
   animaciones.set(marcador, requestAnimationFrame(paso));
 }
 
+// Vacaciones o permiso cargados hoy: se muestran en vez del estado (en
+// línea, detenida, fuera de jornada), porque explican por qué no trabaja.
+// La novedad no reemplaza el estado.
+function EstadoOAusencia({ equipo, ausencia }: { equipo: Dispositivo; ausencia: Actividad | undefined }) {
+  if (ausencia && ausencia.tipo !== 'novedad') {
+    return (
+      <Chip clase={ausencia.tipo}>
+        <span title={ausencia.nota ?? undefined}>{TIPOS[ausencia.tipo].etiqueta}</span>
+      </Chip>
+    );
+  }
+  return <ChipEstado equipo={equipo} />;
+}
+
 export default function EnVivo() {
   const [mapa, setMapa] = useState<MapaMaplibre | null>(null);
+  const { ausencias } = useAusenciasDeHoy(fechaHoyLocal(), 60_000);
   const [busqueda, setBusqueda] = useState('');
   const [filtro, setFiltro] = useState<Filtro>('todas');
   const [departamento, setDepartamento] = useState('');
@@ -200,9 +230,8 @@ export default function EnVivo() {
         });
         marcador = new Marker({ element: elemento, anchor: 'center' }).setLngLat([posicion.longitud, posicion.latitud]).addTo(mapa);
         marcadores.current.set(equipo.id, marcador);
-      } else {
-        deslizar(marcador, posicion.longitud, posicion.latitud);
       }
+      deslizar(marcador, posicion);
       pintarMarcador(marcador.getElement(), equipo, equipo.id === seleccion?.id);
     }
     for (const [id, marcador] of marcadores.current) {
@@ -252,7 +281,7 @@ export default function EnVivo() {
   }
 
   const conteos = useMemo(() => {
-    const c = { todas: equipos.length, enLinea: 0, detenido: 0, sinSenal: 0, deshabilitado: 0 };
+    const c = { todas: equipos.length, enLinea: 0, detenido: 0, sinSenal: 0, fuera: 0 };
     for (const e of equipos) c[grupoDe(claveEstado(e))] += 1;
     return c;
   }, [equipos]);
@@ -280,7 +309,7 @@ export default function EnVivo() {
       </AccionesPagina>
 
       {/* Lista de personas */}
-      <aside className="flex max-h-[45dvh] w-full flex-none flex-col gap-3 lg:max-h-none lg:w-[380px]">
+      <aside className="flex max-h-[38dvh] w-full flex-none flex-col gap-3 lg:max-h-none lg:w-[380px]">
         <div className="grid grid-cols-5 gap-1 rounded-[14px] border border-borde bg-superficie p-1">
           {FILTROS.map((f) => (
             <button
@@ -354,7 +383,7 @@ export default function EnVivo() {
                         activa ? 'border-marca shadow-[0_0_0_3px_var(--color-marca-suave)]' : 'border-borde hover:border-borde-fuerte',
                       )}
                     >
-                      <Avatar nombre={equipo.nombre} estado={claveEstado(equipo)} />
+                      <Avatar nombre={equipo.nombre} estado={claveVisual(equipo)} />
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-[13.5px] font-semibold text-marino-900">{equipo.nombre}</span>
                         <span className="block truncate text-[12px] text-texto-3">
@@ -363,7 +392,7 @@ export default function EnVivo() {
                         </span>
                       </span>
                       <span className="flex flex-none flex-col items-end gap-1">
-                        <ChipEstado equipo={equipo} />
+                        <EstadoOAusencia equipo={equipo} ausencia={ausencias.get(equipo.idPublico)} />
                         <span className="flex items-center gap-1 text-[11.5px] text-texto-2 cifras">
                           <IconoBateria pct={equipo.bateriaPct} cargando={equipo.cargando} />
                           {bateria(equipo.bateriaPct)}
@@ -382,8 +411,9 @@ export default function EnVivo() {
       </aside>
 
       {/* Mapa */}
-      <section className="relative min-h-[420px] flex-1 overflow-hidden rounded-tarjeta border border-borde shadow-tarjeta">
+      <section className="relative min-h-[320px] flex-1 overflow-hidden rounded-tarjeta border border-borde shadow-tarjeta lg:min-h-[420px]">
         <MapaBase alListo={setMapa} zoomAbajoDerecha selectorPegado escala={false} />
+        <CapaGeocercas mapa={mapa} />
         {seleccion && (
           <FichaPersona
             equipo={seleccion}
@@ -408,6 +438,7 @@ function FichaPersona({
   alCerrar: () => void;
 }) {
   const hoy = fechaHoyLocal();
+  const { ausencias } = useAusenciasDeHoy(hoy, 60_000);
   const desde = inicioDeDia(hoy);
   const hasta = finDeDia(hoy);
   const id = equipo.idPublico;
@@ -442,7 +473,10 @@ function FichaPersona({
     return lista.find((j) => !j.finEn) ?? lista.find((j) => j.inicioEn >= desde) ?? null;
   }, [jornadas.data, desde]);
   const ahora = useReloj(jornada && !jornada.finEn ? 1000 : null);
-  const inicioMs = jornada ? new Date(jornada.inicioEn).getTime() : null;
+  // Cada día cuenta desde las 00:00: una jornada que quedó abierta desde
+  // ayer (el teléfono no mandó el corte de medianoche) no suma horas de ayer.
+  const desdeHoy = jornada != null && new Date(jornada.inicioEn).getTime() < new Date(desde).getTime();
+  const inicioMs = jornada ? Math.max(new Date(jornada.inicioEn).getTime(), new Date(desde).getTime()) : null;
   const finMs = jornada?.finEn ? new Date(jornada.finEn).getTime() : ahora;
   const tiempoJornada = inicioMs != null && finMs > inicioMs ? reloj((finMs - inicioMs) / 1000) : GUION;
   const diaInicio = jornada ? fechaLocalDe(jornada.inicioEn) : null;
@@ -450,8 +484,9 @@ function FichaPersona({
   const hitos: { etiqueta: string; valor: string; detalle?: string; vivo?: boolean; titulo?: string }[] = [
     {
       etiqueta: 'Inició jornada',
-      valor: jornada ? hora(jornada.inicioEn) : GUION,
-      detalle: diaInicio && diaInicio !== hoy ? `el ${diaInicio.slice(8, 10)}/${diaInicio.slice(5, 7)}` : undefined,
+      valor: jornada ? (desdeHoy ? '00:00' : hora(jornada.inicioEn)) : GUION,
+      detalle: desdeHoy && diaInicio ? `viene del ${diaInicio.slice(8, 10)}/${diaInicio.slice(5, 7)}` : undefined,
+      titulo: desdeHoy ? `La jornada empezó el ${diaInicio} a las ${hora(jornada.inicioEn)}` : undefined,
     },
     {
       etiqueta: jornada?.finEn ? 'Jornada' : 'Tiempo de jornada',
@@ -472,23 +507,23 @@ function FichaPersona({
     !equipo.versionApp || !publicada
       ? null
       : compararVersiones(equipo.versionApp, publicada) >= 0
-        ? { texto: 'Última versión', clase: 'bg-movimiento-suave text-movimiento' }
+        ? null
         : { texto: `Desactualizada (hay ${publicada})`, clase: 'bg-sin-senal-suave text-sin-senal' };
 
   return (
-    <div className="absolute inset-x-3 bottom-3 z-[6] animate-entrar rounded-tarjeta border border-borde bg-superficie shadow-flotante md:inset-x-4 md:bottom-4">
-      <div className="flex flex-wrap items-center gap-x-6 gap-y-3 px-5 pt-4 pb-3">
-        <div className="flex min-w-0 items-center gap-3">
-          <Avatar nombre={equipo.nombre} estado={claveEstado(equipo)} tamano="lg" />
+    <div className="absolute inset-x-3 bottom-3 z-[6] mx-auto w-fit max-w-[calc(100%-1.5rem)] animate-entrar rounded-tarjeta border border-borde bg-superficie shadow-flotante md:inset-x-4 md:bottom-4 md:max-w-[calc(100%-2rem)]">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 pt-3 pb-2.5 lg:flex-nowrap">
+        <div className="flex min-w-0 max-w-[16rem] shrink items-center gap-3">
+          <Avatar nombre={equipo.nombre} estado={claveVisual(equipo)} tamano="md" />
           <div className="min-w-0">
             <p className="truncate font-display text-[16px] font-semibold text-marino-900">{equipo.nombre}</p>
-            <p className="truncate text-[12px] text-texto-3">
-              {equipo.departamento ? `${equipo.departamento} · ` : ''}
+            <p className="truncate text-[12px] text-texto-3" title={equipo.departamento ?? undefined}>
               {posicion ? `Reportó ${hace(posicion.registradoEn)} · ${velocidad(posicion.velocidadKmh)}` : 'Sin posición conocida'}
+              {equipo.departamento ? ` · ${equipo.departamento}` : ''}
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-4 text-[12px]">
+        <div className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-1 text-[12px]">
           <span>
             <span className="block text-texto-3">Batería</span>
             <span className="flex items-center gap-1 font-semibold text-marino-900 cifras">
@@ -503,29 +538,26 @@ function FichaPersona({
               {estadoApp && <span className={cn('rounded-full px-1.5 text-[10.5px] font-semibold', estadoApp.clase)}>{estadoApp.texto}</span>}
             </span>
           </span>
+          {hitos.map((h) => (
+            <span key={h.etiqueta} title={h.titulo}>
+              <span className="flex items-center gap-1.5 text-texto-3">
+                {h.vivo && <span className="size-1.5 animate-pulse rounded-full bg-movimiento motion-reduce:animate-none" />}
+                {h.etiqueta}
+              </span>
+              <span className="font-semibold text-marino-900 cifras">
+                {cargando && !jornadas.data ? '…' : h.valor}
+                {h.detalle && <span className="ml-1 font-normal text-texto-3">{h.detalle}</span>}
+              </span>
+            </span>
+          ))}
         </div>
-        <div className="ml-auto flex items-center gap-2">
-          <ChipEstado equipo={equipo} />
+        <div className="ml-auto flex shrink-0 items-center gap-2">
+          <EstadoOAusencia equipo={equipo} ausencia={ausencias.get(equipo.idPublico)} />
           <BotonIcono icono={X} etiqueta="Cerrar ficha" onClick={alCerrar} />
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-px overflow-hidden border-y border-borde bg-borde sm:grid-cols-3">
-        {hitos.map((h) => (
-          <div key={h.etiqueta} className="bg-superficie px-4 py-2.5" title={h.titulo}>
-            <p className="flex items-center gap-1.5 text-[11.5px] text-texto-3">
-              {h.vivo && <span className="size-1.5 animate-pulse rounded-full bg-movimiento motion-reduce:animate-none" />}
-              {h.etiqueta}
-            </p>
-            <p className="font-display text-[15px] font-semibold text-marino-900 cifras">
-              {cargando && !jornadas.data ? '…' : h.valor}
-              {h.detalle && <span className="ml-1 text-[12px] font-normal text-texto-3">{h.detalle}</span>}
-            </p>
-          </div>
-        ))}
-      </div>
-
-      <div className="flex flex-wrap items-center gap-2 px-5 py-3">
+      <div className="flex flex-wrap items-center gap-2 border-t border-borde px-4 py-2">
         <p className="mr-auto min-w-0 truncate text-[12.5px] text-texto-2">
           {actividad ? (
             <>

@@ -1,10 +1,11 @@
 import { createContext, useContext } from 'react';
 import type { RefObject } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import type { Dispositivo, Hueco, Posicion } from '@contratos';
+import type { AvisoTelefono, CierreJornada, Dispositivo, Hueco, Posicion } from '@contratos';
 import { traerDireccion } from '@/dominio/datos';
 import type { ResumenDia } from '@/dominio/dia';
 import type { EstadoUnidad, Microparada, Parada, TramoReconstruido } from '@/dominio/replay';
+import type { Novedad } from './novedades';
 
 // Estado que el reproductor comparte con sus piezas (lista, pista, controles).
 
@@ -20,7 +21,12 @@ export interface Reproductor {
   // Lleva el reloj al inicio de la parada anterior o siguiente.
   irAParada: (direccion: 1 | -1) => void;
   posiciones: Posicion[];
+  // Cortes, señal débil y tramos sin internet, ya ubicados sobre la ruta.
+  novedades: Novedad[];
   huecos: Hueco[];
+  avisos: AvisoTelefono[];
+  // Cómo terminó cada jornada (último punto de cada una).
+  cierres: CierreJornada[];
   reconstruidos: TramoReconstruido[];
   dispositivo: Dispositivo | null;
   indice: number;

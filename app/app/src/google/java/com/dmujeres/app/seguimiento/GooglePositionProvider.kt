@@ -52,9 +52,11 @@ class GooglePositionProvider(context: Context, listener: PositionListener) : Pos
     }
 
     override fun applyMotionState(moving: Boolean, gpsContinuous: Boolean) {
+        // Quieta con jornada el GPS sigue, pero más espaciado: cambia el pedido.
+        val cambiaPedido = this.gpsContinuous != gpsContinuous || (gpsContinuous && this.moving != moving)
         this.moving = moving
         updateReportInterval(moving)
-        if (this.gpsContinuous == gpsContinuous) return
+        if (!cambiaPedido) return
         this.gpsContinuous = gpsContinuous
         if (started) requestUpdates()
     }
@@ -95,7 +97,7 @@ class GooglePositionProvider(context: Context, listener: PositionListener) : Pos
 
     @SuppressLint("MissingPermission")
     private fun requestUpdates() {
-        val cadence = AdaptiveCadence.request(gpsContinuous)
+        val cadence = AdaptiveCadence.request(gpsContinuous, quieta = !moving)
         val locationRequest = LocationRequest.Builder(priorityOf(cadence.accuracy), cadence.intervalMs)
             .setMinUpdateDistanceMeters(cadence.minDistanceM)
             .setMaxUpdateDelayMillis(cadence.maxUpdateDelayMs)

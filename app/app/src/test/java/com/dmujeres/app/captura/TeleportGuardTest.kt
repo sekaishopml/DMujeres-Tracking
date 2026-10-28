@@ -98,4 +98,28 @@ class TeleportGuardTest {
         assertEquals(Verdict.ACCEPT, TeleportGuard.evaluate(cand(t0, lat, lon), ref()))
         assertEquals(Verdict.ACCEPT, TeleportGuard.evaluate(cand(t0 - 5_000L, lat, lon), ref()))
     }
+
+    @Test
+    fun `rebote del GPS recien encendido se descarta`() {
+        // ZTE, 25/10 18:46:54 -> 18:46:59: 263 m en 5 s (190 km/h) con el GPS
+        // diciendo 52 km/h y 5 m de precisión.
+        val r = ref(lat = -2.23812, lon = -79.90330, acc = 5.0)
+        val c = cand(t0 + 5_000L, -2.24046, -79.90369, acc = 5.0, speedKn = 52 / 1.852)
+        assertEquals(Verdict.REJECT, TeleportGuard.evaluate(c, r))
+    }
+
+    @Test
+    fun `avance coherente con la velocidad del GPS se acepta`() {
+        // 70 m en 5 s (50 km/h) con el GPS diciendo 48 km/h.
+        val (lat, lon) = Geo.offset(baseLat, baseLon, 70.0, 90.0)
+        assertEquals(Verdict.ACCEPT, TeleportGuard.evaluate(cand(t0 + 5_000L, lat, lon, acc = 5.0, speedKn = 48 / 1.852), ref(acc = 5.0)))
+    }
+
+    @Test
+    fun `salto caminando de 17 s se descarta`() {
+        // Jeremy, 27/10 18:51:28 -> 18:51:45: 618 m en 17 s con el GPS
+        // diciendo 4 km/h y 9 m de precisión.
+        val (lat, lon) = Geo.offset(baseLat, baseLon, 618.0, 180.0)
+        assertEquals(Verdict.REJECT, TeleportGuard.evaluate(cand(t0 + 17_000L, lat, lon, acc = 9.0, speedKn = 4 / 1.852), ref(acc = 10.0)))
+    }
 }

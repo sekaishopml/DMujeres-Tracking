@@ -6,13 +6,10 @@ import { createHash, timingSafeEqual, randomBytes, pbkdf2Sync } from 'node:crypt
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { filaSalud } from './salud.js';
-import { alertasDeDiagnostico } from './alertas.js';
+import { alertasDeDiagnostico, esRepetido } from './alertas.js';
 import {
   MENSAJE_OTRO_TELEFONO,
   limpiarFallos,
-  mensajeBloqueo,
-  minutosBloqueo,
-  registrarFallo,
   sesionEnOtroTelefono,
 } from '../../comun/acceso.js';
 
@@ -32,6 +29,7 @@ const MAX_PRIORIDAD_RECUPERACION = 32;
 const MAX_RAZON_RECUPERACION = 512;
 
 const ultimosDiagnosticos = new Map();
+const eventosRecientes = new Map();
 
 // ---------------------------------------------------------------------------
 // Respuestas
@@ -210,7 +208,7 @@ function filtrarConfigApp(valor) {
 
 // POST /api/mobile/v1/sesion {usuario, clave, instalacion} -> {token,
 // expiraEn, usuario:{nombre}, configuracion}. 401 sin decir si el usuario
-// existe, 423 con la cuenta bloqueada, 409 si la cuenta ya está abierta en
+// existe, 409 si la cuenta ya está abierta en
 // otro teléfono, 400 si faltan datos y 503 con el canal apagado.
 export async function atenderSesion(req, res, ctx) {
   if (!ctx.configuracion.canalMovilActivo) return responderSinCuerpo(res, 503);
@@ -239,16 +237,8 @@ export async function atenderSesion(req, res, ctx) {
     ctx.log.error(`movil/sesion: fallo al buscar usuario: ${error.message}`);
     return responderSinCuerpo(res, 503);
   }
-  const bloqueo = minutosBloqueo(fila?.bloqueado_hasta);
-  if (bloqueo > 0) {
-    return responderJson(res, 423, { error: { codigo: 'CUENTA_BLOQUEADA', mensaje: mensajeBloqueo(bloqueo) } });
-  }
   // Mensaje único para no revelar si el usuario existe o está deshabilitado.
   if (!fila || !verificarClaveMovil(clave, fila.hash_clave, fila.sal) || !fila.habilitado) {
-    const minutos = fila && fila.habilitado ? await registrarFallo(ctx.almacen.pool, fila.id).catch(() => 0) : 0;
-    if (minutos > 0) {
-      return responderJson(res, 423, { error: { codigo: 'CUENTA_BLOQUEADA', mensaje: mensajeBloqueo(minutos) } });
-    }
     return responderJson(res, 401, {
       error: { codigo: 'NO_AUTENTICADO', mensaje: 'Usuario o clave incorrectos.' },
     });
@@ -830,6 +820,9 @@ export async function atenderDiagnosticos(req, res, ctx) {
     return responderSinCuerpo(res, 503);
   }
   for (const tipo of alertas.eventos) {
+    // Antes de esperar a la base: otra petición del mismo equipo llegada a la vez
+    // ya leyó el estado anterior y también quiere guardar este evento.
+    if (esRepetido(eventosRecientes, `${dispositivo.id}|${tipo}`, ahora)) continue;
     await ctx.almacen
       .registrarEventoEnergia({
         dispositivoId: dispositivo.id,
@@ -906,6 +899,19 @@ async function auditarOta(ctx, dispositivo, versionCode, actualiza, userAgent) {
   await ctx.almacen.fusionarAtributosDispositivo(dispositivo.id, parche);
 }
 
+// Manifiesto propio de un equipo (ota/por-equipo/<identificador>.json): sirve
+// para probar una versión en un solo teléfono sin tocar latest.json ni la
+// descarga general. Mismo formato que latest.json.
+async function leerManifiestoPropio(directorio, identificador) {
+  if (!/^[A-Za-z0-9._-]{1,64}$/.test(identificador ?? '')) return null;
+  try {
+    const crudo = JSON.parse(await readFile(join(directorio, 'por-equipo', `${identificador}.json`), 'utf8'));
+    return objeto(crudo);
+  } catch {
+    return null;
+  }
+}
+
 export async function atenderOta(req, res, ctx) {
   if (!ctx.configuracion.canalMovilActivo) return responderSinCuerpo(res, 503);
   if (!(await autorizacionMovil(req, ctx))) {
@@ -919,6 +925,16 @@ export async function atenderOta(req, res, ctx) {
   }
   const dispositivo = await buscarOFallar(ctx, res, identificador, 404);
   if (!dispositivo) return;
+
+  const propio = await leerManifiestoPropio(ctx.configuracion.otaDir, dispositivo.identificador);
+  if (propio && (numero(propio.versionCode) ?? 0) > versionCode) {
+    try {
+      await auditarOta(ctx, dispositivo, versionCode, true, req.headers['user-agent']);
+    } catch (error) {
+      ctx.log.warn(`movil/ota: auditoria no escrita: ${error.message}`);
+    }
+    return responderJson(res, 200, propio);
+  }
 
   let manifiesto;
   try {
@@ -1189,6 +1205,13 @@ export async function atenderLotePosiciones(req, res, ctx) {
     }
     if (typeof evento.movementState === 'string' && evento.movementState.trim() !== '') {
       atributos.movementState = evento.movementState.trim().slice(0, 32);
+    }
+    // Actividad física y pasos de la jornada al capturar (probando en un equipo).
+    if (typeof evento.activity === 'string' && /^[A-Z_]{1,24}$/.test(evento.activity)) {
+      atributos.activity = evento.activity;
+    }
+    if (Number.isInteger(evento.steps) && evento.steps >= 0 && evento.steps <= 10_000_000) {
+      atributos.steps = evento.steps;
     }
     if (evento.charging !== undefined) atributos.charging = evento.charging === true;
     if (simulado) atributos.mock = true;

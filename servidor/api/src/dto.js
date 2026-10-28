@@ -1,6 +1,8 @@
 // Traduccion de filas SQL a los DTO del contrato (campos en español).
 // Nunca devuelve columnas internas ni nombres de tablas.
 
+import { seccionesDe } from './secciones.js';
+
 // Configuración del equipo que se edita desde el panel. Solo estas claves de
 // los atributos salen en la respuesta y se aceptan al guardar; el resto
 // (jornada, diagnóstico, versiones) no se expone ni se pisa.
@@ -73,6 +75,7 @@ export function aUsuario(fila, dispositivoIds) {
     administrador: fila.administrador === true,
     soloLectura: fila.solo_lectura === true,
     habilitado: fila.habilitado === true,
+    secciones: seccionesDe(fila.administrador === true, fila.atributos),
     dispositivoIds: Array.isArray(ids) ? ids.map(String) : [],
   };
 }
@@ -93,7 +96,25 @@ export function aPosicion(fila) {
     valida: fila.valida === true,
     // El teléfono avisó que esta ubicación es simulada, no del GPS.
     simulada: fila.simulada === true,
+    // Lo que el teléfono dijo estar haciendo y los pasos de la jornada, si los mandó.
+    actividad: typeof fila.actividad === 'string' && fila.actividad !== '' ? fila.actividad : null,
+    pasos: numeroONulo(fila.pasos),
   };
+}
+
+// Lo que la persona apagó o quitó mientras trabaja (GPS, permiso de ubicación,
+// notificaciones). Solo en jornada: fuera de ella no hay nada que vigilar.
+const ALERTAS_ACTIVAS = [
+  ['alerta.gps', 'GPS apagado'],
+  ['alerta.permisos', 'Permiso de ubicación quitado'],
+  ['alerta.notificaciones', 'Notificaciones apagadas'],
+];
+
+export function alertaActivaDe(fila) {
+  if (fila.jornada_activa !== true) return null;
+  const atributos = fila.atributos ?? {};
+  const alerta = ALERTAS_ACTIVAS.find(([clave]) => atributos[clave] === false);
+  return alerta ? alerta[1] : null;
 }
 
 // `usuario` es opcional: la configuración del equipo solo la ven los
@@ -112,6 +133,7 @@ export function aDispositivo(fila, usuario) {
     plataforma: fila.atributos?.plataforma === 'ios' ? 'ios' : 'android',
     jornadaActiva: fila.jornada_activa === true,
     departamento: fila.departamento ?? null,
+    alertaActiva: alertaActivaDe(fila),
     bateriaPct: numeroONulo(fila.bateria_pct),
     cargando: fila.cargando === null || fila.cargando === undefined ? null : fila.cargando === true,
     pendientes: enteroONulo(fila.pendientes),

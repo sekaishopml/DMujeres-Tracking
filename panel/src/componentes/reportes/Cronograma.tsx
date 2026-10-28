@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronDown, ChevronLeft, ChevronRight, Download, MapPin, Navigation, TriangleAlert } from 'lucide-react';
 import { Segmentado } from '@/componentes/ui/Segmentado';
@@ -44,8 +44,12 @@ const VISTAS = [
 export default function Cronograma({ pestanas }: { pestanas?: ReactNode }) {
   const hoy = fechaHoyLocal();
   const [vista, setVista] = useState<Vista>('semana');
-  const [ancla, setAncla] = useState(hoy);
-  const [persona, setPersona] = useState('');
+  // Desde Inicio se llega con ?persona=&fecha=&actividad= y la actividad
+  // queda marcada en la planilla.
+  const [parametros] = useSearchParams();
+  const [ancla, setAncla] = useState(parametros.get('fecha') ?? hoy);
+  const [persona, setPersona] = useState(parametros.get('persona') ?? '');
+  const resaltar = parametros.get('actividad');
 
   const flota = useQuery({ queryKey: CLAVE_FLOTA, queryFn: () => traerFlota() });
   // Personas por departamento y nombre; sin elección, se muestra la primera.
@@ -163,7 +167,7 @@ export default function Cronograma({ pestanas }: { pestanas?: ReactNode }) {
           }}
         />
       ) : (
-        <Planilla dias={diasDeSemana(lunes)} hoy={hoy} datos={datos} />
+        <Planilla dias={diasDeSemana(lunes)} hoy={hoy} datos={datos} resaltar={resaltar} />
       )}
     </div>
   );
@@ -288,8 +292,9 @@ const tinte = (color: string, pct: number) => `color-mix(in srgb, ${color} ${pct
 
 // Planilla semanal de una persona, con la misma forma que su Excel: una
 // columna por día (HORA | PLANIFICACIÓN) y una fila por actividad en orden.
-function Planilla({ dias, hoy, datos, nombre }: { dias: string[]; hoy: string; datos: Actividad[]; nombre?: string }) {
-  const visibles = dias.map((d, i) => ({ d, i })).filter(({ d, i }) => i < 5 || datos.some((a) => a.fecha === d));
+function Planilla({ dias, hoy, datos, nombre, resaltar }: { dias: string[]; hoy: string; datos: Actividad[]; nombre?: string; resaltar?: string | null }) {
+  // Una columna por día de la semana, sábado y domingo incluidos.
+  const visibles = dias.map((d, i) => ({ d, i }));
   const porDia = visibles.map(({ d }) => datos.filter((a) => a.fecha === d).sort((x, y) => x.hora.localeCompare(y.hora)));
   const filas = Math.max(1, ...porDia.map((l) => l.length));
   if (datos.length === 0 && !nombre) {
@@ -308,7 +313,7 @@ function Planilla({ dias, hoy, datos, nombre }: { dias: string[]; hoy: string; d
           <span className="text-[12px] text-texto-3">{datos.length} actividades</span>
         </div>
       )}
-      <table className="w-full min-w-[900px] table-fixed border-collapse text-[12.5px]">
+      <table className="w-full min-w-[1200px] table-fixed border-collapse text-[12.5px]">
         <colgroup>
           {visibles.map(({ d }) => (
             <FragmentoCol key={d} />
@@ -341,7 +346,7 @@ function Planilla({ dias, hoy, datos, nombre }: { dias: string[]; hoy: string; d
                 const a = porDia[col][fila];
                 const almuerzo = a?.tipo === 'almuerzo';
                 return (
-                  <FragmentoCelda key={d} actividad={a} color={COLOR_DIA[i]} almuerzo={almuerzo} />
+                  <FragmentoCelda key={d} actividad={a} color={COLOR_DIA[i]} almuerzo={almuerzo} resaltada={a != null && a.id === resaltar} />
                 );
               })}
             </tr>
@@ -375,7 +380,11 @@ function FragmentoCabecera({ color }: { color: string }) {
   );
 }
 
-function FragmentoCelda({ actividad: a, color, almuerzo }: { actividad?: Actividad; color: string; almuerzo: boolean }) {
+function FragmentoCelda({ actividad: a, color, almuerzo, resaltada = false }: { actividad?: Actividad; color: string; almuerzo: boolean; resaltada?: boolean }) {
+  const celda = useRef<HTMLTableCellElement>(null);
+  useEffect(() => {
+    if (resaltada) celda.current?.scrollIntoView({ block: 'center', inline: 'center', behavior: 'smooth' });
+  }, [resaltada]);
   const fondoHora = tinte(color, 40);
   const fondo = almuerzo ? 'color-mix(in srgb, var(--color-texto-3) 18%, var(--color-superficie))' : undefined;
   if (!a) {
@@ -396,7 +405,11 @@ function FragmentoCelda({ actividad: a, color, almuerzo }: { actividad?: Activid
         {a.hora}
         {a.horaFin && <span className="block text-[10.5px] font-normal text-texto-3">a {a.horaFin}</span>}
       </td>
-      <td className="border border-borde px-2 py-1.5 align-top" style={{ background: fondo }}>
+      <td
+        ref={celda}
+        className={cn('border border-borde px-2 py-1.5 align-top', resaltada && 'outline-2 -outline-offset-2 outline-marca')}
+        style={{ background: fondo }}
+      >
         <div className="flex flex-wrap items-center gap-1">
           {a.tipo !== 'visita' && (
             <span className={cn('rounded-full px-1.5 text-[10px] font-semibold', tipo.clase)}>{tipo.etiqueta}</span>
@@ -415,7 +428,8 @@ function FragmentoCelda({ actividad: a, color, almuerzo }: { actividad?: Activid
 // Qué dice el recorrido de lo declarado. La hora de carga no se juzga: llenar
 // el reporte en la noche o al día siguiente es normal.
 const RESPALDO: Record<string, { texto: string; clase: string }> = {
-  GPS: { texto: 'Respaldada por GPS', clase: 'text-movimiento' },
+  // Respaldada por GPS no se escribe: el recorrido de la línea de abajo ya lo muestra.
+  GPS: { texto: '', clase: 'text-movimiento' },
   LEJOS: { texto: 'Lejos del cliente', clase: 'text-sin-senal' },
   EN_CAMINO: { texto: 'En movimiento a esa hora', clase: 'text-texto-3' },
   SIN_RECORRIDO: { texto: 'Sin recorrido a esa hora', clase: 'text-sin-senal' },

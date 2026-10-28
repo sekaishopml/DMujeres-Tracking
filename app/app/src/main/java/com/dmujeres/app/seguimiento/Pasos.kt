@@ -28,8 +28,9 @@ class Pasos(private val context: Context) : SensorEventListener {
     fun iniciar() {
         if (activo || sensor == null || !AjustesPermisos.actividadFisica(context)) return
         activo = true
-        // Las lecturas se agrupan hasta 5 minutos: casi no gasta batería.
-        runCatching { manager.registerListener(this, sensor, SensorManager.SENSOR_DELAY_NORMAL, 5 * 60_000_000) }
+        // Las lecturas se agrupan hasta 30 s: cada punto lleva un conteo
+        // reciente y casi no gasta batería.
+        runCatching { manager.registerListener(this, sensor, SensorManager.SENSOR_DELAY_NORMAL, 30_000_000) }
     }
 
     fun detener() {

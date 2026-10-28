@@ -8,6 +8,7 @@ import androidx.preference.PreferenceManager
 import org.json.JSONArray
 import org.json.JSONObject
 import com.dmujeres.app.datos.DatabaseHelper
+import com.dmujeres.app.red.ConnectionState
 import com.dmujeres.app.red.DmujeresApi
 import com.dmujeres.app.datos.Prefs
 import com.dmujeres.app.seguimiento.Position
@@ -33,6 +34,15 @@ object UploadPolicy {
 
     /** Máximo de puntos por lote. */
     const val MAX_BATCH = 50
+
+    /**
+     * Lote tras un fallo: con datos móviles débiles un lote de 50 no alcanza a
+     * subir antes del tiempo límite y se reintentaba entero (el servidor veía
+     * "aborted"); uno chico pasa y la cola avanza.
+     */
+    const val LOTE_TRAS_FALLO = 10
+
+    fun tamanoLote(fallosSeguidos: Int): Int = if (fallosSeguidos > 0) LOTE_TRAS_FALLO else MAX_BATCH
 
     enum class HttpClass { CONFIRMED, RETRY, DEAD, PAUSED }
 
@@ -254,7 +264,7 @@ class UploadQueue(
 
     private fun step() {
         try {
-            val window = runCatching { databaseHelper.selectPositions(UploadPolicy.MAX_BATCH) }
+            val window = runCatching { databaseHelper.selectPositions(UploadPolicy.tamanoLote(consecutiveFailures)) }
                 .getOrDefault(emptyList())
                 .filter { it.status != com.dmujeres.app.seguimiento.STATUS_DEAD }
             if (window.isEmpty()) {
@@ -269,6 +279,7 @@ class UploadQueue(
             val group = UploadPolicy
                 .groupByCaptureDevice(window, current) { it.captureDeviceId }
                 .first()
+            ultimoLoteMs = System.currentTimeMillis()
             runCatching { databaseHelper.addAttempts(group.items.map { it.id }) }
             if (batchSupported) {
                 sendBatch(group.items, group.deviceId)
@@ -298,6 +309,7 @@ class UploadQueue(
             postJson(url, deviceId, body)
         } catch (e: Exception) {
             Log.w(TAG, "lote: sin red", e)
+            ultimoError = e.javaClass.simpleName
             if (wakeLockEnabled) SendWakeLock.release()
             scheduleRetry()
             return
@@ -349,7 +361,10 @@ class UploadQueue(
                     finishIdle()
                 }
             }
-            UploadPolicy.HttpClass.RETRY -> scheduleRetry()
+            UploadPolicy.HttpClass.RETRY -> {
+                ultimoError = "http $code"
+                scheduleRetry()
+            }
         }
     }
 
@@ -458,8 +473,12 @@ class UploadQueue(
         runCatching(block).onFailure { Log.w(TAG, "aviso al controlador falló", it) }
     }
 
-    private fun finishOk(@Suppress("UNUSED_PARAMETER") confirmed: Int) {
+    private fun finishOk(confirmed: Int) {
         busy = false
+        if (confirmed > 0) {
+            ultimoEnvioOkMs = System.currentTimeMillis()
+            fallosSeguidos = 0
+        }
     }
 
     private fun finishIdle() {
@@ -469,6 +488,10 @@ class UploadQueue(
     private fun scheduleRetry() {
         busy = false
         val delay = UploadPolicy.backoffMs(consecutiveFailures++)
+        fallosSeguidos = consecutiveFailures
+        // La pantalla deja de decir "En línea" si el servidor no recibe, aunque
+        // el teléfono tenga red (datos sin saldo, red débil, servidor caído).
+        ConnectionState.noteFailure(System.currentTimeMillis())
         Log.i(TAG, "reintento en ${delay}ms")
         handler.postDelayed({ kick(lastOnline) }, delay)
     }
@@ -483,7 +506,7 @@ class UploadQueue(
         try {
             connection.requestMethod = "POST"
             connection.connectTimeout = 15_000
-            connection.readTimeout = 15_000
+            connection.readTimeout = 30_000
             connection.doOutput = true
             connection.setRequestProperty("Content-Type", "application/json")
             val hadToken = DmujeresApi.setAuthHeaders(connection, appContext)
@@ -514,9 +537,28 @@ class UploadQueue(
         .put("mock", position.mock)
         .put("provider", position.provider)
         .put("movementState", position.movementState)
+        .also { json ->
+            val (tipo, pasos) = com.dmujeres.app.seguimiento.ActividadFisica.separar(position.activity)
+            if (tipo != null) json.put("activity", tipo)
+            if (pasos != null) json.put("steps", pasos)
+        }
 
     companion object {
         private val TAG = UploadQueue::class.java.simpleName
         const val PATH_POSITIONS = "/api/mobile/v1/positions"
+
+        /** Salud del envío para el diagnóstico (el teléfono "en línea" que no sube). */
+        @Volatile
+        var fallosSeguidos: Int = 0
+
+        @Volatile
+        var ultimoEnvioOkMs: Long = 0L
+
+        /** Inicio del último lote, venga de donde venga (punto, pulso, alarma). */
+        @Volatile
+        var ultimoLoteMs: Long = 0L
+
+        @Volatile
+        var ultimoError: String = ""
     }
 }

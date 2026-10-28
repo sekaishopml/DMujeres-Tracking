@@ -4,11 +4,14 @@ import {
   BatteryCharging,
   BatteryLow,
   BatteryWarning,
+  CalendarPlus,
+  CircleCheck,
   Flag,
   MapPin,
   Play,
   Plug,
   RotateCcw,
+  TriangleAlert,
   WifiOff,
 } from 'lucide-react';
 import type { EventoBitacora, TipoEvento } from '@/dominio/bitacora';
@@ -33,6 +36,9 @@ export const ESTILO_EVENTO: Record<TipoEvento, Estilo> = {
   cargaInicio: { icono: BatteryCharging, punto: 'bg-marino-500', color: '#2c5f99' },
   cargaFin: { icono: Plug, punto: 'bg-marino-500', color: '#2c5f99' },
   bateriaBaja: { icono: BatteryLow, punto: 'bg-sin-senal', color: '#d97706' },
+  aviso: { icono: TriangleAlert, punto: 'bg-peligro', color: '#dc2626' },
+  recuperacion: { icono: CircleCheck, punto: 'bg-movimiento', color: '#16a34a' },
+  cronograma: { icono: CalendarPlus, punto: 'bg-marino-500', color: '#2c5f99' },
 };
 
 function InsigniaBateria({ pct }: { pct: number }) {

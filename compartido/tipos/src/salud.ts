@@ -27,6 +27,8 @@ export interface SaludDispositivo {
   gps: string | null;
   permisos: PermisosSalud | null;
   bateriaExenta: boolean | null;
+  /** °C de la batería en el último diagnóstico (app 2.10 en adelante). */
+  temperaturaC: number | null;
   fgs: string | null;
   jornada: string | null;
   red: string | null;

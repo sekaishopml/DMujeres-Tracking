@@ -85,6 +85,11 @@ abstract class PositionProvider(
     protected fun configuredIntervalSeconds(): Long? =
         preferences.getString(Prefs.INTERVAL, null)?.toLongOrNull()
 
+    /** Posición de un rescate en paralelo: pasa por los mismos filtros. */
+    fun aceptarExterna(location: Location) {
+        processLocation(location)
+    }
+
     protected fun processLocation(location: Location?) {
         val lastLocation = this.lastLocation
         // Guardas anti-ruido para el filtro de ángulo: quieto, el rumbo del GPS

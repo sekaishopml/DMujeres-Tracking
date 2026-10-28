@@ -20,6 +20,7 @@ export function estadoDeDiagnostico(reporte, ahoraMs = Date.now()) {
   return {
     gps: bool(gps.enabled),
     permisos: fino === null && fondo === null ? null : fino !== false && fondo !== false,
+    notificaciones: bool(permisos.notifications),
     ahorro: bool(energia.exempt) === null ? null : !energia.exempt,
     bateriaCritica: nivel === null ? null : nivel <= BATERIA_CRITICA_PCT && energia.charging !== true,
     ahorroSistema: bool(energia.saver),
@@ -31,6 +32,7 @@ export function estadoDeDiagnostico(reporte, ahoraMs = Date.now()) {
 export const CLAVES_ESTADO = {
   gps: 'alerta.gps',
   permisos: 'alerta.permisos',
+  notificaciones: 'alerta.notificaciones',
   ahorro: 'alerta.ahorro',
   bateriaCritica: 'alerta.bateriaCritica',
   ahorroSistema: 'alerta.ahorroSistema',
@@ -40,11 +42,25 @@ export const CLAVES_ESTADO = {
 const EVENTOS = {
   gps: { mal: 'mobileGpsDisabled', bien: 'mobileGpsReenabled', malSi: false },
   permisos: { mal: 'mobilePermissionLost', bien: 'mobilePermissionRestored', malSi: false },
+  notificaciones: { mal: 'mobileNotificationsOff', bien: 'mobileNotificationsOn', malSi: false },
   ahorro: { mal: 'mobileBatterySaverOn', bien: 'mobileBatterySaverOff', malSi: true },
   bateriaCritica: { mal: 'mobileBatteryCritical', bien: null, malSi: true },
   ahorroSistema: { mal: 'mobilePowerSaveOn', bien: 'mobilePowerSaveOff', malSi: true },
   reloj: { mal: 'mobileClockOff', bien: 'mobileClockOk', malSi: true },
 };
+
+// Dos diagnósticos que llegan casi a la vez leen el mismo estado anterior y
+// generarían el mismo evento dos veces. Lo último enviado se recuerda 10 s.
+export const VENTANA_EVENTO_MS = 10_000;
+export function esRepetido(recientes, clave, ahoraMs) {
+  const previo = recientes.get(clave);
+  if (previo !== undefined && ahoraMs - previo < VENTANA_EVENTO_MS) return true;
+  recientes.set(clave, ahoraMs);
+  if (recientes.size > 1000) {
+    for (const [otra, t] of recientes) if (ahoraMs - t >= VENTANA_EVENTO_MS) recientes.delete(otra);
+  }
+  return false;
+}
 
 // Devuelve {eventos, parche}: los eventos a registrar y los atributos a
 // guardar. Un estado desconocido antes no avisa "se arregló", pero sí avisa
@@ -57,9 +73,16 @@ export function alertasDeDiagnostico(atributos, reporte, ahoraMs = Date.now()) {
   for (const [campo, valor] of Object.entries(actual)) {
     if (valor === null) continue;
     const clave = CLAVES_ESTADO[campo];
+    // Fuera de jornada el estado se olvida: si la jornada empieza con el GPS
+    // ya apagado, el primer diagnóstico avisa. Antes se recordaba "apagado"
+    // desde antes del inicio y nunca se avisaba (Israel 21/10: 07:58-11:29).
+    if (!enJornada) {
+      parche[clave] = null;
+      continue;
+    }
     const previo = typeof atributos?.[clave] === 'boolean' ? atributos[clave] : null;
     parche[clave] = valor;
-    if (!enJornada || previo === valor) continue;
+    if (previo === valor) continue;
     const reglas = EVENTOS[campo];
     const esMal = valor === reglas.malSi;
     if (esMal) eventos.push(reglas.mal);

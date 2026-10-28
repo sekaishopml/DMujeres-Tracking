@@ -1,12 +1,19 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { CalendarDays, FileDown } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { LngLatBounds, Marker } from 'maplibre-gl';
+import { Marker } from 'maplibre-gl';
 import type { GeoJSONSource, Map as TipoMapa } from 'maplibre-gl';
 import { GUION } from '@/dominio/formatoBase';
 import type { Cobertura } from '@/dominio/dia';
 import Icono from '@/componentes/replay/Icono';
 import MapaRaster, { CAPAS_REPLAY, CAPA_INICIAL_REPLAY } from '@/componentes/mapa/MapaBase';
+import CapaGeocercas from '@/componentes/geocercas/CapaGeocercas';
+import { etiquetaCierre, horaLocalCsv } from '@/componentes/replay/reproductorComun';
+import SeccionGeocercas from '@/componentes/geocercas/SeccionGeocercas';
+import ReporteDelDia from '@/componentes/replay/ReporteDelDia';
+import { ubicarEnGeocerca, etiquetaTipo } from '@/componentes/geocercas/logica';
+import { useGeocercas } from '@/dominio/geocercas';
 import { GruposEnLugar } from '@/componentes/replay/GruposEnLugar';
 import ReproductorReplay, {
   InsigniasParadas,
@@ -16,15 +23,17 @@ import ReproductorReplay, {
 } from '@/componentes/replay/ReproductorReplay';
 import { etiquetaCorte } from '@/componentes/replay/globos';
 import FiltroReplay from '@/componentes/replay/FiltroReplay';
-import { flechasDeLineas, lineasDeRecorrido, puntoSobreTrazo, sinPicos } from '@/componentes/replay/flechas';
+import { flechasDeLineas, lineasDeRecorrido, puntoCercanoEnLineas, sinPicos } from '@/componentes/replay/flechas';
 import {
   COLOR_POR_HORA,
   fraccionDelDia,
+  descartarAjustesLejanos,
   segmentosParaDibujar,
 } from '@/componentes/replay/trazo';
 import { depurarRecorrido } from '@/dominio/depuracion';
-import { traerFlota, traerJornadas, traerParadas, traerReplay, CACHE_AUDITORIA_MS, CLAVE_FLOTA, equiposHabilitados } from '@/dominio/datos';
+import { traerFlota, traerJornadas, traerParadas, traerReplay, CLAVE_FLOTA, equiposHabilitados } from '@/dominio/datos';
 import { ordenarPorDepartamento } from '@/dominio/departamentos';
+import { unirParadasSinSalir } from '@/dominio/paradasUnidas';
 import { coberturaDe, resumenDia } from '@/dominio/dia';
 import { esNoEncontrado, mensajeError } from '@/dominio/errores';
 import {
@@ -37,11 +46,13 @@ import {
   microparadasDeRecorrido,
   milisegundos,
   normalizarReconstruidos,
-  puntosQuietos,
 } from '@/dominio/replay';
 import type { Parada, TramoReconstruido } from '@/dominio/replay';
 import { fechaAyerLocal, fechaHoyLocal, finDeDia, inicioDeDia } from '@/dominio/rango';
 import '@/componentes/replay/replay.css';
+
+// Zoom de calle al abrir un recorrido en su punto de inicio.
+const ZOOM_INICIO = 16;
 import type { Hueco, ReplayCalidad } from '@contratos';
 
 // Lectura de auditoría del recorrido: cuánto es observado y qué se apartó.
@@ -104,6 +115,12 @@ function IntegridadRecorrido({
   );
 }
 
+const CAPAS_DE_VISTA = [
+  { clave: 'trazado', texto: 'Trazado' },
+  { clave: 'eventos', texto: 'Eventos' },
+  { clave: 'paradas', texto: 'Paradas e inicio' },
+];
+
 function formatoMinutos(minutos: number): string {
   if (minutos < 60) return `${minutos} min`;
   const horas = Math.floor(minutos / 60);
@@ -130,7 +147,9 @@ function InfoRecorrido({
   reconstruidos,
   calidad,
   cobertura,
+  alDescargarCsv,
 }: {
+  alDescargarCsv: () => void;
   totalFixes: number;
   simuladas: number;
   huecos: Hueco[];
@@ -149,6 +168,10 @@ function InfoRecorrido({
             <strong>{cobertura.porcentaje == null ? GUION : `${Math.round(cobertura.porcentaje)} %`}</strong>
           </p>
           <IntegridadRecorrido totalFixes={totalFixes} simuladas={simuladas} huecos={huecos} reconstruidos={reconstruidos} calidad={calidad} />
+          <button type="button" className="suave replay-info-csv" onClick={alDescargarCsv}>
+            <FileDown size={14} aria-hidden="true" />
+            Descargar recorrido (CSV)
+          </button>
         </section>
       )}
       {/* Mismo control y mismo aspecto que el botón de atribución del mapa,
@@ -187,10 +210,13 @@ const NUCLEO_FLECHA = '#ffffff';
 // ámbar con guiones: nunca se confunden con GPS registrado.
 const COLOR_RUTA = '#17365d';
 const COLOR_BORDE = '#ffffff';
-const COLOR_SIN_SENAL = '#c46a00';
+const COLOR_SIN_SENAL = '#f08c00';
 const ID_FLECHA = 'dir-ruta';
 const MIN_PARADA_MS = 3 * 60_000;
 const REFRESCO_VIVO_MS = 15_000;
+// Una ruta grande pesa varios megas: pedirla entera cada 15 s traba la pantalla.
+const REFRESCO_VIVO_GRANDE_MS = 60_000;
+const RUTA_GRANDE_PUNTOS = 5000;
 const REFRESCO_VIVO_PARADAS_MS = 60_000;
 // Punta de flecha blanca hacia el norte, registrada como imagen del mapa. El
 // disco de color (según la hora) lo dibuja la capa replay-flechas-disco debajo;
@@ -371,13 +397,30 @@ function marcadorExtremo(
 
 export default function Replay() {
   const [parametros] = useSearchParams();
-  const [dispositivoId, setDispositivoId] = useState(parametros.get('dispositivo') ?? '');
+  // La persona elegida se recuerda en la pestaña: al salir y volver por el
+  // menú se vuelve a ella (y su recorrido sale de la caché). El día no: abre
+  // siempre en ayer.
+  const [dispositivoId, setDispositivoId] = useState(() => {
+    try {
+      return parametros.get('dispositivo') ?? sessionStorage.getItem('replay.dispositivo') ?? '';
+    } catch {
+      return parametros.get('dispositivo') ?? '';
+    }
+  });
+  useEffect(() => {
+    try {
+      if (dispositivoId) sessionStorage.setItem('replay.dispositivo', dispositivoId);
+    } catch {
+      // Sin almacenamiento no se recuerda; nada más.
+    }
+  }, [dispositivoId]);
   // Por defecto se muestra el día anterior completo: lo que se revisa es lo
   // que pasó ayer. La dirección o el filtro lo pueden cambiar.
   const [desde, setDesde] = useState(parametros.get('desde') ?? fechaAyerLocal());
   const [hasta, setHasta] = useState(parametros.get('hasta') ?? fechaAyerLocal());
   const [mapa, setMapa] = useState<TipoMapa | null>(null);
   const [panelRecogido, setPanelRecogido] = useState(false);
+  const campoDia = useRef<HTMLInputElement>(null);
   // Posiciones ocupadas por las etiquetas de los extremos, para que dos pines
   // juntos no encimen sus textos. Va en un ref para no redibujar por él.
   const etiquetasExtremos = useRef<EtiquetaExtremo[]>([]);
@@ -410,22 +453,31 @@ export default function Replay() {
   // En vivo: si el rango llega a hoy, el recorrido se vuelve a pedir cada
   // 15 s y la ruta se va dibujando sola. Los días pasados no se refrescan.
   const enVivo = rangoValido && hasta === fechaHoyLocal();
+  // Un día pasado casi no cambia (solo puntos subidos tarde): se reusa 10 min
+  // en vez de volver a bajar hasta 9 MB al volver a la misma persona.
+  const CACHE_DIA_CERRADO_MS = 10 * 60_000;
   const replay = useQuery({
     queryKey: ['replay', seleccionado, desde, hasta],
     queryFn: () => traerReplay(seleccionado, inicioDeDia(desde), finDeDia(hasta)),
     enabled: seleccionado !== '' && rangoValido,
-    staleTime: enVivo ? 0 : CACHE_AUDITORIA_MS,
-    refetchInterval: enVivo ? REFRESCO_VIVO_MS : false,
+    staleTime: enVivo ? 0 : CACHE_DIA_CERRADO_MS,
+    refetchInterval: (consulta) =>
+      !enVivo
+        ? false
+        : (consulta.state.data?.posiciones.length ?? 0) > RUTA_GRANDE_PUNTOS
+          ? REFRESCO_VIVO_GRANDE_MS
+          : REFRESCO_VIVO_MS,
     refetchIntervalInBackground: false,
   });
 
   // Paradas del servidor, en paralelo. Si fallan se usan las calculadas aquí
   // y se avisa; mientras cargan se muestran sin aviso.
+  const geocercasConsulta = useGeocercas();
   const paradasConsulta = useQuery({
     queryKey: ['paradas', seleccionado, desde, hasta],
     queryFn: () => traerParadas(seleccionado, inicioDeDia(desde), finDeDia(hasta)),
     enabled: seleccionado !== '' && rangoValido,
-    staleTime: enVivo ? 0 : CACHE_AUDITORIA_MS,
+    staleTime: enVivo ? 0 : CACHE_DIA_CERRADO_MS,
     refetchInterval: enVivo ? REFRESCO_VIVO_PARADAS_MS : false,
   });
 
@@ -436,29 +488,37 @@ export default function Replay() {
     queryFn: () => traerJornadas(seleccionado, inicioDeDia(desde), finDeDia(hasta)),
     enabled: seleccionado !== '' && rangoValido,
     retry: false,
-    staleTime: enVivo ? 0 : CACHE_AUDITORIA_MS,
+    staleTime: enVivo ? 0 : CACHE_DIA_CERRADO_MS,
     refetchInterval: enVivo ? REFRESCO_VIVO_PARADAS_MS : false,
   });
 
+  // Depende solo de los puntos: cada refresco trae un objeto nuevo aunque no
+  // haya llegado nada, y recalcular la ruta entera traba la pantalla.
+  const puntosRecibidos = replay.data?.posiciones;
   const { posiciones, estancias } = useMemo(() => {
-    const lista = [...(replay.data?.posiciones ?? [])];
+    const lista = [...(puntosRecibidos ?? [])];
     // La API ya ordena por hora del fix; se reordena como defensa para que la
     // línea y la reproducción nunca retrocedan si el orden cambia.
     lista.sort((a, b) => milisegundos(a.registradoEn) - milisegundos(b.registradoEn));
     // Sin picos de ruido y con cada estancia llevada a su centro: la línea, el
     // marcador, las flechas y el slider trabajan sobre el mismo recorrido.
     return depurarRecorrido(lista);
-  }, [replay.data]);
+  }, [puntosRecibidos]);
 
   const huecos = useMemo(() => replay.data?.huecos ?? [], [replay.data]);
+  const avisos = useMemo(() => replay.data?.avisos ?? [], [replay.data]);
   const esIphone = replay.data?.dispositivo.plataforma === 'ios';
   // Tramos reconstruidos por el servidor (`reconstruidos`, con método; la
   // forma anterior `estimados` se toma como ESTIMATED en replay.ts). Se quitan
   // los picos de ida y vuelta del ajuste a calles: ese pedacito nunca se
   // recorrió.
+  const tramosRecibidos = useMemo(
+    () => ({ reconstruidos: replay.data?.reconstruidos, estimados: replay.data?.estimados }),
+    [replay.data?.reconstruidos, replay.data?.estimados],
+  );
   const reconstruidos = useMemo<TramoReconstruido[]>(
-    () => normalizarReconstruidos(replay.data).map((tramo) => ({ ...tramo, trazado: sinPicos(tramo.trazado) })),
-    [replay.data],
+    () => normalizarReconstruidos(tramosRecibidos).map((tramo) => ({ ...tramo, trazado: sinPicos(tramo.trazado) })),
+    [tramosRecibidos],
   );
   const paradasServidor = useMemo<Parada[] | null>(() => {
     const datos = paradasConsulta.data?.datos;
@@ -489,6 +549,7 @@ export default function Replay() {
   // que cruzan una pérdida de señal; sin ellos vuelven las duraciones absurdas
   // (1 h 54 min).
   const paradasLocales = useMemo(() => detencionesDeRecorrido(posiciones, huecos), [posiciones, huecos]);
+  const geocercas = useMemo(() => geocercasConsulta.data?.datos ?? [], [geocercasConsulta.data]);
   // Paradas: las del servidor más las estancias de 3 min o más que el
   // servidor no vio (su regla es por velocidad y el temblor del GPS la
   // confunde). Cada parada va en el centro de su estancia, por donde pasa la
@@ -512,21 +573,35 @@ export default function Replay() {
         longitud: e.longitud,
         direccion: null,
       }));
-    return [...ubicadas, ...nuevas].sort((a, b) => milisegundos(a.inicio) - milisegundos(b.inicio));
-  }, [paradasServidor, paradasLocales, estancias]);
+    // Una parada dentro de una geocerca se rotula con su nombre y tipo en vez
+    // de la dirección (lista y globo del mapa leen `direccion`).
+    return unirParadasSinSalir([...ubicadas, ...nuevas], huecos, posiciones, (p) => ubicarEnGeocerca(p, puntosRecibidos ?? [], geocercas) != null)
+      .map((parada) => {
+        // Con los puntos tal como llegaron: los depurados de una estancia
+        // están todos en su centro.
+        const zona = ubicarEnGeocerca(parada, puntosRecibidos ?? [], geocercas);
+        return zona
+          ? { ...zona.parada, direccion: `${zona.geocerca.nombre} (${etiquetaTipo(zona.geocerca.tipo)})` }
+          : parada;
+      })
+      .sort((a, b) => milisegundos(a.inicio) - milisegundos(b.inicio));
+  }, [paradasServidor, paradasLocales, estancias, posiciones, puntosRecibidos, geocercas, huecos]);
   const paradasLocalesEnUso = paradasServidor == null && paradasConsulta.isError;
   // El día contado como lo vive la persona: de dónde sale, cuándo llega a la
   // oficina, qué visita y cuánto se vio. Solo con un día; en un rango largo las
   // estancias de cada noche se mezclarían.
   const resumen = useMemo(
-    () => (desde === hasta ? resumenDia({ posiciones, paradas, huecos }) : null),
-    [desde, hasta, posiciones, paradas, huecos],
+    () => (desde === hasta ? resumenDia({ posiciones, paradas, huecos, crudas: puntosRecibidos }) : null),
+    [desde, hasta, posiciones, paradas, huecos, puntosRecibidos],
   );
   // Tramos por modo (vehículo, caminata, quieto). Quieto no dibuja línea: se
-  // muestra como un halo con puntos, para no hacer una maraña.
+  // muestra con el halo de su parada, para no hacer una maraña.
+  // Ajustes a calles que no siguen al GPS preciso se dejan fuera para todo:
+  // línea, marcador y cursor usan los mismos tramos.
+  const tramos = useMemo(() => descartarAjustesLejanos(posiciones, reconstruidos, paradas), [posiciones, reconstruidos, paradas]);
   const segmentos = useMemo(
-    () => segmentosParaDibujar(posiciones, huecos, reconstruidos, paradas),
-    [posiciones, huecos, reconstruidos, paradas],
+    () => segmentosParaDibujar(posiciones, huecos, tramos, paradas),
+    [posiciones, huecos, tramos, paradas],
   );
   // Hora del día de cada trazo (0 = primer fix, 1 = último): da el tono.
   const [primerMs, ultimoMs] = useMemo(
@@ -550,7 +625,7 @@ export default function Replay() {
   // (ver flechas.ts). La línea pasa por todos los puntos, también los
   // aproximados (antena o wifi); el globo del punto avisa "Ubicación
   // aproximada ±N m".
-  const lineas = useMemo(() => lineasDeRecorrido(posiciones, segmentos, reconstruidos), [posiciones, segmentos, reconstruidos]);
+  const lineas = useMemo(() => lineasDeRecorrido(posiciones, segmentos, tramos), [posiciones, segmentos, tramos]);
   // Detenciones de 40 s a 3 min (semáforo largo, entrega rápida) que no
   // llegan a parada: se marcan aparte.
   const microparadasSuelta = useMemo(() => microparadasDeRecorrido(posiciones, paradas), [posiciones, paradas]);
@@ -559,7 +634,8 @@ export default function Replay() {
   const microparadas = useMemo(
     () =>
       microparadasSuelta.map((m) => {
-        const sobre = puntoSobreTrazo(lineas, m.longitud, m.latitud);
+        // Sobre el trazo de su hora: la misma calle pudo recorrerse a otra hora.
+        const sobre = puntoCercanoEnLineas(lineas, milisegundos(m.inicio), m.longitud, m.latitud);
         return sobre ? { ...m, longitud: sobre[0], latitud: sobre[1] } : m;
       }),
     [microparadasSuelta, lineas],
@@ -574,11 +650,9 @@ export default function Replay() {
       })),
     };
   }, [lineas, primerMs, ultimoMs]);
-  // Halos de parada (círculo sutil por insignia) y nube de fixes quietos: la
-  // dispersión real sin líneas que la unan.
+  // Halos de parada: círculo sutil por insignia.
   const halos = useMemo(() => halosDeParadas(posiciones, paradas), [posiciones, paradas]);
   const coleccionHalos = useMemo(() => aColeccionHalos(halos), [halos]);
-  const coleccionQuietos = useMemo(() => puntosQuietos(posiciones), [posiciones]);
 
   const jornadas = useMemo(() => {
     const lista = [...(jornadasConsulta.data?.jornadas ?? [])];
@@ -593,7 +667,16 @@ export default function Replay() {
     // arranca vacío y las guardas por id evitan fuentes, capas e imágenes
     // duplicadas.
     if (!mapa.getSource('replay-recorrido')) {
-      mapa.addSource('replay-recorrido', { type: 'geojson', tolerance: 0, data: { type: 'FeatureCollection', features: [] } });
+      // Sin `tolerance` fija: el mapa simplifica la ruta según el zoom (su LOD
+      // nativo) y no dibuja lo que queda fuera de pantalla. Con miles de puntos
+      // eso quita el tirón al alejar o arrastrar. Los cortes van en su propia
+      // fuente porque sí necesitan verse enteros de lejos (ver replay-huecos).
+      mapa.addSource('replay-recorrido', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+    }
+    if (!mapa.getSource('replay-huecos')) {
+      // Cortes de señal: pocos y cortos. Con `tolerance: 0` no se descartan al
+      // alejar el zoom (cada tramo mide menos de un píxel y desaparecía).
+      mapa.addSource('replay-huecos', { type: 'geojson', tolerance: 0, data: { type: 'FeatureCollection', features: [] } });
     }
     if (!mapa.getSource('replay-flechas')) {
       mapa.addSource('replay-flechas', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
@@ -601,27 +684,28 @@ export default function Replay() {
     if (!mapa.getSource('replay-halos')) {
       mapa.addSource('replay-halos', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
     }
-    if (!mapa.getSource('replay-quieto')) {
-      mapa.addSource('replay-quieto', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
-    }
     // Si el mapa se reutiliza, se quitan capas de versiones anteriores para no
     // duplicar la ruta.
     for (const vieja of [
-      'replay-linea-base', 'replay-casing-vehiculo', 'replay-casing-caminata', 'replay-casing-matched',
-      'replay-casing-estimated', 'replay-linea-vehiculo', 'replay-filete-vehiculo', 'replay-matched',
+      'replay-linea-base', 'replay-hueco-borde', 'replay-hueco-rayas', 'replay-casing-vehiculo', 'replay-casing-caminata', 'replay-casing-matched',
+      'replay-casing-estimated', 'replay-linea-vehiculo', 'replay-filete-vehiculo', 'replay-matched', 'replay-linea-hit',
     ]) {
       if (mapa.getLayer(vieja)) mapa.removeLayer(vieja);
     }
     const trazo = ['in', ['get', 'tipo'], ['literal', ['ruta', 'matched', 'estimated']]];
     const noQuieto = ['!=', ['get', 'modo'], 'quieto'];
-    // Superficie de acierto: toda la traza, casi transparente.
+    // Superficie de acierto: toda la traza, invisible. Con algo de opacidad,
+    // miles de tramos encimados se sumaban en una sombra negra.
     if (!mapa.getLayer('replay-linea-hit')) {
       mapa.addLayer({
         id: 'replay-linea-hit',
         type: 'line',
         source: 'replay-recorrido',
+        // Solo lo que se ve: el temblor quieto dentro de una parada no tiene
+        // línea y el cursor no debe encontrar nada ahí.
+        filter: noQuieto as never,
         layout: { 'line-cap': 'round', 'line-join': 'round' },
-        paint: { 'line-color': '#000000', 'line-width': 18, 'line-opacity': 0.01 },
+        paint: { 'line-color': '#000000', 'line-width': 18, 'line-opacity': 0 },
       });
     }
     if (!mapa.getLayer('replay-halo')) {
@@ -691,54 +775,42 @@ export default function Replay() {
         },
       });
     }
-    // Con `tolerance: 0` el mapa no descarta los tramos cortos al alejar el zoom:
-    // con poco zoom cada par de puntos mide menos de un píxel y desaparecía.
-    // Corte de señal: lo que no se vio. Una raya ámbar con borde blanco y
-    // guiones largos se distingue del GPS registrado (línea sólida azul) y de
-    // lo estimado por calles (punteado del color de la hora).
-    if (!mapa.getLayer('replay-hueco-borde')) {
-      mapa.addLayer({
-        id: 'replay-hueco-borde',
-        type: 'line',
-        source: 'replay-recorrido',
-        filter: ['==', ['get', 'tipo'], 'hueco'],
-        layout: { 'line-cap': 'butt' },
-        paint: {
-          'line-color': COLOR_BORDE,
-          'line-width': ['interpolate', ['linear'], ['zoom'], 10, 2.9, 16, 4.5],
-          'line-opacity': 0.85,
-        },
-      });
-    }
+    // Corte de señal: lo que no se vio. Naranja con rayas negras encima, sin
+    // borde, para que no se confunda con el GPS registrado (línea sólida azul).
+    // Va en la fuente replay-huecos (tolerance 0) para no desaparecer de lejos.
     if (!mapa.getLayer('replay-hueco')) {
       mapa.addLayer({
         id: 'replay-hueco',
         type: 'line',
-        source: 'replay-recorrido',
+        source: 'replay-huecos',
+        filter: ['==', ['get', 'tipo'], 'hueco'],
+        layout: { 'line-cap': 'butt' },
+        // Algo transparente: es lo que no se vio, no debe tapar el mapa.
+        paint: {
+          'line-color': COLOR_SIN_SENAL,
+          'line-width': ['interpolate', ['linear'], ['zoom'], 10, 2.1, 16, 3.4],
+          'line-opacity': 0.55,
+        },
+      });
+    }
+    if (!mapa.getLayer('replay-hueco-rayas')) {
+      mapa.addLayer({
+        id: 'replay-hueco-rayas',
+        type: 'line',
+        source: 'replay-huecos',
         filter: ['==', ['get', 'tipo'], 'hueco'],
         layout: { 'line-cap': 'butt' },
         paint: {
-          'line-color': COLOR_SIN_SENAL,
-          'line-width': ['interpolate', ['linear'], ['zoom'], 10, 1.6, 16, 2.6],
-          'line-dasharray': [1.6, 1.4],
+          'line-color': '#000000',
+          'line-width': ['interpolate', ['linear'], ['zoom'], 10, 2.1, 16, 3.4],
+          'line-dasharray': [1, 1],
+          'line-opacity': 0.4,
         },
       });
     }
-    // Nube de fixes quietos: la deriva parada como puntos, sin líneas.
-    if (!mapa.getLayer('replay-quieto')) {
-      mapa.addLayer({
-        id: 'replay-quieto',
-        type: 'circle',
-        source: 'replay-quieto',
-        paint: {
-          'circle-color': COLOR_RUTA,
-          'circle-opacity': 0.16,
-          'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, 1.5, 16, 3],
-        },
-      });
-    }
-    // Capa de una versión anterior (se quita).
-    if (mapa.getLayer('replay-aproximado')) mapa.removeLayer('replay-aproximado');
+    // Capas de versiones anteriores (se quitan). Los puntos quietos dentro de
+    // una parada eran el rebote del GPS: manchas que no dicen nada.
+    for (const vieja of ['replay-aproximado', 'replay-quieto']) if (mapa.getLayer(vieja)) mapa.removeLayer(vieja);
     // Flechas de sentido: punta blanca con filo del color de su línea.
     // Disco del color de su hora (capa de círculos) y punta blanca encima.
     if (mapa.hasImage(ID_FLECHA)) mapa.removeImage(ID_FLECHA);
@@ -775,6 +847,11 @@ export default function Replay() {
   useEffect(() => {
     if (!mapa) return;
     mapa.getSource<GeoJSONSource>('replay-recorrido')?.setData(coleccion);
+    // Los cortes van aparte: fuente sin simplificar para que no se pierdan.
+    mapa.getSource<GeoJSONSource>('replay-huecos')?.setData({
+      ...coleccion,
+      features: coleccion.features.filter((f) => (f.properties as { tipo?: string })?.tipo === 'hueco'),
+    });
   }, [mapa, coleccion]);
 
   useEffect(() => {
@@ -782,10 +859,6 @@ export default function Replay() {
     mapa.getSource<GeoJSONSource>('replay-halos')?.setData(coleccionHalos);
   }, [mapa, coleccionHalos]);
 
-  useEffect(() => {
-    if (!mapa) return;
-    mapa.getSource<GeoJSONSource>('replay-quieto')?.setData(coleccionQuietos);
-  }, [mapa, coleccionQuietos]);
 
 
   useEffect(() => {
@@ -800,12 +873,12 @@ export default function Replay() {
   useEffect(() => {
     if (!mapa) return;
     if (!mapa.getSource('replay-hecho')) {
-      mapa.addSource('replay-hecho', { type: 'geojson', tolerance: 0, lineMetrics: true, data: { type: 'FeatureCollection', features: [] } });
+      mapa.addSource('replay-hecho', { type: 'geojson', lineMetrics: true, data: { type: 'FeatureCollection', features: [] } });
     }
     for (const capa of mapa.getStyle().layers ?? []) {
       if (capa.id.startsWith('replay-hecho-')) mapa.removeLayer(capa.id);
     }
-    const antes = mapa.getLayer('replay-hueco-borde') ? 'replay-hueco-borde' : undefined;
+    const antes = mapa.getLayer('replay-hueco') ? 'replay-hueco' : undefined;
     const sinAvance = ['interpolate', ['linear'], ['line-progress'], 0, 'rgba(0,0,0,0)', 1, 'rgba(0,0,0,0)'];
     lineas.forEach((_, i) => {
       for (const [tipo, ancho] of [
@@ -819,7 +892,14 @@ export default function Replay() {
             source: 'replay-hecho',
             filter: ['==', ['id'], i],
             layout: { 'line-cap': 'round', 'line-join': 'round' },
-            paint: { 'line-gradient': sinAvance as never, 'line-width': ancho as never },
+            // Opacidad 0 hasta que el recorrido guiado llega a ella: así el mapa
+            // no la dibuja (ver pintarAvance en ReproductorReplay).
+            paint: {
+              'line-gradient': sinAvance as never,
+              'line-width': ancho as never,
+              'line-opacity': 0,
+              'line-opacity-transition': { duration: 0, delay: 0 },
+            },
           },
           antes,
         );
@@ -849,21 +929,45 @@ export default function Replay() {
     const claveRecorrido = `${seleccionado}|${desde}|${hasta}`;
     const encuadrar = recorridoEncuadrado.current !== claveRecorrido;
     recorridoEncuadrado.current = claveRecorrido;
-    // Primero se encuadra y después se ponen los pines, para decidir las
-    // etiquetas con la vista final. cameraForBounds + jumpTo aplica la cámara
-    // al momento (fitBounds la deja para el siguiente cuadro).
-    const limites = posiciones.reduce(
-      (caja, posicion) => caja.extend([posicion.longitud, posicion.latitud] as [number, number]),
-      new LngLatBounds([primera.longitud, primera.latitud], [primera.longitud, primera.latitud]),
-    );
+    // Primero se centra y después se ponen los pines, para decidir las
+    // etiquetas con la vista final. Al elegir persona o día el mapa abre en el
+    // punto de inicio, de cerca: el día se recorre desde ahí.
     if (encuadrar) {
-      const camara = mapa.cameraForBounds(limites, { padding: 64, maxZoom: 14 });
-      if (camara) mapa.jumpTo(camara);
+      // Centro en la parte del mapa que se ve: el panel tapa la izquierda
+      // (escritorio) o la franja de arriba (media pantalla), y la barra de
+      // reproducción el pie.
+      const caja = mapa.getContainer().getBoundingClientRect();
+      const panel = document.querySelector('.replay-panel:not(.colapsado)')?.getBoundingClientRect();
+      const barra = document.querySelector('.replay-timeline')?.getBoundingClientRect();
+      const arriba = panel && panel.width >= caja.width - 2 ? panel.bottom - caja.top : 0;
+      const izquierda = panel && !arriba ? panel.right - caja.left : 0;
+      const abajo = barra ? Math.max(0, caja.bottom - barra.top) : 0;
+      const zoomUi = mapa.getContainer().clientWidth / Math.max(1, caja.width);
+      mapa.jumpTo({
+        center: [primera.longitud, primera.latitud],
+        zoom: ZOOM_INICIO,
+        padding: { top: arriba * zoomUi, left: izquierda * zoomUi, bottom: abajo * zoomUi, right: 0 },
+      });
     }
     // El iPhone no tiene jornada: su día va de que se activa la app a que se
     // desactiva.
-    const textoInicio = `${esIphone ? 'App activada' : 'Inicio'} ${horaCorta(primera.registradoEn)}`;
-    const textoFin = `${enVivo ? 'Último' : esIphone ? 'App desactivada' : 'Fin'} ${horaCorta(ultima.registradoEn)}`;
+    // Si la jornada empezó 10 min o más antes del primer punto, se dicen las
+    // dos horas: el primer punto no es el inicio (Israel 21/10: jornada 07:58,
+    // primer punto 12:02 con la ubicación apagada).
+    const inicioPrimero = milisegundos(primera.registradoEn);
+    const jornadaPrimera = esIphone
+      ? undefined
+      : jornadas.find((j) => milisegundos(j.inicioEn) <= inicioPrimero && (j.finEn == null || milisegundos(j.finEn) >= inicioPrimero));
+    const textoInicio = jornadaPrimera && inicioPrimero - milisegundos(jornadaPrimera.inicioEn) >= 10 * 60_000
+      ? `Inicio jornada ${horaCorta(jornadaPrimera.inicioEn)} · 1.er punto ${horaCorta(primera.registradoEn)}`
+      : `${esIphone ? 'App activada' : 'Inicio'} ${horaCorta(primera.registradoEn)}`;
+    // El fin dice cómo terminó (finalizó la jornada, apagó el GPS o el
+    // teléfono, quitó el permiso o se quedó sin señal) y a la hora de su
+    // último punto, la misma que se ve al llegar al final de la línea.
+    const cierre = replay.data?.cierres?.find((c) => c.en === ultima.registradoEn);
+    const textoFin = cierre
+      ? `${etiquetaCierre(cierre)} ${horaCorta(cierre.en)}`
+      : `${enVivo ? 'Último' : esIphone ? 'App sin cobertura' : 'Fin'} ${horaCorta(ultima.registradoEn)}`;
     const inicio = marcadorExtremo(
       mapa,
       'inicio',
@@ -885,21 +989,24 @@ export default function Replay() {
       fin.remove();
       liberarUbicaciones(etiquetasExtremos, ['inicio', 'fin']);
     };
-  }, [mapa, posiciones, seleccionado, desde, hasta, enVivo, esIphone]);
+  }, [mapa, posiciones, seleccionado, desde, hasta, enVivo, esIphone, replay.data?.cierres, jornadas]);
 
   // Inicio y fin de jornada. Solo se tienen las horas, así que cada uno se
   // ubica en el punto más cercano en el tiempo y solo si cae dentro del
   // recorrido cargado. Se marcan la primera y la última jornada; si la última
   // sigue abierta no hay fin. Usan las clases jornada-*.
   useEffect(() => {
-    if (!mapa || jornadas.length === 0) return;
+    // El iPhone no tiene jornada: su burbuja ya dice "App activada" y "App
+    // desactivada", y estas etiquetas solo se encimaban.
+    if (!mapa || jornadas.length === 0 || esIphone) return;
     const marcadores: Marker[] = [];
     const primera = jornadas[0];
     const ultima = jornadas[jornadas.length - 1];
     const agregar = (clase: string, texto: string, instante: string | null) => {
       if (instante == null) return;
       const indice = indiceCercaDeInstante(posiciones, milisegundos(instante));
-      if (indice == null) return;
+      // En el primer o el último punto ya está la etiqueta de inicio o de fin.
+      if (indice == null || indice === 0 || indice === posiciones.length - 1) return;
       const posicion = posiciones[indice];
       const ranura = elegirRanura(etiquetasExtremos, mapa, clase, texto, posicion.latitud, posicion.longitud);
       marcadores.push(marcadorExtremo(mapa, clase, texto, posicion.latitud, posicion.longitud, ranura));
@@ -910,7 +1017,29 @@ export default function Replay() {
       for (const marcador of marcadores) marcador.remove();
       liberarUbicaciones(etiquetasExtremos, ['jornada-inicio', 'jornada-fin']);
     };
-  }, [mapa, jornadas, posiciones]);
+  }, [mapa, jornadas, posiciones, esIphone]);
+
+  // Lo que el ojo del mapa apaga: el trazado y los halos de parada son capas
+  // del mapa. Se repasa en cada reposo porque el recorrido las vuelve a crear.
+  const [ocultas, setOcultas] = useState<readonly string[]>([]);
+  useEffect(() => {
+    if (!mapa) return;
+    const aplicar = () => {
+      for (const capa of mapa.getStyle().layers ?? []) {
+        if (!capa.id.startsWith('replay-')) continue;
+        const deParada = capa.id === 'replay-halo';
+        const visible = ocultas.includes(deParada ? 'paradas' : 'trazado') ? 'none' : 'visible';
+        if ((mapa.getLayoutProperty(capa.id, 'visibility') ?? 'visible') !== visible) {
+          mapa.setLayoutProperty(capa.id, 'visibility', visible);
+        }
+      }
+    };
+    aplicar();
+    mapa.on('idle', aplicar);
+    return () => {
+      mapa.off('idle', aplicar);
+    };
+  }, [mapa, ocultas]);
 
   const hayRecorrido = replay.data != null && posiciones.length > 0;
 
@@ -921,8 +1050,11 @@ export default function Replay() {
     const recorrido = replay.data;
     if (!recorrido || posiciones.length === 0) return;
     const encabezado = ['hora', 'latitud', 'longitud', 'velocidad_kmh', 'precision_m', 'bateria_pct'];
-    const filas = posiciones.map((posicion) => [
-      posicion.registradoEn,
+    // El GPS tal como llegó: la lista depurada mueve los puntos de una
+    // estancia a su centro y quita rebotes, y el archivo es evidencia.
+    const recibidos = [...(puntosRecibidos ?? [])].sort((a, b) => milisegundos(a.registradoEn) - milisegundos(b.registradoEn));
+    const filas = recibidos.map((posicion) => [
+      horaLocalCsv(posicion.registradoEn),
       posicion.latitud.toFixed(6),
       posicion.longitud.toFixed(6),
       posicion.velocidadKmh == null ? '' : posicion.velocidadKmh.toFixed(1),
@@ -956,6 +1088,8 @@ export default function Replay() {
           origen={paradasLocalesEnUso ? 'local' : 'servidor'}
           total={paradasServidor != null ? paradasConsulta.data?.total : undefined}
         />
+        <ReporteDelDia dispositivoId={seleccionado} dia={desde} />
+        <SeccionGeocercas dispositivoId={seleccionado} desde={inicioDeDia(desde)} hasta={finDeDia(hasta)} activo={rangoValido} paradas={paradas} geocercas={geocercas} />
       </>
     );
   }
@@ -965,7 +1099,9 @@ export default function Replay() {
       mapa={mapa}
       posiciones={posiciones}
       huecos={huecos}
-      reconstruidos={reconstruidos}
+      avisos={avisos}
+      cierres={replay.data?.cierres}
+      reconstruidos={tramos}
       lineas={lineas}
       dispositivo={replay.data?.dispositivo ?? null}
       finRango={finDeDia(hasta)}
@@ -980,6 +1116,7 @@ export default function Replay() {
             el set de capas sin "Mapa" (Satélite inicial) y el zoom abajo a la
             derecha, con el selector pegado al top bar. */}
         <MapaRaster clase="mapa" alListo={setMapa} capas={CAPAS_REPLAY} capaInicial={CAPA_INICIAL_REPLAY} zoomAbajoDerecha selectorPegado />
+        <CapaGeocercas mapa={mapa} capas={CAPAS_DE_VISTA} alCambiarOcultas={setOcultas} />
         {hayRecorrido && replay.data && (
           <InfoRecorrido
             totalFixes={posiciones.length}
@@ -988,6 +1125,7 @@ export default function Replay() {
             reconstruidos={reconstruidos}
             calidad={replay.data.calidad}
             cobertura={coberturaDe(posiciones, huecos)}
+            alDescargarCsv={exportarCsv}
           />
         )}
         {/* Insignias de parada sobre el mapa, dentro del proveedor del
@@ -1007,18 +1145,42 @@ export default function Replay() {
               hasta={hasta}
               alCambiarDesde={setDesde}
               alCambiarHasta={setHasta}
+              sinRango
               acciones={
                 <span className="replay-acciones">
-                  <button
-                    type="button"
-                    className="suave replay-csv"
-                    onClick={exportarCsv}
-                    disabled={!hayRecorrido}
-                    title="Descargar el recorrido (CSV)"
-                    aria-label="Descargar el recorrido (CSV)"
-                  >
-                    CSV
-                  </button>
+                  {/* Un solo día: el calendario abre en el que se ve (ayer al entrar). */}
+                  <span className="replay-dia">
+                    <button
+                      type="button"
+                      className="suave replay-csv"
+                      onClick={() => {
+                        try {
+                          campoDia.current?.showPicker();
+                        } catch {
+                          campoDia.current?.focus();
+                        }
+                      }}
+                      title="Elegir día"
+                      aria-label={`Elegir día (${desde})`}
+                    >
+                      <CalendarDays size={14} aria-hidden="true" />
+                      {`${desde.slice(8, 10)}/${desde.slice(5, 7)}`}
+                    </button>
+                    <input
+                      ref={campoDia}
+                      type="date"
+                      tabIndex={-1}
+                      aria-hidden="true"
+                      className="replay-dia-campo"
+                      value={desde}
+                      max={fechaHoyLocal()}
+                      onChange={(evento) => {
+                        if (!evento.target.value) return;
+                        setDesde(evento.target.value);
+                        setHasta(evento.target.value);
+                      }}
+                    />
+                  </span>
                   <button
                     type="button"
                     className="suave icono-solo"

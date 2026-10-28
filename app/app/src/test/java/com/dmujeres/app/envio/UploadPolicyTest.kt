@@ -58,4 +58,11 @@ class UploadPolicyTest {
         assertEquals(false, UploadPolicy.isBusyStuck(100_000L, 100_000L + 119_999L))
         assertEquals(true, UploadPolicy.isBusyStuck(100_000L, 100_000L + 120_000L))
     }
+
+    @Test
+    fun `tras un fallo el lote se achica para que pase con red débil`() {
+        org.junit.Assert.assertEquals(UploadPolicy.MAX_BATCH, UploadPolicy.tamanoLote(0))
+        org.junit.Assert.assertEquals(UploadPolicy.LOTE_TRAS_FALLO, UploadPolicy.tamanoLote(1))
+        org.junit.Assert.assertEquals(UploadPolicy.LOTE_TRAS_FALLO, UploadPolicy.tamanoLote(7))
+    }
 }

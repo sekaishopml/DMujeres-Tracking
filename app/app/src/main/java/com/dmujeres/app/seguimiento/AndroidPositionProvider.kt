@@ -23,7 +23,16 @@ import android.location.LocationManager
 import android.os.Bundle
 import android.os.Looper
 
-class AndroidPositionProvider(context: Context, listener: PositionListener) : PositionProvider(context, listener), LocationListener {
+class AndroidPositionProvider(
+    context: Context,
+    listener: PositionListener,
+    /** Proveedor con jornada: GPS del teléfono o red (escalón de respaldo). */
+    private val fuente: String = LocationManager.GPS_PROVIDER,
+) : PositionProvider(context, listener), LocationListener {
+
+    override val providerName: String =
+        if (fuente == LocationManager.NETWORK_PROVIDER) "network" else "gps"
+
 
     private val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
 
@@ -53,9 +62,10 @@ class AndroidPositionProvider(context: Context, listener: PositionListener) : Po
     }
 
     override fun applyMotionState(moving: Boolean, gpsContinuous: Boolean) {
+        val cambiaPedido = this.gpsContinuous != gpsContinuous || (gpsContinuous && this.moving != moving)
         this.moving = moving
         updateReportInterval(moving)
-        if (this.gpsContinuous == gpsContinuous) return
+        if (!cambiaPedido) return
         this.gpsContinuous = gpsContinuous
         if (started) {
             locationManager.removeUpdates(this)
@@ -65,8 +75,8 @@ class AndroidPositionProvider(context: Context, listener: PositionListener) : Po
 
     @SuppressLint("MissingPermission")
     private fun requestUpdates() {
-        val cadence = AdaptiveCadence.request(gpsContinuous)
-        provider = if (gpsContinuous) LocationManager.GPS_PROVIDER else LocationManager.NETWORK_PROVIDER
+        val cadence = AdaptiveCadence.request(gpsContinuous, quieta = !moving)
+        provider = if (gpsContinuous) fuente else LocationManager.NETWORK_PROVIDER
         try {
             locationManager.requestLocationUpdates(provider, cadence.intervalMs, cadence.minDistanceM, this)
         } catch (e: RuntimeException) {

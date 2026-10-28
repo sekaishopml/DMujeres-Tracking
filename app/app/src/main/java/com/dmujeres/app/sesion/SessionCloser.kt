@@ -282,6 +282,11 @@ object SessionCloser {
         .put("mock", position.mock)
         .put("provider", position.provider)
         .put("movementState", position.movementState)
+        .also { json ->
+            val (tipo, pasos) = com.dmujeres.app.seguimiento.ActividadFisica.separar(position.activity)
+            if (tipo != null) json.put("activity", tipo)
+            if (pasos != null) json.put("steps", pasos)
+        }
 
     // ── c. Finalizar la jornada ──────────────────────────────────────────
 

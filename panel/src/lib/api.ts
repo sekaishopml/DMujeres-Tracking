@@ -34,17 +34,34 @@ export class ApiError extends Error {
 }
 
 async function pedir<T>(metodo: string, ruta: string, cuerpo?: unknown, opciones: OpcionesPeticion = {}): Promise<T> {
-  const res = await fetch(ruta, {
-    method: metodo,
-    credentials: 'same-origin',
-    headers: cuerpo ? { 'Content-Type': 'application/json' } : undefined,
-    body: cuerpo ? JSON.stringify(cuerpo) : undefined,
-  });
+  // Tiempo límite: si la red se corta a medias, la pantalla no se queda
+  // "cargando" para siempre (el replay de un día grande puede tardar más).
+  let res: Response;
+  try {
+    res = await fetch(ruta, {
+      method: metodo,
+      credentials: 'same-origin',
+      headers: cuerpo ? { 'Content-Type': 'application/json' } : undefined,
+      body: cuerpo ? JSON.stringify(cuerpo) : undefined,
+      signal: AbortSignal.timeout(ruta.includes('/replay/') ? 90_000 : 30_000),
+    });
+  } catch (error) {
+    const tiempo = error instanceof DOMException && error.name === 'TimeoutError';
+    throw new ApiError(0, tiempo ? 'TIEMPO_AGOTADO' : 'SIN_CONEXION', tiempo
+      ? 'El servidor tardó demasiado en responder. Intente de nuevo.'
+      : 'No hay conexión con el servidor. Revise la red e intente de nuevo.');
+  }
   if (res.status === 204) {
     return undefined as T;
   }
   const texto = await res.text();
-  const datos = texto ? JSON.parse(texto) : null;
+  // Un 502/504 del proxy trae HTML: se muestra un aviso entendible.
+  let datos: { error?: ErrorApi } | null = null;
+  try {
+    datos = texto ? JSON.parse(texto) : null;
+  } catch {
+    throw new ApiError(res.status, 'RESPUESTA_INVALIDA', `El servidor no respondió bien (código ${res.status}). Intente de nuevo.`);
+  }
   if (!res.ok) {
     const error: ErrorApi = datos?.error ?? { codigo: 'ERROR_INTERNO', mensaje: `No se pudo completar la operación (código ${res.status}).` };
     if (res.status === 401 && !ruta.endsWith('/auth/login') && !ruta.endsWith('/auth/me')) {

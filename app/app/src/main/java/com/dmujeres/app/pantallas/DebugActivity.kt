@@ -100,6 +100,8 @@ class DebugActivity : AppCompatActivity() {
             toast(getString(R.string.debug_clear_console_done))
         }
 
+        avisosDeHorario(rows)
+
         // "Finalizar sesión" va en rojo, debajo de "vaciar consola", y está
         // también en la versión publicada. Pide confirmación; sin sesión solo
         // abre el inicio de sesión.
@@ -134,6 +136,39 @@ class DebugActivity : AppCompatActivity() {
             )
         }
         rows.addView(title)
+    }
+
+    /**
+     * Avisos de horario: revisar el estado real en cada hora, ver el último
+     * atendido y lanzar cada tipo de aviso para ajustar su texto.
+     */
+    private fun avisosDeHorario(rows: LinearLayout) {
+        val avisos = com.dmujeres.app.avisos.AvisosDelDia
+        val reglas = com.dmujeres.app.avisos.AvisosHorarios
+        addSection(rows, R.string.debug_section_avisos)
+        val ultimo = androidx.preference.PreferenceManager.getDefaultSharedPreferences(this)
+            .getString(avisos.KEY_ULTIMO, null) ?: getString(R.string.debug_aviso_ninguno)
+        addRow(rows, R.string.debug_aviso_ultimo_title, ultimo) {}
+        addRow(rows, R.string.debug_aviso_evaluar_title, R.string.debug_aviso_evaluar_summary) {
+            val estado = avisos.estado(this)
+            val lineas = reglas.FRANJAS.map { franja ->
+                val novedades = reglas.novedades(franja, estado)
+                getString(
+                    R.string.debug_aviso_resultado_fmt,
+                    String.format(java.util.Locale.US, "%02d:%02d", franja / 60, franja % 60),
+                    if (novedades.isEmpty()) getString(R.string.debug_aviso_sin_novedades) else novedades.joinToString { it.name },
+                )
+            }
+            val ahora = reglas.FRANJAS.flatMap { reglas.novedades(it, estado) }.distinct()
+            if (ahora.isNotEmpty()) avisos.mostrar(this, ahora)
+            toast(lineas.joinToString("\n"))
+        }
+        com.dmujeres.app.avisos.AvisosHorarios.Novedad.values().forEach { novedad ->
+            addRow(rows, R.string.debug_aviso_probar_title, avisos.texto(this, novedad)) { avisos.mostrar(this, listOf(novedad)) }
+        }
+        addRow(rows, R.string.debug_aviso_todas_title, R.string.debug_aviso_todas_summary) {
+            avisos.mostrar(this, com.dmujeres.app.avisos.AvisosHorarios.Novedad.values().filter { it != com.dmujeres.app.avisos.AvisosHorarios.Novedad.SIN_JORNADA })
+        }
     }
 
     private fun addRow(rows: LinearLayout, titleRes: Int, summaryRes: Int, action: () -> Unit) {

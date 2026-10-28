@@ -55,9 +55,8 @@ class TrackingService : Service() {
             startForeground(NOTIFICATION_ID, createNotification(this, DmujeresApi.isJourneyOpen(this)))
             Log.i(TAG, "service create")
             isRunning = true
-            // Estado del teléfono visible en el panel (lastDiagnostics).
-            ServiceHeartbeat.start(this)
             pasos = Pasos(this).also { it.iniciar() }
+            ReconocimientoActividad.iniciar(this)
             pasosRef = pasos
             sendBroadcast(Intent(ACTION_STARTED).setPackage(packageName))
             StatusActivity.addMessage(getString(R.string.status_service_create))
@@ -69,6 +68,9 @@ class TrackingService : Service() {
                 controllerRef = trackingController
                 trackingController?.start()
             }
+            // Estado del teléfono visible en el panel (lastDiagnostics). Después
+            // del controlador, para que el primer reporte ya diga el proveedor.
+            ServiceHeartbeat.start(this)
             // La alarma de rescate sobrevive aunque el sistema cierre la app;
             // se vuelve a programar cada vez que arranca el servicio, pero
             // solo con jornada: sin ella no hay nada que rescatar.
@@ -81,7 +83,11 @@ class TrackingService : Service() {
             gpsReceiver = runCatching {
                 val receptor = object : android.content.BroadcastReceiver() {
                     override fun onReceive(context: android.content.Context, intent: Intent) {
-                        ServiceHeartbeat.reportNow()
+                        // Se espera a que el estado se asiente: leído al instante
+                        // a veces todavía da el valor anterior.
+                        Log.i(TAG, "cambio de ubicación del sistema")
+                        android.os.Handler(android.os.Looper.getMainLooper())
+                            .postDelayed({ ServiceHeartbeat.reportNow() }, 2_000L)
                     }
                 }
                 ContextCompat.registerReceiver(
@@ -158,10 +164,12 @@ class TrackingService : Service() {
         pasosRef = null
         controllerRef = null
         ServiceHeartbeat.stop()
-        // Sin servicio no hay rescate: se cancela la alarma (el próximo
-        // arranque la vuelve a programar). Si el sistema cierra la app sin
-        // onDestroy, la alarma sigue y el receptor la reprograma.
-        runCatching { com.dmujeres.app.recuperacion.DozeAlarmReceiver.cancel(this) }
+        // Con la jornada abierta la alarma de supervisión sigue: si el sistema
+        // detuvo el servicio, ella lo vuelve a arrancar. Solo se cancela si la
+        // jornada está cerrada (no hay nada que registrar).
+        if (!DmujeresApi.isJourneyOpen(this)) {
+            runCatching { com.dmujeres.app.recuperacion.DozeAlarmReceiver.cancel(this) }
+        }
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
         Log.i(TAG, "service destroy")
         sendBroadcast(Intent(ACTION_STOPPED).setPackage(packageName))
@@ -223,18 +231,12 @@ class TrackingService : Service() {
         }
 
         /**
-         * Rescate (alarma o push): si el servicio vive, ubicación nueva y envío
-         * de la cola. Si la app está cerrada no se arranca el servicio a
-         * escondidas (Android 12 o más lo rechaza): se reprograma la alarma y
-         * se cuenta el intento; el arranque lo hace la persona.
+         * Alarma de supervisión con el servicio vivo: revisión del GPS y de la
+         * cola sin esperar al pulso interno, que se congela con la CPU dormida.
+         * Si el servicio murió, la alarma lo arranca (ver DozeAlarmReceiver).
          */
-        fun onDozeAlarm(context: Context): Boolean {
-            val controller = controllerRef
-            if (controller != null) {
-                return runCatching { controller.onRecoveryWakeup() }.getOrDefault(false)
-            }
-            Log.i(TAG, "alarma sin servicio activo: solo rearme (sin arranque silencioso)")
-            return false
+        fun supervisar() {
+            controllerRef?.supervisar()
         }
 
         /**

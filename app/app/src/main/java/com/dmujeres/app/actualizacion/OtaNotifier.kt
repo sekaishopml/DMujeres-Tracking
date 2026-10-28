@@ -42,6 +42,51 @@ object OtaNotifier {
         }
     }
 
+    /** La app se instaló sola y Android la cerró: se vuelve a abrir. */
+    const val KEY_REABRIR = "reabrirTrasActualizar"
+    private const val ID_ACTUALIZADA = 4712
+
+    /**
+     * Tras actualizarse sola: se intenta abrir la app y, como Android puede no
+     * dejar abrir pantallas desde segundo plano, queda además un aviso que la
+     * abre con un toque (se quita en cuanto la app está a la vista).
+     */
+    fun reabrir(context: Context) {
+        val prefs = androidx.preference.PreferenceManager.getDefaultSharedPreferences(context)
+        val desde = prefs.getLong(KEY_REABRIR, 0L)
+        if (desde == 0L) return
+        prefs.edit().remove(KEY_REABRIR).apply()
+        if (System.currentTimeMillis() - desde > 15 * 60_000L) return
+        val abrir = Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        runCatching { context.startActivity(abrir) }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            return
+        }
+        runCatching {
+            val toque = PendingIntent.getActivity(
+                context, ID_ACTUALIZADA, abrir,
+                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+            )
+            val aviso = NotificationCompat.Builder(context, com.dmujeres.app.avisos.AvisosDelDia.CANAL)
+                .setSmallIcon(R.drawable.ic_stat_notify)
+                .setContentTitle(context.getString(R.string.ota_actualizada_titulo))
+                .setContentText(context.getString(R.string.ota_actualizada_texto))
+                .setColor(ContextCompat.getColor(context, R.color.primary_dark))
+                .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .setContentIntent(toque)
+                .setAutoCancel(true)
+                .build()
+            NotificationManagerCompat.from(context).notify(ID_ACTUALIZADA, aviso)
+        }.onFailure { Log.w(TAG, "no se pudo avisar que se actualizó", it) }
+    }
+
+    fun quitarAvisoActualizada(context: Context) {
+        runCatching { NotificationManagerCompat.from(context).cancel(ID_ACTUALIZADA) }
+    }
+
     private fun notify(context: Context, version: String) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=

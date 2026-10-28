@@ -57,6 +57,26 @@ object AgendaDia {
         }.sortedBy { it.antes.inicio }
 
     /**
+     * Tramo de la actividad en curso (iniciada y sin finalizar) para cruzarla
+     * con lo que se escribe: va desde que empezó hasta el minuto actual. Así,
+     * agregar otra actividad la acomoda a la vista en vez de cerrarla sin
+     * avisar, y una programada para más tarde no la toca.
+     */
+    /** Un día se corrige hasta esta hora del día siguiente; luego se cierra para el reporte. */
+    const val CIERRE_MINUTO = 11 * 60 + 15
+
+    fun diaCerrado(fecha: String, ayer: String, minutoAhora: Int): Boolean =
+        fecha < ayer || (fecha == ayer && minutoAhora >= CIERRE_MINUTO)
+
+    /** Minuto llevado al cuarto de hora más cercano, para arrastrar en la regla. */
+    fun alCuarto(minuto: Int): Int = ((minuto + 7) / 15 * 15).coerceIn(0, FIN_DEL_DIA)
+
+    /** ¿El rato [inicio, fin) pisa alguno de los tramos? */
+    fun seCruza(tramos: List<Tramo>, inicio: Int, fin: Int): Boolean = tramos.any { it.inicio < fin && it.fin > inicio }
+
+    fun tramoEnCurso(inicio: Int, ahora: Int): Tramo = Tramo(inicio, maxOf(ahora, inicio) + 1)
+
+    /**
      * La otra opción: mover esta para no tocar a las demás. Empieza cuando
      * termina la anterior y termina cuando empieza la siguiente. Null si no
      * hay espacio o si esta cae dentro de otra o la tapa.
@@ -67,6 +87,20 @@ object AgendaDia {
         val inicio = ajustes.filter { it.cruce == Cruce.RECORTAR_FIN }.maxOfOrNull { it.antes.fin } ?: nuevo.inicio
         val fin = ajustes.filter { it.cruce == Cruce.CORRER_INICIO }.minOfOrNull { it.antes.inicio } ?: nuevo.fin
         return Tramo(inicio, fin).takeIf { it.fin > it.inicio }
+    }
+
+    /**
+     * Primer inicio, desde [desde], donde cabe una actividad de [duracion]
+     * minutos sin cruzarse con [tramos]: si choca, se prueba cuando termina la
+     * que estorba. Null si ya no cabe en el día.
+     */
+    fun proximoLibre(tramos: List<Tramo>, desde: Int, duracion: Int): Int? {
+        var inicio = desde
+        while (inicio + duracion <= FIN_DEL_DIA) {
+            val choque = tramos.filter { it.inicio < inicio + duracion && it.fin > inicio }.maxByOrNull { it.fin } ?: return inicio
+            inicio = choque.fin
+        }
+        return null
     }
 
     /**
@@ -115,4 +149,23 @@ object AgendaDia {
     }
 
     const val FIN_DEL_DIA = 24 * 60
+}
+
+/** ¿El día ya se cerró para el reporte? Con la hora de Guayaquil. */
+object CierreDia {
+    private val zona = java.util.TimeZone.getTimeZone("America/Guayaquil")
+
+    fun cerrado(fecha: String, ahora: java.util.Calendar = java.util.Calendar.getInstance(zona)): Boolean {
+        val iso = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).apply { timeZone = zona }
+        val ayer = iso.format((ahora.clone() as java.util.Calendar).apply { add(java.util.Calendar.DAY_OF_MONTH, -1) }.time)
+        val minuto = ahora.get(java.util.Calendar.HOUR_OF_DAY) * 60 + ahora.get(java.util.Calendar.MINUTE)
+        return AgendaDia.diaCerrado(fecha, ayer, minuto)
+    }
+
+    /** Ayer, mientras todavía se puede corregir. */
+    fun porCerrar(fecha: String, ahora: java.util.Calendar = java.util.Calendar.getInstance(zona)): Boolean {
+        val iso = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).apply { timeZone = zona }
+        val ayer = iso.format((ahora.clone() as java.util.Calendar).apply { add(java.util.Calendar.DAY_OF_MONTH, -1) }.time)
+        return fecha == ayer && !cerrado(fecha, ahora)
+    }
 }

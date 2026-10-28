@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { memo, useState } from 'react';
 import { duracion } from '@/dominio/formatoBase';
 import Icono from './Icono';
 import { etiquetaVisita } from '@/dominio/dia';
@@ -16,7 +16,9 @@ import {
 // Fila de parada: desde/hasta, duración, extremo del recorrido y dirección. El
 // geocode se pide solo para la primera fila (referencia de la zona) y para la
 // seleccionada; el resto muestra la dirección que ya trajo el servidor.
-function FilaParada({
+// Con memo y sin leer el contexto: al reproducir o arrastrar la barra solo se
+// redibuja la fila que cambia, no todas (cada una corre su consulta).
+const FilaParada = memo(function FilaParada({
   parada,
   indice,
   primera,
@@ -24,6 +26,7 @@ function FilaParada({
   activa,
   alcanzada,
   etiquetaDelRol,
+  seleccionarParada,
 }: {
   parada: Parada;
   indice: number;
@@ -33,8 +36,8 @@ function FilaParada({
   // La reproducción ya llegó a esta parada (o la está pasando).
   alcanzada: boolean;
   etiquetaDelRol: string | null;
+  seleccionarParada: (indice: number | null, latitud: number, longitud: number, instante: number) => void;
 }) {
-  const { seleccionarParada } = useReproductor();
   const pideDireccion = (primera || activa) && !parada.direccion;
   const geocodificada = useDireccion(
     pideDireccion ? (parada.latitudRepresentativa ?? parada.latitud) : null,
@@ -49,11 +52,11 @@ function FilaParada({
       <button
         type="button"
         onClick={() => seleccionarParada(indice, parada.latitud, parada.longitud, milisegundos(parada.inicio))}
-        title={`Desde ${horaCorta(parada.inicio)} hasta ${horaCorta(parada.fin)} (${duracion(parada.duracionMin * 60)})`}
+        title={`Desde ${horaCorta(parada.inicio)} hasta ${horaCorta(parada.fin)} (${duracion(parada.duracionMin * 60)})${parada.cortesMin ? `; ${parada.cortesMin} min sin datos` : ''}`}
       >
         <span className="parada-cabecera">
           <span className="parada-hora">
-            Desde {horaCorta(parada.inicio)} hasta {horaCorta(parada.fin)}
+            {horaCorta(parada.inicio)} – {horaCorta(parada.fin)}
           </span>
           {etiquetaDelRol ? (
             <span className={`parada-rol${alcanzada ? ' alcanzada' : ''}`}>{etiquetaDelRol}</span>
@@ -63,10 +66,13 @@ function FilaParada({
           <span className="parada-tiempo">{duracion(parada.duracionMin * 60)}</span>
         </span>
         {direccion && <span className="parada-direccion">{direccion}</span>}
+        {parada.cortesMin != null && parada.cortesMin >= 5 && (
+          <span className="parada-direccion">{parada.cortesMin} min sin datos (señal o GPS apagado)</span>
+        )}
       </button>
     </li>
   );
-}
+});
 
 // Lista de paradas, abierta al cargar el recorrido. `origen` dice si vienen
 // del servidor o del cálculo local, para avisar solo cuando el servidor
@@ -117,6 +123,7 @@ export function ListaParadas({
                 activa={paradaSeleccionada === posicion}
                 alcanzada={instante != null && instante >= milisegundos(parada.inicio)}
                 etiquetaDelRol={resumen ? etiquetaVisita(resumen.numeroVisita[posicion]) : null}
+                seleccionarParada={seleccionarParada}
               />
             ))}
           </ul>

@@ -2,22 +2,23 @@ import { lazy, Suspense } from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import Marco from '@/componentes/marco/Marco';
 import { PantallaCarga } from '@/componentes/ui/PantallaCarga';
+import { cargarPagina } from '@/lib/paginas';
 
 // Cada página baja por separado: el panel abre rápido y el mapa y los
 // gráficos solo se descargan donde se usan.
 const Login = lazy(() => import('@/paginas/Login'));
-const Inicio = lazy(() => import('@/paginas/Inicio'));
-const EnVivo = lazy(() => import('@/paginas/EnVivo'));
+const Inicio = lazy(cargarPagina['/']);
+const EnVivo = lazy(cargarPagina['/en-vivo']);
 const Detalle = lazy(() => import('@/paginas/Detalle'));
-const Historial = lazy(() => import('@/paginas/Historial'));
-const Replay = lazy(() => import('@/paginas/Replay'));
-const Bateria = lazy(() => import('@/paginas/Bateria'));
-const Reportes = lazy(() => import('@/paginas/Reportes'));
-const Usuarios = lazy(() => import('@/paginas/Usuarios'));
-const Grupos = lazy(() => import('@/paginas/Grupos'));
-const Clientes = lazy(() => import('@/paginas/Clientes'));
-const Configuracion = lazy(() => import('@/paginas/Configuracion'));
-const Sistema = lazy(() => import('@/paginas/Sistema'));
+const Historial = lazy(cargarPagina['/historial']);
+const Replay = lazy(cargarPagina['/replay']);
+const Bateria = lazy(cargarPagina['/bateria']);
+const Reportes = lazy(cargarPagina['/reportes']);
+const Usuarios = lazy(cargarPagina['/usuarios']);
+const Grupos = lazy(cargarPagina['/grupos']);
+const Geocercas = lazy(cargarPagina['/geocercas']);
+const Configuracion = lazy(cargarPagina['/configuracion']);
+const Sistema = lazy(cargarPagina['/sistema']);
 
 export default function App() {
   return (
@@ -35,7 +36,8 @@ export default function App() {
             <Route path="/reportes" element={<Reportes />} />
             <Route path="/usuarios" element={<Usuarios />} />
             <Route path="/grupos" element={<Grupos />} />
-            <Route path="/clientes" element={<Clientes />} />
+            <Route path="/geocercas" element={<Geocercas />} />
+            <Route path="/clientes" element={<Navigate to="/geocercas" replace />} />
             <Route path="/configuracion" element={<Configuracion />} />
             <Route path="/sistema" element={<Sistema />} />
             <Route path="*" element={<Navigate to="/" replace />} />

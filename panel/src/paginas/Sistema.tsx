@@ -10,10 +10,11 @@ import { Tabla, Th, Td, Fila } from '@/componentes/ui/Tabla';
 import { Cargando, ErrorCarga, Vacio } from '@/componentes/ui/Estados';
 import { CLAVE_FLOTA, traerFlota, traerSalud } from '@/dominio/datos';
 import type { Disponibilidad, Salud, Version } from '@/dominio/admin';
-import { GUION, bateria, fechaHora, hace } from '@/dominio/formatoBase';
+import { GUION, bateria, fechaHora, grados, hace } from '@/dominio/formatoBase';
 import { mensajeError } from '@/dominio/errores';
 import Persona from '@/componentes/reportes/Persona';
 import HistorialSalud from '@/componentes/sistema/HistorialSalud';
+import UsuariosPanel from '@/componentes/sistema/UsuariosPanel';
 import Consola, { ejecutarComando } from '@/componentes/sistema/Consola';
 import { cn } from '@/lib/cn';
 
@@ -190,6 +191,8 @@ export default function Sistema() {
         </dl>
       </Tarjeta>
 
+      <UsuariosPanel />
+
       <Consola />
 
       <Tarjeta>
@@ -212,6 +215,7 @@ export default function Sistema() {
                 <Th>Último reporte</Th>
                 <Th numerico>Pendientes</Th>
                 <Th numerico>Batería</Th>
+                <Th numerico>Temperatura</Th>
               </tr>
             </thead>
             <tbody>
@@ -229,6 +233,7 @@ export default function Sistema() {
                     </Td>
                     <Td numerico>{s.bufferDepth ?? dispositivo?.pendientes ?? GUION}</Td>
                     <Td numerico>{bateria(s.bateriaPct ?? dispositivo?.bateriaPct)}</Td>
+                    <Td numerico title="Temperatura de la batería en el último diagnóstico">{grados(s.temperaturaC)}</Td>
                   </Fila>
                 );
               })}

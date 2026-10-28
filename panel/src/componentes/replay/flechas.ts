@@ -1,7 +1,7 @@
 import type { Feature, FeatureCollection, Point } from 'geojson';
 import type { Posicion } from '@contratos';
-import { milisegundos } from '@/dominio/replay';
-import type { SegmentoRecorrido, TramoReconstruido } from '@/dominio/replay';
+import { milisegundos, RUMBO_FIABLE_MIN_M } from '../../dominio/replay.ts';
+import type { SegmentoRecorrido, TramoReconstruido } from '../../dominio/replay.ts';
 
 // Trazado con hora: la línea que se dibuja (GPS o ajustada a calles) con la
 // hora de paso en cada vértice. Es la única geometría del reproductor: las
@@ -222,6 +222,32 @@ export function puntoSobreTrazo(lineas: Vertice[][], lon: number, lat: number, m
   return mejor && mejor.d <= maxM ? mejor.punto : null;
 }
 
+// Hora del trazo dibujado más cercano al punto pulsado. Así, al elegir una
+// línea se toma la hora de ese trazo y no la del GPS crudo de otro momento
+// que cae en el mismo lugar (parada, cruce, vuelta). Si la misma calle se
+// recorrió dos veces, entre los tramos casi igual de cerca gana el de la hora
+// `ref` (la del tramo bajo el cursor); sin ella, el más cercano.
+const MISMA_CALLE_M = 8;
+export function horaSobreTrazo(lineas: Vertice[][], lon: number, lat: number, maxM = 40, ref = NaN): number | null {
+  const fix: Vertice = { lon, lat, t: 0 };
+  const candidatos: { t: number; d: number }[] = [];
+  for (const linea of lineas) {
+    for (let k = 0; k < linea.length - 1; k += 1) {
+      const a = linea[k];
+      const b = linea[k + 1];
+      const { f, d } = proyectar(fix, a, b);
+      if (d <= maxM) candidatos.push({ t: a.t + (b.t - a.t) * f, d });
+    }
+  }
+  if (candidatos.length === 0) return null;
+  const minimo = Math.min(...candidatos.map((c) => c.d));
+  const cerca = candidatos.filter((c) => c.d <= minimo + MISMA_CALLE_M);
+  const elegido = Number.isFinite(ref)
+    ? cerca.reduce((x, y) => (Math.abs(y.t - ref) < Math.abs(x.t - ref) ? y : x))
+    : cerca.reduce((x, y) => (y.d < x.d ? y : x));
+  return elegido.t;
+}
+
 export function puntoCercanoEnLineas(lineas: Vertice[][], t: number, lon: number, lat: number): [number, number] | null {
   const fix: Vertice = { lon, lat, t };
   let mejor: { punto: [number, number]; d: number } | null = null;
@@ -259,6 +285,8 @@ export function flechasDeLineas(lineas: Vertice[][]): FeatureCollection<Point> {
     const acumulada = [0];
     for (let k = 1; k < linea.length; k += 1) acumulada.push(acumulada[k - 1] + distanciaM(linea[k - 1], linea[k]));
     const total = acumulada[acumulada.length - 1];
+    // Un trazo de pocos metros es temblor: su flecha apuntaría al azar.
+    if (total < RUMBO_FIABLE_MIN_M) continue;
     const puntoEn = (s: number): Vertice => {
       // Búsqueda binaria del tramo: una línea larga tiene miles de vértices.
       let k = 0;

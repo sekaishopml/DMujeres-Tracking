@@ -60,7 +60,12 @@ export function detectarParadas(puntos) {
       if (bueno(p)) {
         if (d > RADIO_M) break;
         buenos.push(p);
-        centro = { latitud: mediana(buenos.map((x) => x.latitud)), longitud: mediana(buenos.map((x) => x.longitud)) };
+        // La mediana de una parada larga casi no se mueve: recalcularla con
+        // cada punto (miles en una estancia) bloqueaba la API varios segundos.
+        // Se recalcula con cada uno al principio y luego cada 16.
+        if (buenos.length <= 32 || buenos.length % 16 === 0) {
+          centro = { latitud: mediana(buenos.map((x) => x.latitud)), longitud: mediana(buenos.map((x) => x.longitud)) };
+        }
         ultimo = j;
         ultimoVisto = j;
       } else if (d > RADIO_M + Math.min(p.precisionM ?? 0, 150)) {

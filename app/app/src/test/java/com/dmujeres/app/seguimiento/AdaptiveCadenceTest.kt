@@ -15,6 +15,14 @@ class AdaptiveCadenceTest {
     }
 
     @Test
+    fun `con jornada y quieta sigue en GPS de alta precision cada 10 s`() {
+        val request = AdaptiveCadence.request(journeyOpen = true, quieta = true)
+        assertEquals(10_000L, request.intervalMs)
+        assertEquals(0f, request.minDistanceM, 0.0f)
+        assertEquals(AdaptiveCadence.Accuracy.HIGH, request.accuracy)
+    }
+
+    @Test
     fun `sin jornada el GPS descansa en red cada 120 s`() {
         val request = AdaptiveCadence.request(journeyOpen = false)
         assertEquals(120_000L, request.intervalMs)

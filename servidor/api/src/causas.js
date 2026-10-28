@@ -17,6 +17,15 @@ const CAUSA_DE_EVENTO = [
   ['SIN_PERMISO', ['mobilePermissionLost']],
 ];
 
+// Reactivar el GPS o devolver el permiso dentro del corte prueba que estaba
+// apagado o quitado, aunque el aviso de apagado no haya llegado (Israel 21/10:
+// la jornada empezó con el GPS ya apagado). Tiene que ser dentro del corte:
+// uno de justo antes es de otro apagado que ya pasó.
+const CAUSA_DE_REGRESO = [
+  ['GPS_APAGADO', 'mobileGpsReenabled'],
+  ['SIN_PERMISO', 'mobilePermissionRestored'],
+];
+
 export function causaDeHueco(hueco, eventos, diagnosticos) {
   const desde = new Date(hueco.desde).getTime();
   const hasta = new Date(hueco.hasta).getTime();
@@ -24,9 +33,12 @@ export function causaDeHueco(hueco, eventos, diagnosticos) {
   for (const [causa, tipos] of CAUSA_DE_EVENTO) {
     if (eventos.some((e) => tipos.includes(e.tipo) && dentro(e.en))) return causa;
   }
+  for (const [causa, tipo] of CAUSA_DE_REGRESO) {
+    if (eventos.some((e) => e.tipo === tipo && e.en > desde && e.en <= hasta)) return causa;
+  }
   const conDiagnostico = diagnosticos.some((d) => d > desde && d < hasta);
   if (!conDiagnostico && hasta - desde >= SIN_CONTACTO_MIN_MS) return 'SIN_CONTACTO';
   return 'SIN_SENAL';
 }
 
-export const TIPOS_EVENTO_CAUSA = CAUSA_DE_EVENTO.flatMap(([, tipos]) => tipos);
+export const TIPOS_EVENTO_CAUSA = [...CAUSA_DE_EVENTO.flatMap(([, tipos]) => tipos), ...CAUSA_DE_REGRESO.map(([, tipo]) => tipo)];

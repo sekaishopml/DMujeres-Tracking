@@ -6,7 +6,7 @@ import { datosInvalidos } from './errores.js';
 import { iso } from './dto.js';
 import { precalentar, resolucionEnCache } from './geocodigo.js';
 import { leerOrden, leerPaginacion, leerRango, respuestaJson } from './http.js';
-import { permisoDe } from './flota.js';
+import { PREDICADO_PERMISO, permisoDe } from './flota.js';
 import { LAT_MAX_OP, LAT_MIN_OP, LON_MAX_OP, LON_MIN_OP, ORDEN_VIAJES, sqlSegmentos } from './segmentos.js';
 import { detectarParadas } from './paradas.js';
 
@@ -135,6 +135,8 @@ export async function listarViajes(ctx) {
 
 // Paradas por permanencia (paradas.js) sobre los fixes crudos del rango, con
 // los mismos filtros de permiso y equipo que los segmentos.
+const MAX_PUNTOS_PARADAS = 600_000;
+
 async function paradasDelRango(ctx, dispositivoId) {
   const { valores, rango } = parametrosSegmentos(ctx, { dispositivoId });
   const { rows } = await consultar(
@@ -146,15 +148,17 @@ async function paradasDelRango(ctx, dispositivoId) {
        AND p.registrado_en >= $2 AND p.registrado_en < $3
        AND p.latitud BETWEEN ${LAT_MIN_OP} AND ${LAT_MAX_OP}
        AND p.longitud BETWEEN ${LON_MIN_OP} AND ${LON_MAX_OP}
-       AND ($1::bigint IS NULL OR EXISTS (
-             SELECT 1 FROM operations.dmt_asignacion a
-             WHERE a.dispositivo_id = d.id AND a.usuario_id = $1 AND a.activa
-               AND a.desde_en <= now() AND (a.hasta_en IS NULL OR a.hasta_en > now())))
+       AND ${PREDICADO_PERMISO}
        AND ($4::bigint IS NULL OR p.dispositivo_id = $4)
-     ORDER BY p.dispositivo_id, p.registrado_en`,
+       AND p.valida
+     ORDER BY p.dispositivo_id, p.registrado_en
+     LIMIT ${MAX_PUNTOS_PARADAS + 1}`,
     valores,
     { signal: ctx.signal, timeoutMs: 20000 },
   );
+  // Un mes de toda la flota son más de un millón de filas en memoria: con el
+  // mismo tope que el replay se pide un rango menor o una persona.
+  if (rows.length > MAX_PUNTOS_PARADAS) throw datosInvalidos('El rango tiene demasiados puntos; elija una persona o menos días.');
   const porEquipo = new Map();
   for (const fila of rows) {
     const id = Number(fila.dispositivo_id);
@@ -245,10 +249,7 @@ export async function obtenerResumen(ctx) {
        JOIN tracking.dmt_dispositivo d ON d.id = p.dispositivo_id
        WHERE d.habilitado
          AND p.registrado_en >= $2 AND p.registrado_en < $3
-         AND ($1::bigint IS NULL OR EXISTS (
-               SELECT 1 FROM operations.dmt_asignacion a
-               WHERE a.dispositivo_id = d.id AND a.usuario_id = $1 AND a.activa
-                 AND a.desde_en <= now() AND (a.hasta_en IS NULL OR a.hasta_en > now())))
+         AND ${PREDICADO_PERMISO}
          AND ($4::bigint IS NULL OR p.dispositivo_id = $4)
        GROUP BY p.dispositivo_id
      )

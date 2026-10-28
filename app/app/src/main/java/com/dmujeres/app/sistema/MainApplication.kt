@@ -57,6 +57,10 @@ open class MainApplication : MultiDexApplication() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             registerChannel()
         }
+        // Avisos de horario: su canal y la alarma de la próxima hora. También
+        // queda armada al encender el teléfono, que arranca la app.
+        com.dmujeres.app.avisos.AvisosDelDia.crearCanal(this)
+        com.dmujeres.app.avisos.AvisosDelDia.programar(this)
         // Teléfono solo en vertical; la tablet gira (ver Responsivo).
         registerActivityLifecycleCallbacks(object : ActivityLifecycleCallbacks {
             override fun onActivityCreated(activity: Activity, savedInstanceState: android.os.Bundle?) =

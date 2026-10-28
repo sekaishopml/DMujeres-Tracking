@@ -25,4 +25,11 @@ class UploadThrottleTest {
     fun primera_subida_siempre() {
         assertTrue(UploadThrottle.shouldKick(2_000, 0, batteryPct = 5.0, charging = false))
     }
+
+    @Test
+    fun en_movimiento_sube_en_lote_cada_30_s() {
+        assertFalse(UploadThrottle.shouldKick(20_000, 1_000, batteryPct = 60.0, charging = false, moving = true))
+        assertTrue(UploadThrottle.shouldKick(31_001, 1_000, batteryPct = 60.0, charging = false, moving = true))
+        assertTrue(UploadThrottle.shouldKick(2_000, 1_000, batteryPct = 60.0, charging = true, moving = true))
+    }
 }

@@ -9,7 +9,6 @@ import android.view.View
 import android.widget.Button
 import android.widget.ProgressBar
 import android.widget.TextView
-import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.FileProvider
 import com.dmujeres.app.R
@@ -209,6 +208,12 @@ class UpdateActivity : AppCompatActivity() {
     }
 
     private fun install(file: File) {
+        // Android 12+: la app se actualiza a sí misma sin pedir confirmación.
+        // Si el sistema la pide igual, llega como STATUS_PENDING_USER_ACTION.
+        if (puedeSinConfirmar(this)) {
+            runCatching { instalarSinConfirmar(file) }.onSuccess { return }
+                .onFailure { Log.w(TAG, "instalación sin confirmar falló", it) }
+        }
         val uri = FileProvider.getUriForFile(this, packageName + ".fileprovider", file)
         val intent = Intent(Intent.ACTION_VIEW)
             .setDataAndType(uri, "application/vnd.android.package-archive")
@@ -224,6 +229,54 @@ class UpdateActivity : AppCompatActivity() {
         actual.runOnUiThread {
             actual.startActivity(intent)
             actual.finish()
+        }
+    }
+
+    @android.annotation.TargetApi(31)
+    private fun instalarSinConfirmar(file: File) {
+        val instalador = packageManager.packageInstaller
+        val params = android.content.pm.PackageInstaller.SessionParams(
+            android.content.pm.PackageInstaller.SessionParams.MODE_FULL_INSTALL,
+        ).apply {
+            setAppPackageName(packageName)
+            setRequireUserAction(android.content.pm.PackageInstaller.SessionParams.USER_ACTION_NOT_REQUIRED)
+        }
+        val id = instalador.createSession(params)
+        instalador.openSession(id).use { sesion ->
+            file.inputStream().use { input ->
+                sesion.openWrite(APK_NAME, 0, file.length()).use { out ->
+                    input.copyTo(out)
+                    sesion.fsync(out)
+                }
+            }
+            val aviso = android.app.PendingIntent.getBroadcast(
+                this, id, Intent(this, ResultadoInstalacion::class.java),
+                android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_MUTABLE,
+            )
+            // Android cierra la app al reemplazarla: al volver, se reabre sola.
+            androidx.preference.PreferenceManager.getDefaultSharedPreferences(this).edit()
+                .putLong(com.dmujeres.app.actualizacion.OtaNotifier.KEY_REABRIR, System.currentTimeMillis())
+                .commit()
+            sesion.commit(aviso.intentSender)
+        }
+    }
+
+    /** Resultado de la sesión: si el sistema pide confirmar, se abre su pantalla. */
+    class ResultadoInstalacion : android.content.BroadcastReceiver() {
+        override fun onReceive(context: android.content.Context, intent: Intent) {
+            val estado = intent.getIntExtra(android.content.pm.PackageInstaller.EXTRA_STATUS, -999)
+            when (estado) {
+                android.content.pm.PackageInstaller.STATUS_PENDING_USER_ACTION -> {
+                    @Suppress("DEPRECATION")
+                    val confirmar = intent.getParcelableExtra<Intent>(Intent.EXTRA_INTENT) ?: return
+                    runCatching { context.startActivity(confirmar.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                }
+                android.content.pm.PackageInstaller.STATUS_SUCCESS -> Unit
+                else -> {
+                    Log.w(TAG, "instalación terminó con estado $estado")
+                    pantalla.get()?.showError()
+                }
+            }
         }
     }
 
@@ -271,6 +324,10 @@ class UpdateActivity : AppCompatActivity() {
         const val EXTRA_VERSION = "update_version"
         private const val EXTRA_DEMO = "update_demo"
 
+        /** Android 12+ con permiso de instalar: la actualización no pide confirmación. */
+        fun puedeSinConfirmar(context: android.content.Context): Boolean =
+            android.os.Build.VERSION.SDK_INT >= 31 && context.packageManager.canRequestPackageInstalls()
+
         /** Abre la pantalla de carga; si falta el permiso, manda a Ajustes. */
         fun start(activity: Activity, url: String, sha256: String, version: String = "") {
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O &&
@@ -284,7 +341,8 @@ class UpdateActivity : AppCompatActivity() {
                         ),
                     )
                 }
-                Toast.makeText(activity, R.string.update_allow_installs, Toast.LENGTH_LONG).show()
+                // Sin ventanas emergentes: el aviso de arriba dice qué falta.
+                activity.findViewById<TextView>(R.id.banner_text)?.setText(R.string.update_allow_installs)
                 return
             }
             activity.startActivity(

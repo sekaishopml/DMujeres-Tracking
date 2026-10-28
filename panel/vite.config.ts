@@ -12,7 +12,10 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   // Versión del panel (package.json) visible en Sistema y en el menú de la
   // cuenta: se sube en cada entrega.
-  define: { __VERSION_PANEL__: JSON.stringify(paquete.version) },
+  define: {
+    __VERSION_PANEL__: JSON.stringify(paquete.version),
+    __CONSTRUIDO_PANEL__: JSON.stringify(new Date().toISOString()),
+  },
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),

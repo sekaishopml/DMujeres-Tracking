@@ -2,6 +2,7 @@
 // con las mismas reglas para Reportes y para la Repetición de ruta.
 
 import { VELOCIDAD_IMPOSIBLE_KMH } from './geo.js';
+import { PREDICADO_PERMISO } from './flota.js';
 
 export const UMBRAL_MOVIMIENTO_KMH = 5;
 // Desplazamiento mínimo entre fixes para confiar en la velocidad calculada
@@ -64,10 +65,7 @@ export function sqlSegmentos() {
       JOIN tracking.dmt_dispositivo d ON d.id = p.dispositivo_id
       WHERE d.habilitado
         AND p.registrado_en >= $2 AND p.registrado_en < $3
-        AND ($1::bigint IS NULL OR EXISTS (
-              SELECT 1 FROM operations.dmt_asignacion a
-              WHERE a.dispositivo_id = d.id AND a.usuario_id = $1 AND a.activa
-                AND a.desde_en <= now() AND (a.hasta_en IS NULL OR a.hasta_en > now())))
+        AND ${PREDICADO_PERMISO}
         AND ($4::bigint IS NULL OR p.dispositivo_id = $4)
       WINDOW wp AS (PARTITION BY p.dispositivo_id ORDER BY p.registrado_en)
     ),

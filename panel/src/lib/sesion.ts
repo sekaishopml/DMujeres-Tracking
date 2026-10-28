@@ -13,11 +13,13 @@ interface EstadoSesion {
 // La sesión real es la cookie HttpOnly dmj_sesion; aquí solo se guarda el
 // usuario para pintar la interfaz. Si la cookie vence, la API responde 401 y
 // el cliente lleva al login.
-export const useSesion = create<EstadoSesion>((set) => ({
+export const useSesion = create<EstadoSesion>((set, get) => ({
   usuario: null,
   cargando: true,
+  // Con usuario ya cargado se revalida sin pantalla de carga: si no, cada
+  // cambio de sección desmontaba el panel entero.
   cargar: async () => {
-    set({ cargando: true });
+    if (!get().usuario) set({ cargando: true });
     try {
       const usuario = await api.get<Usuario>('/api/v1/auth/me');
       set({ usuario, cargando: false });

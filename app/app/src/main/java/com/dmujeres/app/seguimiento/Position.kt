@@ -41,6 +41,8 @@ data class Position(
     val journeyId: String = "",
     val provider: String = "",
     val movementState: String = "",
+    // Actividad física y pasos al capturar ("TIPO|pasos"); vacío si no hay.
+    val activity: String = "",
     // En la cola: PENDING se envía; lo confirmado se borra; DEAD no se reintenta.
     val status: String = STATUS_PENDING,
     val attempts: Int = 0,

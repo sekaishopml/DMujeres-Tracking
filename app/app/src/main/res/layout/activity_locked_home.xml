@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Pantalla principal: logo y estado arriba, indicadores del día y,
-     debajo de ellos, Iniciar/Finalizar jornada y Actualizar; el pie marino lleva el cronograma
-     de actividades con su sincronización y la versión al fondo. -->
+<!-- Inicio: cabecera (ayuda, consola), logo, tarjeta de la jornada, actividad (tres
+     estados en la misma tarjeta), resumen del día y, abajo, jornada y Actualizar juntos.
+     El aviso de actualización flota arriba. -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
@@ -12,394 +12,801 @@
         android:layout_height="match_parent"
         android:orientation="vertical">
 
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
-        android:orientation="vertical"
-        android:paddingStart="14dp"
-        android:paddingTop="4dp"
-        android:paddingEnd="14dp">
-
-    <!-- Consola arriba a la derecha; el bloque logo + estado + indicadores +
-         botones queda centrado en vertical entre dos espacios flexibles. -->
-    <FrameLayout
-        android:layout_width="match_parent"
-        android:layout_height="40dp">
-
-        <ImageButton
-            android:id="@+id/console_button"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:layout_gravity="end|top"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:contentDescription="@string/menu_status"
-            android:src="@drawable/ic_console" />
-    </FrameLayout>
-
-    <Space
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="0.3" />
-
-    <ImageView
-        android:layout_width="170dp"
-        android:layout_height="wrap_content"
-        android:layout_gravity="center_horizontal"
-        android:adjustViewBounds="true"
-        android:contentDescription="@string/app_logo"
-        android:src="@drawable/logo_banner" />
-
-    <LinearLayout
-        android:id="@+id/status_pill"
-        android:layout_width="match_parent"
-        android:layout_height="44dp"
-        android:layout_marginTop="96dp"
-        android:background="@drawable/bg_pill_red"
-        android:gravity="center"
-        android:orientation="horizontal"
-        android:paddingStart="12dp"
-        android:paddingEnd="12dp">
-
-        <TextView
-            android:id="@+id/pill_text"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/pill_none"
-            android:textColor="@color/white"
-            android:textSize="15sp"
-            android:textStyle="bold" />
-    </LinearLayout>
-
-    <LinearLayout
-        android:id="@+id/location_warning"
-        android:layout_width="match_parent"
-        android:layout_height="46dp"
-        android:layout_marginTop="8dp"
-        android:background="@drawable/ds_surface"
-        android:gravity="center"
-        android:orientation="horizontal"
-        android:visibility="gone">
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/location_warning_text"
-            android:textColor="@color/primary"
-            android:textSize="13sp"
-            android:textStyle="bold" />
-    </LinearLayout>
-
-    <!-- Permisos que faltan: al tocarlo abre el ajuste exacto. -->
-    <LinearLayout
-        android:id="@+id/permission_warning"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:background="@drawable/ds_surface"
-        android:gravity="center"
-        android:minHeight="46dp"
-        android:orientation="horizontal"
-        android:paddingStart="12dp"
-        android:paddingEnd="12dp"
-        android:visibility="gone">
-
-        <TextView
-            android:id="@+id/permission_warning_text"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:gravity="center"
-            android:textColor="@color/primary"
-            android:textSize="13sp"
-            android:textStyle="bold" />
-    </LinearLayout>
-
-    <FrameLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="12dp">
-
-        <LinearLayout
-            android:id="@+id/skeleton_group"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="88dp"
-                android:orientation="horizontal">
-
-                <View
-                    android:layout_width="0dp"
-                    android:layout_height="match_parent"
-                    android:layout_marginEnd="8dp"
-                    android:layout_weight="1"
-                    android:background="@drawable/bg_skeleton" />
-
-                <View
-                    android:layout_width="0dp"
-                    android:layout_height="match_parent"
-                    android:layout_marginEnd="8dp"
-                    android:layout_weight="1"
-                    android:background="@drawable/bg_skeleton" />
-
-                <View
-                    android:layout_width="0dp"
-                    android:layout_height="match_parent"
-                    android:layout_weight="1"
-                    android:background="@drawable/bg_skeleton" />
-            </LinearLayout>
-        </LinearLayout>
-
-        <LinearLayout
-            android:id="@+id/home_content"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:visibility="gone">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="88dp"
-                android:orientation="horizontal">
-
-                <LinearLayout
-                    android:layout_width="0dp"
-                    android:layout_height="match_parent"
-                    android:layout_marginEnd="8dp"
-                    android:layout_weight="1"
-                    android:background="@drawable/ds_surface"
-                    android:gravity="center"
-                    android:orientation="vertical">
-
-                    <TextView
-                        android:id="@+id/pending_value"
-                        android:layout_width="wrap_content"
-                        android:layout_height="34dp"
-                        android:gravity="center_vertical"
-                        android:text="0"
-                        android:textColor="@color/text_primary"
-                        android:textSize="22sp"
-                        android:textStyle="bold" />
-
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:ellipsize="end"
-                        android:gravity="center"
-                        android:maxLines="2"
-                        android:paddingStart="4dp"
-                        android:paddingEnd="4dp"
-                        android:text="@string/pending_label"
-                        android:textColor="@color/text_secondary"
-                        android:textSize="12sp" />
-                </LinearLayout>
-
-                <LinearLayout
-                    android:layout_width="0dp"
-                    android:layout_height="match_parent"
-                    android:layout_marginEnd="8dp"
-                    android:layout_weight="1"
-                    android:background="@drawable/ds_surface"
-                    android:gravity="center"
-                    android:orientation="vertical">
-
-                    <TextView
-                        android:id="@+id/battery_value"
-                        android:layout_width="wrap_content"
-                        android:layout_height="34dp"
-                        android:gravity="center_vertical"
-                        android:text="--%"
-                        android:textColor="@color/text_primary"
-                        android:textSize="22sp"
-                        android:textStyle="bold" />
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="@string/battery_label"
-                        android:textColor="@color/text_secondary"
-                        android:textSize="12sp" />
-                </LinearLayout>
-
-                <LinearLayout
-                    android:layout_width="0dp"
-                    android:layout_height="match_parent"
-                    android:layout_weight="1"
-                    android:background="@drawable/ds_surface"
-                    android:gravity="center"
-                    android:orientation="vertical">
-
-                    <TextView
-                        android:id="@+id/duration_value"
-                        android:layout_width="wrap_content"
-                        android:layout_height="34dp"
-                        android:gravity="center_vertical"
-                        android:text="0 h 0 min"
-                        android:textColor="@color/text_primary"
-                        android:textSize="18sp"
-                        android:textStyle="bold" />
-
-                    <TextView
-                        android:id="@+id/duration_label"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="@string/duration_label"
-                        android:textColor="@color/text_secondary"
-                        android:textSize="12sp" />
-                </LinearLayout>
-            </LinearLayout>
-
-        </LinearLayout>
-    </FrameLayout>
-
-    <!-- Acciones de la jornada, justo debajo de los indicadores. -->
-    <Button
-        android:id="@+id/journey_button"
-        android:layout_width="match_parent"
-        android:layout_height="52dp"
-        android:layout_marginTop="12dp"
-        android:background="@drawable/bg_button_green"
-        android:stateListAnimator="@null"
-        android:text="@string/journey_start_upper"
-        android:textAllCaps="false"
-        android:textColor="@color/white"
-        android:textSize="16sp"
-        android:textStyle="bold" />
-
-    <Button
-        android:id="@+id/update_button"
-        android:layout_width="match_parent"
-        android:layout_height="46dp"
-        android:layout_marginTop="8dp"
-        android:background="@drawable/bg_update_progress"
-        android:ellipsize="end"
-        android:maxLines="1"
-        android:stateListAnimator="@null"
-        android:text="@string/refresh_button"
-        android:textAllCaps="false"
-        android:textColor="@color/navy"
-        android:textSize="13sp" />
-
-    <Space
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1" />
-    </LinearLayout>
-
-    <!-- Pie marino: cronograma de actividades y versión. -->
-    <LinearLayout
-        android:id="@+id/pie_actividades"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:background="@drawable/ds_footer_navy"
-        android:orientation="vertical"
-        android:paddingStart="18dp"
-        android:paddingEnd="18dp"
-        android:paddingBottom="6dp">
-
-        <!-- Asa: arrastrar hacia abajo deja solo el resumen; hacia arriba (o un
-             toque) lo devuelve a su tamaño. -->
         <FrameLayout
-            android:id="@+id/pie_asa"
+            android:id="@+id/cabecera"
             android:layout_width="match_parent"
-            android:layout_height="22dp"
-            android:contentDescription="@string/pie_asa">
+            android:layout_height="48dp"
+            android:paddingStart="14dp"
+            android:paddingEnd="14dp">
 
-            <View
-                android:layout_width="36dp"
-                android:layout_height="4dp"
-                android:layout_gravity="center"
-                android:background="@drawable/ds_asa" />
-        </FrameLayout>
-
-        <!-- Actividades: lo que está en curso (o lo que sigue) y un solo botón
-             para iniciar o finalizar. Tocar el texto abre el cronograma. -->
-        <LinearLayout
-            android:id="@+id/cronograma_card"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:background="?attr/selectableItemBackground"
-            android:clickable="true"
-            android:focusable="true"
-            android:orientation="vertical"
-            android:paddingTop="2dp"
-            android:paddingBottom="10dp">
-
+            <!-- Ayuda: al entrar se despliega "¿Cómo usar?" y luego queda el signo. -->
             <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
+                android:id="@+id/ayuda_boton"
+                android:layout_width="wrap_content"
+                android:layout_height="32dp"
+                android:layout_gravity="start|center_vertical"
+                android:background="@drawable/ds_ayuda"
+                android:clickable="true"
+                android:contentDescription="@string/ayuda_boton"
+                android:focusable="true"
                 android:gravity="center_vertical"
                 android:orientation="horizontal">
 
                 <TextView
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="@string/crono_home_titulo"
-                    android:textColor="#B3FFFFFF"
-                    android:textSize="13sp" />
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
+                    android:gravity="center"
+                    android:importantForAccessibility="no"
+                    android:text="\?"
+                    android:textColor="@color/white"
+                    android:textSize="16sp"
+                    android:textStyle="bold" />
 
                 <TextView
-                    android:id="@+id/crono_sync_home"
+                    android:id="@+id/ayuda_texto"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:textColor="#80FFFFFF"
-                    android:textSize="11sp" />
-
-                <ImageView
-                    android:layout_width="18dp"
-                    android:layout_height="18dp"
-                    android:layout_marginStart="4dp"
-                    android:alpha="0.7"
                     android:importantForAccessibility="no"
-                    android:src="@drawable/ds_ic_chevron" />
+                    android:paddingEnd="12dp"
+                    android:singleLine="true"
+                    android:text="@string/ayuda_boton"
+                    android:textColor="@color/white"
+                    android:textSize="13sp"
+                    android:textStyle="bold"
+                    android:visibility="gone" />
             </LinearLayout>
 
-            <TextView
-                android:id="@+id/crono_resumen"
+            <ImageButton
+                android:id="@+id/console_button"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:layout_gravity="end|center_vertical"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="@string/menu_status"
+                android:src="@drawable/ic_console" />
+        </FrameLayout>
+
+        <ScrollView
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:fillViewport="true"
+            android:overScrollMode="never"
+            android:scrollbars="none">
+
+            <LinearLayout
+                android:id="@+id/cuerpo"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                android:ellipsize="end"
-                android:maxLines="1"
-                android:textColor="@color/white"
-                android:textSize="17sp"
-                android:textStyle="bold" />
+                android:orientation="vertical"
+                android:paddingStart="14dp"
+                android:paddingTop="6dp"
+                android:paddingEnd="14dp"
+                android:paddingBottom="12dp">
 
-            <TextView
-                android:id="@+id/crono_detalle"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
-                android:ellipsize="end"
-                android:maxLines="1"
-                android:textColor="#D9FFFFFF"
-                android:textSize="13.5sp" />
-        </LinearLayout>
+                <!-- Avisos de lo que falta (batería restringida, GPS apagado, permisos):
+                     arriba de todo, en rojo; en verde un momento cuando se arregla. Al tocarlo abre el ajuste. -->
+                <LinearLayout
+                    android:id="@+id/permission_warning"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="10dp"
+                    android:background="@drawable/ds_aviso_rojo"
+                    android:gravity="center_vertical"
+                    android:minHeight="52dp"
+                    android:orientation="horizontal"
+                    android:paddingStart="12dp"
+                    android:paddingTop="10dp"
+                    android:paddingEnd="12dp"
+                    android:paddingBottom="10dp"
+                    android:visibility="gone">
 
-        <TextView
-            android:id="@+id/crono_accion"
-            android:layout_width="match_parent"
-            android:layout_height="50dp"
-            android:background="@drawable/ds_boton_blanco"
-            android:gravity="center"
-            android:text="@string/crono_iniciar"
-            android:textColor="@color/navy"
-            android:textSize="15sp"
-            android:textStyle="bold" />
+                    <TextView
+                        android:id="@+id/permission_warning_icono"
+                        android:layout_width="26dp"
+                        android:layout_height="26dp"
+                        android:background="@drawable/ds_circulo_rojo"
+                        android:gravity="center"
+                        android:importantForAccessibility="no"
+                        android:text="!"
+                        android:textColor="@color/white"
+                        android:textSize="15sp"
+                        android:textStyle="bold" />
 
-        <TextView
-            android:id="@+id/version_label"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:gravity="center"
-            android:padding="4dp"
-            android:textColor="#80FFFFFF"
-            android:textSize="11sp" />
-    </LinearLayout>
+                    <TextView
+                        android:id="@+id/permission_warning_text"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="10dp"
+                        android:layout_weight="1"
+                        android:textColor="@color/primary_dark"
+                        android:textSize="14sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
+
+
+                <ImageView
+                    android:id="@+id/logo_inicio"
+                    android:layout_width="124dp"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center_horizontal"
+                    android:layout_marginTop="2dp"
+                    android:layout_marginBottom="8dp"
+                    android:adjustViewBounds="true"
+                    android:contentDescription="@string/app_logo"
+                    android:src="@drawable/logo_banner" />
+
+                <!-- Tarjeta de la jornada: saludo, estado, tiempo y qué toca ahora. -->
+                <LinearLayout
+                    android:id="@+id/tarjeta_jornada"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:background="@drawable/ds_hero"
+                    android:orientation="vertical"
+                    android:padding="12dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+
+                        <TextView
+                            android:id="@+id/saludo_texto"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:ellipsize="end"
+                            android:maxLines="1"
+                            android:textColor="@color/text_primary"
+                            android:textSize="18sp"
+                            android:textStyle="bold" />
+
+                        <LinearLayout
+                            android:id="@+id/status_pill"
+                            android:layout_width="wrap_content"
+                            android:layout_height="32dp"
+                            android:layout_marginStart="8dp"
+                            android:background="@drawable/bg_pill_red"
+                            android:gravity="center"
+                            android:orientation="horizontal"
+                            android:paddingStart="14dp"
+                            android:paddingEnd="14dp">
+
+                            <TextView
+                                android:id="@+id/pill_text"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:singleLine="true"
+                                android:text="@string/pill_none"
+                                android:textColor="@color/white"
+                                android:textSize="13sp"
+                                android:textStyle="bold" />
+                        </LinearLayout>
+                    </LinearLayout>
+
+                    <TextView
+                        android:id="@+id/duration_value"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:text="@string/journey_none_banner"
+                        android:textColor="@color/text_primary"
+                        android:textSize="27sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/duration_label"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="@string/duration_label"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="13sp" />
+
+                    <LinearLayout
+                        android:id="@+id/sugerencia"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="10dp"
+                        android:background="@drawable/ds_sugerencia"
+                        android:gravity="center_vertical"
+                        android:minHeight="48dp"
+                        android:orientation="horizontal"
+                        android:paddingStart="12dp"
+                        android:paddingTop="8dp"
+                        android:paddingEnd="12dp"
+                        android:paddingBottom="8dp">
+
+                        <View
+                            android:layout_width="8dp"
+                            android:layout_height="8dp"
+                            android:background="@drawable/ds_punto_sugerencia" />
+
+                        <TextView
+                            android:id="@+id/sugerencia_texto"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="10dp"
+                            android:layout_weight="1"
+                            android:maxLines="3"
+                            android:ellipsize="end"
+                            android:textColor="@color/text_primary"
+                            android:textSize="13.5sp" />
+                    </LinearLayout>
+
+                </LinearLayout>
+
+
+                <!-- Actividad: un solo bloque con tres estados. Sin actividad, el botón
+                     "Iniciar actividad"; al tocarlo se abren aquí mismo los datos rápidos
+                     (qué hace y dónde); con una iniciada, la tarjeta marina "Actividad en curso". -->
+                <LinearLayout
+                    android:id="@+id/actividad_card"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:background="@drawable/ds_hero"
+                    android:orientation="vertical"
+                    android:padding="12dp">
+
+                    <!-- Sin actividad -->
+                    <LinearLayout
+                        android:id="@+id/act_home_vacia"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:letterSpacing="0.08"
+                            android:text="@string/act_home_etiqueta"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="12sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/act_home_vacia_texto"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="2dp"
+                            android:text="@string/crono_home_ninguna"
+                            android:textColor="@color/text_primary"
+                            android:textSize="18sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/act_home_iniciar"
+                            android:layout_width="match_parent"
+                            android:layout_height="54dp"
+                            android:layout_marginTop="12dp"
+                            android:background="@drawable/ds_boton_marino"
+                            android:gravity="center"
+                            android:text="@string/crono_iniciar"
+                            android:textColor="@color/white"
+                            android:textSize="16sp"
+                            android:textStyle="bold" />
+                    </LinearLayout>
+
+                    <!-- Datos rápidos -->
+                    <LinearLayout
+                        android:id="@+id/act_home_form"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:visibility="gone">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:gravity="center_vertical"
+                            android:orientation="horizontal">
+
+                            <TextView
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="@string/act_home_nueva"
+                                android:textColor="@color/text_primary"
+                                android:textSize="18sp"
+                                android:textStyle="bold" />
+                        </LinearLayout>
+
+                        <TextView
+                            android:id="@+id/act_home_ayuda"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="2dp"
+                            android:ellipsize="end"
+                            android:maxLines="1"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="13sp" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:letterSpacing="0.08"
+                            android:text="@string/act_home_que"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="12sp"
+                            android:textStyle="bold" />
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="48dp"
+                            android:layout_marginTop="6dp"
+                            android:orientation="horizontal">
+
+                            <TextView
+                                android:id="@+id/act_home_tipo_visita"
+                                android:layout_width="0dp"
+                                android:layout_height="match_parent"
+                                android:layout_marginEnd="8dp"
+                                android:layout_weight="1"
+                                android:background="@drawable/ds_chip_tipo"
+                                android:gravity="center"
+                                android:text="@string/act_home_visita"
+                                android:textSize="15sp"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:id="@+id/act_home_tipo_permiso"
+                                android:layout_width="0dp"
+                                android:layout_height="match_parent"
+                                android:layout_weight="1"
+                                android:background="@drawable/ds_chip_tipo"
+                                android:gravity="center"
+                                android:text="@string/act_home_permiso"
+                                android:textSize="15sp"
+                                android:textStyle="bold" />
+
+                        </LinearLayout>
+
+                        <LinearLayout
+                            android:id="@+id/act_home_donde"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical">
+
+                            <TextView
+                                android:id="@+id/act_home_campo_titulo"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="8dp"
+                                android:labelFor="@id/act_home_lugar"
+                                android:letterSpacing="0.08"
+                                android:text="@string/act_home_donde"
+                                android:textColor="@color/text_secondary"
+                                android:textSize="12sp"
+                                android:textStyle="bold" />
+
+                            <!-- El aviso de lo que falta aparece dentro del campo y se va solo. -->
+                            <FrameLayout
+                                android:layout_width="match_parent"
+                                android:layout_height="50dp"
+                                android:layout_marginTop="6dp">
+
+                            <EditText
+                                android:id="@+id/act_home_lugar"
+                                android:layout_width="match_parent"
+                                android:layout_height="match_parent"
+                                android:background="@drawable/ds_field"
+                                android:hint="@string/act_home_lugar_hint"
+                                android:imeOptions="actionDone"
+                                android:inputType="textCapSentences"
+                                android:maxLines="1"
+                                android:paddingStart="14dp"
+                                android:paddingEnd="14dp"
+                                android:textColor="@color/text_primary"
+                                android:textSize="16sp" />
+
+                            <TextView
+                                android:id="@+id/act_home_error"
+                                android:layout_width="match_parent"
+                                android:layout_height="match_parent"
+                                android:background="@drawable/ds_aviso_rojo"
+                                android:gravity="center_vertical"
+                                android:maxLines="2"
+                                android:paddingStart="14dp"
+                                android:paddingEnd="14dp"
+                                android:textColor="@color/primary_dark"
+                                android:textSize="13.5sp"
+                                android:textStyle="bold"
+                                android:visibility="gone" />
+                            </FrameLayout>
+
+                        </LinearLayout>
+
+                        <!-- Iniciar ahora y, debajo, Volver: grandes y a todo el ancho. -->
+                        <TextView
+                            android:id="@+id/act_home_guardar"
+                            android:layout_width="match_parent"
+                            android:layout_height="56dp"
+                            android:layout_marginTop="10dp"
+                            android:background="@drawable/ds_button_primary"
+                            android:gravity="center"
+                            android:text="@string/act_home_iniciar_ahora"
+                            android:textColor="@color/white"
+                            android:textSize="17sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/act_home_cancelar"
+                            android:layout_width="match_parent"
+                            android:layout_height="48dp"
+                            android:layout_marginTop="8dp"
+                            android:background="@drawable/ds_button_outline"
+                            android:gravity="center"
+                            android:text="@string/act_home_cancelar"
+                            android:textColor="@color/text_primary"
+                            android:textSize="16sp"
+                            android:textStyle="bold" />
+
+                    </LinearLayout>
+
+                    <!-- Actividad en curso -->
+                    <LinearLayout
+                        android:id="@+id/act_home_curso"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:visibility="gone">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:gravity="center_vertical"
+                            android:orientation="horizontal">
+
+                            <!-- Lugar y tiempo en la misma fila: la tarjeta cabe sin scroll. -->
+                            <TextView
+                                android:id="@+id/act_home_curso_lugar"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_marginEnd="10dp"
+                                android:layout_weight="1"
+                                android:ellipsize="end"
+                                android:maxLines="1"
+                                android:textColor="@color/white"
+                                android:textSize="22sp"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:id="@+id/act_home_curso_tiempo"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:fontFeatureSettings="tnum"
+                                android:textColor="@color/white"
+                                android:textSize="22sp"
+                                android:textStyle="bold" />
+                        </LinearLayout>
+
+                        <TextView
+                            android:id="@+id/act_home_curso_detalle"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="2dp"
+                            android:ellipsize="end"
+                            android:maxLines="1"
+                            android:textColor="#C9D5E6"
+                            android:textSize="14sp" />
+
+                        <TextView
+                            android:id="@+id/act_home_finalizar"
+                            android:layout_width="match_parent"
+                            android:layout_height="52dp"
+                            android:layout_marginTop="12dp"
+                            android:background="@drawable/ds_button_primary"
+                            android:gravity="center"
+                            android:text="@string/crono_finalizar"
+                            android:textColor="@color/white"
+                            android:textSize="17sp"
+                            android:textStyle="bold" />
+
+                        <LinearLayout
+                            android:id="@+id/act_home_curso_acciones"
+                            android:layout_width="match_parent"
+                            android:layout_height="44dp"
+                            android:layout_marginTop="8dp"
+                            android:orientation="horizontal">
+
+                            <TextView
+                                android:id="@+id/act_home_nota"
+                                android:layout_width="0dp"
+                                android:layout_height="match_parent"
+                                android:layout_marginEnd="10dp"
+                                android:layout_weight="1"
+                                android:background="@drawable/ds_boton_borde_claro"
+                                android:gravity="center"
+                                android:text="@string/act_home_agregar_nota"
+                                android:textColor="@color/white"
+                                android:textSize="14sp" />
+
+                            <TextView
+                                android:id="@+id/act_home_siguiente"
+                                android:layout_width="0dp"
+                                android:layout_height="match_parent"
+                                android:layout_weight="1"
+                                android:background="@drawable/ds_boton_borde_claro"
+                                android:gravity="center"
+                                android:text="@string/act_home_siguiente"
+                                android:textColor="@color/white"
+                                android:textSize="14sp" />
+                        </LinearLayout>
+
+                        <!-- Nota exprés: se escribe aquí mismo, sin otra pantalla. -->
+                        <LinearLayout
+                            android:id="@+id/act_home_nota_editor"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="10dp"
+                            android:orientation="vertical"
+                            android:visibility="gone">
+
+                            <EditText
+                                android:id="@+id/act_home_nota_campo"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:background="@drawable/ds_field"
+                                android:gravity="center_vertical"
+                                android:hint="@string/act_home_nota_curso_hint"
+                                android:imeOptions="actionDone"
+                                android:inputType="textCapSentences"
+                                android:maxLines="2"
+                                android:minHeight="50dp"
+                                android:paddingStart="14dp"
+                                android:paddingEnd="14dp"
+                                android:textColor="@color/text_primary"
+                                android:textSize="16sp" />
+
+                            <TextView
+                                android:id="@+id/act_home_nota_guardar"
+                                android:layout_width="match_parent"
+                                android:layout_height="52dp"
+                                android:layout_marginTop="10dp"
+                                android:background="@drawable/ds_button_primary"
+                                android:gravity="center"
+                                android:text="@string/act_home_guardar_nota"
+                                android:textColor="@color/white"
+                                android:textSize="17sp"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:id="@+id/act_home_nota_volver"
+                                android:layout_width="match_parent"
+                                android:layout_height="44dp"
+                                android:layout_marginTop="8dp"
+                                android:background="@drawable/ds_boton_borde_claro"
+                                android:gravity="center"
+                                android:text="@string/act_home_cancelar"
+                                android:textColor="@color/white"
+                                android:textSize="15sp"
+                                android:textStyle="bold" />
+                        </LinearLayout>
+                    </LinearLayout>
+
+                    <!-- Botón al cronograma: cuántas lleva hoy y el estado del envío. -->
+                    <LinearLayout
+                        android:id="@+id/cronograma_card"
+                        android:layout_width="match_parent"
+                        android:layout_height="44dp"
+                        android:layout_marginTop="8dp"
+                        android:background="@drawable/ds_button_outline"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal"
+                        android:paddingStart="14dp"
+                        android:paddingEnd="10dp">
+
+                        <ImageView
+                            android:layout_width="20dp"
+                            android:layout_height="20dp"
+                            android:layout_marginEnd="10dp"
+                            android:importantForAccessibility="no"
+                            android:src="@drawable/ds_ic_calendar"
+                            android:tint="@color/navy" />
+
+                        <TextView
+                            android:id="@+id/act_home_hoy"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:ellipsize="end"
+                            android:maxLines="1"
+                            android:textColor="@color/text_primary"
+                            android:textSize="14sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/crono_sync_home"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="11sp"
+                            android:visibility="gone" />
+
+                        <ImageView
+                            android:id="@+id/act_home_chevron"
+                            android:layout_width="18dp"
+                            android:layout_height="18dp"
+                            android:layout_marginStart="4dp"
+                            android:importantForAccessibility="no"
+                            android:src="@drawable/ds_ic_chevron"
+                            android:tint="@color/text_secondary" />
+                    </LinearLayout>
+                </LinearLayout>
+
+                <!-- Resumen del día; mientras cargan los datos laten los cuadros vacíos. -->
+                <FrameLayout
+                    android:id="@+id/resumen_dia"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp">
+
+                    <View
+                        android:id="@+id/skeleton_group"
+                        android:layout_width="match_parent"
+                        android:layout_height="52dp"
+                        android:background="@drawable/bg_skeleton" />
+
+                    <LinearLayout
+                        android:id="@+id/home_content"
+                        android:layout_width="match_parent"
+                        android:layout_height="52dp"
+                        android:background="@drawable/ds_surface"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal"
+                        android:visibility="gone">
+
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="match_parent"
+                            android:layout_weight="1"
+                            android:gravity="center"
+                            android:orientation="vertical">
+
+                            <TextView
+                                android:id="@+id/actividades_value"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="—"
+                                android:textColor="@color/text_primary"
+                                android:textSize="19sp"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="2dp"
+                                android:text="@string/actividades_hoy_label"
+                                android:textColor="@color/text_secondary"
+                                android:textSize="12sp" />
+                        </LinearLayout>
+
+
+                        <View
+                            android:layout_width="1dp"
+                            android:layout_height="30dp"
+                            android:background="#E3E7EE" />
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="match_parent"
+                            android:layout_weight="1"
+                            android:gravity="center"
+                            android:orientation="vertical">
+
+                            <TextView
+                                android:id="@+id/pending_value"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="0"
+                                android:textColor="@color/text_primary"
+                                android:textSize="19sp"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="2dp"
+                                android:text="@string/pendientes_corto"
+                                android:textColor="@color/text_secondary"
+                                android:textSize="12sp" />
+                        </LinearLayout>
+
+
+                        <View
+                            android:layout_width="1dp"
+                            android:layout_height="30dp"
+                            android:background="#E3E7EE" />
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="match_parent"
+                            android:layout_weight="1"
+                            android:gravity="center"
+                            android:orientation="vertical">
+
+                            <TextView
+                                android:id="@+id/battery_value"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="--%"
+                                android:textColor="@color/text_primary"
+                                android:textSize="19sp"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="2dp"
+                                android:text="@string/battery_label"
+                                android:textColor="@color/text_secondary"
+                                android:textSize="12sp" />
+                        </LinearLayout>
+                    </LinearLayout>
+                </FrameLayout>
+
+                <!-- El alto libre queda aquí: las acciones de jornada van pegadas al pie. -->
+                <View
+                    android:id="@+id/espacio_arriba"
+                    android:layout_width="match_parent"
+                    android:layout_height="0dp"
+                    android:layout_weight="1"
+                    android:minHeight="12dp" />
+
+                <!-- Abajo, al alcance del pulgar: la jornada y, debajo, Actualizar (que
+                     informa cada paso y el resultado dentro del mismo botón). -->
+                <LinearLayout
+                    android:id="@+id/fila_jornada"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical">
+
+                    <Button
+                        android:id="@+id/journey_button"
+                        android:layout_width="match_parent"
+                        android:layout_height="52dp"
+                        android:background="@drawable/bg_button_green"
+                        android:ellipsize="end"
+                        android:maxLines="1"
+                        android:stateListAnimator="@null"
+                        android:text="@string/journey_start_upper"
+                        android:textAllCaps="false"
+                        android:textColor="@color/white"
+                        android:textSize="16sp"
+                        android:textStyle="bold" />
+
+                    <Button
+                        android:id="@+id/update_button"
+                        android:layout_width="match_parent"
+                        android:layout_height="48dp"
+                        android:layout_marginTop="8dp"
+                        android:background="@drawable/bg_update_progress"
+                        android:ellipsize="end"
+                        android:maxLines="2"
+                        android:paddingStart="12dp"
+                        android:paddingEnd="12dp"
+                        android:stateListAnimator="@null"
+                        android:text="@string/refresh_button"
+                        android:textAllCaps="false"
+                        android:textColor="@color/navy"
+                        android:textSize="15sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
+
+
+                <TextView
+                    android:id="@+id/version_label"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:gravity="center"
+                    android:padding="2dp"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="11sp" />
+            </LinearLayout>
+        </ScrollView>
 
     </LinearLayout>
 

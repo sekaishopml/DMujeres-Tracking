@@ -6,6 +6,8 @@ export interface Usuario {
   administrador: boolean;
   soloLectura: boolean;
   habilitado: boolean;
+  /** Partes del panel que la cuenta puede ver. */
+  secciones: string[];
   /** idPublico de los equipos con asignación activa y vigente. */
   dispositivoIds: string[];
 }

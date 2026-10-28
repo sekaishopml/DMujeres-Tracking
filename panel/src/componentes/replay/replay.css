@@ -589,6 +589,10 @@ table.tabla thead th { position: sticky; top: 0; z-index: 1; }
 .replay-acciones .icono-solo { padding: 5px; }
 .replay-csv { padding: 5px 9px; font-size: 13px; color: var(--apagado); }
 .replay-csv:hover { color: var(--color-marino-900); }
+.replay-dia { position: relative; display: inline-flex; }
+.replay-dia .replay-csv { display: inline-flex; align-items: center; gap: 5px; font-variant-numeric: tabular-nums; }
+/* El campo real queda debajo del botón: el calendario se abre ahí. */
+.replay-dia-campo { position: absolute; inset: 0; width: 100%; opacity: 0; pointer-events: none; }
 .replay-panel .cuerpo-panel { display: flex; flex-direction: column; gap: 8px; }
 .replay-panel .cuerpo-panel > .filtro-replay { margin-bottom: 0; }
 /* Panel anclado a los bordes superior e inferior del mapa, sin margen flotante:
@@ -602,7 +606,18 @@ table.tabla thead th { position: sticky; top: 0; z-index: 1; }
   overflow: hidden; border-width: 0 1px 0 0; border-color: var(--linea-3);
   border-radius: 0; box-shadow: none;
 }
-& .replay-panel .cuerpo-panel { overflow-y: auto; min-height: 0; }
+& .replay-panel .cuerpo-panel {
+  overflow-y: auto; min-height: 0;
+  /* Barra estándar fina: Chrome la mueve en la tarjeta gráfica. Una dibujada
+     con ::-webkit-scrollbar se pinta en cada cuadro y el desplazamiento se
+     trababa. Se ve solo con el mouse encima (regla general de index.css). */
+  overscroll-behavior: contain;
+  will-change: scroll-position;
+  /* La barra va a la izquierda (lado del menú), no pegada al mapa: el
+     contenedor en rtl pone la barra a la izquierda y el contenido sigue en ltr. */
+  direction: rtl;
+  & > * { direction: ltr; }
+}
 /* Plegado: tira delgada con las acciones (ver más abajo); la tira solo ocupa lo necesario (vuelve a alto automático
    para no estirarse con el anclaje inferior). */
 & .replay-panel.colapsado { width: auto; height: auto; bottom: auto; padding: 6px 8px; }
@@ -795,7 +810,7 @@ table.tabla thead th { position: sticky; top: 0; z-index: 1; }
   font-variant-numeric: tabular-nums;
 }
 .parada-duracion {
-  position: absolute; left: 28px; top: 50%; transform: translateY(-50%); pointer-events: none;
+  position: absolute; left: 28px; top: 50%; transform: translateY(-50%);
   white-space: nowrap; font-size: 11px; font-weight: 650; color: var(--navy-2);
   background: rgba(255, 255, 255, .94); border: 1px solid var(--linea-3);
   border-radius: 20px; padding: 1px 7px; font-variant-numeric: tabular-nums;
@@ -817,6 +832,8 @@ table.tabla thead th { position: sticky; top: 0; z-index: 1; }
   box-shadow: 0 0 0 1.5px #7a0a1c, 0 2px 5px rgba(4, 18, 31, .4);
 }
 .marcador-novedad-pin:hover { box-shadow: 0 0 0 1.5px #7a0a1c, 0 0 0 6px rgba(200, 16, 46, .3); }
+.marcador-novedad-pin.recuperacion { background: #1f7a3d; box-shadow: 0 0 0 1.5px #0f4d25, 0 2px 5px rgba(4, 18, 31, .4); }
+.marcador-novedad-pin.recuperacion:hover { box-shadow: 0 0 0 1.5px #0f4d25, 0 0 0 6px rgba(31, 122, 61, .3); }
 /* Casa y oficina se distinguen de las visitas por el color de su insignia. */
 .marcador-parada.activa .parada-insignia { background: #eb0045; }
 /* Clase sin uso (círculo hueco naranja); queda por si un mapa reutilizado
@@ -852,7 +869,9 @@ table.tabla thead th { position: sticky; top: 0; z-index: 1; }
 .replay-pista { grid-area: pista; min-width: 0; width: 100%; display: flex; align-items: center; gap: 8px; }
 .replay-controles .icono-solo { padding: 5px; }
 .replay-controles .voltear { display: inline-flex; transform: rotate(180deg); }
-.replay-tiempos { font-size: 12.5px; color: var(--apagado); font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* Ancho fijo (cabe "123.4 km/h · 100%"): si la lectura cambiaba de ancho, la
+   gráfica de al lado se redimensionaba y Chart.js la rehacía entera. */
+.replay-tiempos { font-size: 12.5px; color: var(--apagado); font-variant-numeric: tabular-nums; white-space: nowrap; min-width: 13.2em; text-align: right; }
 .replay-tiempos strong { color: var(--color-marino-900); }
 .replay-controles .velocidades { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; min-width: 0; }
 .velocidades button { min-width: 34px; padding: 3px 6px; font-size: 12.5px; }
@@ -1006,10 +1025,16 @@ button.velocidad-activa { background: var(--navy); border-color: var(--navy); co
   & button { border-radius: var(--radius-control); }
   & button.principal, & .activo { accent-color: var(--color-marca); }
   @media (max-width: 760px) {
-    & .replay-panel { top: 0; left: 0; right: 0; bottom: auto; width: auto; max-height: 48%; border-width: 0 0 1px 0; }
-    /* El panel ocupa todo el ancho arriba: el selector de capas pasa a la
-       esquina derecha, justo encima de la franja de reproducción. */
-    & [aria-label="Capa del mapa"] { top: auto; bottom: 160px; border-width: 1px 0 0 1px; border-radius: 10px 0 0 0; }
+    /* Media pantalla o celular: el panel arriba a todo el ancho (40 % del
+       alto como máximo), el selector de capas justo debajo, a la derecha, y la
+       franja de reproducción compacta abajo: queda una banda de mapa entre
+       los dos. */
+    & .replay-panel { top: 0; left: 0; right: 0; bottom: auto; width: auto; max-height: 40%; border-width: 0 0 1px 0; }
+    & [aria-label="Capa del mapa"] { top: calc(40% + 8px); right: 8px; bottom: auto; border-width: 1px; border-radius: 10px; }
+    &:has(.replay-panel.colapsado) [aria-label="Capa del mapa"] { top: 60px; }
+    & .replay-timeline { padding: 6px 8px; }
+    & .replay-timeline .replay-linea { gap: 4px; }
+    & .replay-timeline .replay-bateria { height: 28px; }
   }
   /* El selector de capas es del mapa base (Tailwind): los estilos de botón de
      aquí no lo tocan. */
@@ -1100,6 +1125,10 @@ button.velocidad-activa { background: var(--navy); border-color: var(--navy); co
     font-size: 11.5px; background: var(--color-tinta); color: #fff; box-shadow: var(--shadow-flotante);
   }
   & .bateria-etiqueta strong { color: #fff; }
+  & .bateria-punto {
+    position: absolute; width: 7px; height: 7px; border-radius: 50%; pointer-events: none;
+    background: var(--color-marino-600); transform: translate(-50%, -50%);
+  }
   @media (prefers-reduced-motion: reduce) {
     & .replay-panel, & .replay-timeline, & .replay-timeline .replay-bateria { transition-duration: 1ms; }
   }
@@ -1220,16 +1249,16 @@ button.velocidad-activa { background: var(--navy); border-color: var(--navy); co
 /* Ficha desplegable de la parada elegida: se abre hacia arriba con un
    despliegue suave (escala vertical + fundido). */
 .replay-ficha-parada .maplibregl-popup-content {
-  min-width: 190px;
+  min-width: 0;
   transform-origin: bottom center;
   animation: ficha-parada-abrir 220ms cubic-bezier(0.22, 1, 0.36, 1);
 }
-.replay-ficha-parada .ficha-parada p { display: flex; justify-content: space-between; gap: 14px; margin: 0; }
-.replay-ficha-parada .ficha-parada span { color: rgb(255 255 255 / 0.7); }
-.replay-ficha-parada .ficha-parada strong { font-weight: 600; font-variant-numeric: tabular-nums; text-align: right; }
-.replay-ficha-parada .ficha-parada-titulo { font-weight: 700; margin-bottom: 4px !important; }
-.replay-ficha-parada .ficha-parada-direccion { flex-direction: column; gap: 1px !important; margin-top: 4px !important; }
-.replay-ficha-parada .ficha-parada-direccion strong { text-align: left; font-weight: 500; line-height: 1.3; }
+.replay-ficha-parada .ficha-parada { display: grid; gap: 2px; font-size: 12.5px; line-height: 1.3; }
+.replay-ficha-parada .ficha-parada p { margin: 0; }
+.replay-ficha-parada .ficha-parada-titulo { font-weight: 700; }
+.replay-ficha-parada .ficha-parada-horas { font-variant-numeric: tabular-nums; }
+.replay-ficha-parada .ficha-parada-horas span { opacity: 0.7; }
+.replay-ficha-parada .ficha-parada-direccion { opacity: 0.8; max-width: 220px; }
 @keyframes ficha-parada-abrir {
   from { opacity: 0; transform: translateY(6px) scaleY(0.6); }
   to { opacity: 1; transform: none; }
@@ -1250,6 +1279,7 @@ button.velocidad-activa { background: var(--navy); border-color: var(--navy); co
 .replay-info-cobertura { display: flex; justify-content: space-between; margin: 0 0 6px; font-size: 14px; }
 .replay-info-cobertura span { color: var(--apagado); }
 .replay-info-panel .replay-integridad { border-bottom: 0; padding-block: 0; }
+.replay-info-csv { display: inline-flex; align-items: center; gap: 6px; margin-top: 8px; padding: 5px 9px; font-size: 13px; }
 /* El zoom sube para dejar abajo el botón de información, separado de + y -. */
 .replay-pantalla .maplibregl-ctrl-bottom-right:not(.replay-info) { bottom: 38px; }
 
@@ -1312,10 +1342,14 @@ button.velocidad-activa { background: var(--navy); border-color: var(--navy); co
 .grupo-etiqueta.fin, .grupo-punto.fin { background: #c8102e; }
 .grupo-etiqueta.parada, .grupo-punto.parada { background: #17365d; }
 .grupo-etiqueta.novedad, .grupo-punto.novedad { background: #d9480f; }
+.grupo-etiqueta.recuperacion, .grupo-punto.recuperacion { background: #1f7a3d; }
 
 /* Visita ya alcanzada por la reproducción: se pinta. */
 .parada-rol { transition: background-color .25s, color .25s; }
-.parada-rol.alcanzada { background: var(--color-marino-900); color: #fff; }
+.parada-rol.alcanzada { background: var(--navy); color: #fff; }
+/* Nocturno: el rojo de la parada elegida se aclara para leerse sobre marino. */
+:root[data-tema='oscuro'] .replay-paradas li.activa > button { background: rgba(255, 77, 126, .12); }
+:root[data-tema='oscuro'] .replay-paradas li.activa .parada-hora { color: #ff7a9c; }
 /* Dirección en carga (mientras se reproduce o se arrastra). */
 .esqueleto {
   display: inline-block; width: 140px; height: 11px; border-radius: 6px; vertical-align: middle;
@@ -1350,3 +1384,29 @@ button.velocidad-activa { background: var(--navy); border-color: var(--navy); co
   .marcador-parada, .marcador-extremo, .marcador-novedad-pin, .marcador-parada > *, .marcador-extremo > * { transition: none; }
   .grupo-lugar.nace, .grupo-lugar.nace .grupo-lugar-cabecera { animation: none; }
 }
+
+/* Lo que el ojo del mapa deja oculto (el dato lo pone la capa de geocercas). */
+[data-ocultar~='eventos'] .marcador-novedad-pin,
+[data-ocultar~='eventos'] .burbuja-izquierda,
+[data-ocultar~='paradas'] .marcador-parada,
+[data-ocultar~='paradas'] .marcador-microparada,
+[data-ocultar~='paradas'] .marcador-extremo,
+[data-ocultar~='paradas'] .burbuja-derecha { display: none !important; }
+
+/* Mapa alejado: sin duraciones, puntos de estado ni microparadas encima del
+   mapa; la parada elegida conserva su duración. */
+.zoom-lejos .parada-duracion,
+.zoom-lejos .marcador-microparada,
+.zoom-lejos .grupo-punto { display: none; }
+.zoom-lejos .marcador-parada.activa .parada-duracion { display: block; }
+
+/* Reporte del día (actividades declaradas): plegado, con alto máximo y
+   desplazamiento para no tapar el mapa. */
+.replay-reporte-lista {
+  list-style: none; margin: 4px 0 0; padding: 0 2px 0 0;
+  max-height: 30vh; overflow-y: auto; font-size: 13px; line-height: 1.35;
+}
+.replay-reporte-lista li { display: flex; gap: 8px; padding: 4px 0; border-top: 1px solid var(--linea-3); }
+.replay-reporte-hora { flex: none; font-variant-numeric: tabular-nums; color: var(--apagado); min-width: 88px; }
+.replay-reporte-texto { min-width: 0; overflow-wrap: anywhere; }
+.replay-reporte-texto em { display: block; font-style: normal; color: var(--color-sin-senal); font-size: 12px; }

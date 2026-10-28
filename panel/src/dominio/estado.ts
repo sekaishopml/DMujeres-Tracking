@@ -14,7 +14,8 @@ const CLAVE_POR_ESTADO: Record<string, string> = {
   DESCONOCIDO: 'desconocido',
 };
 
-export type EstadoOperativo = Pick<Dispositivo, 'estado' | 'habilitado'> & Partial<Pick<Dispositivo, 'plataforma'>>;
+export type EstadoOperativo = Pick<Dispositivo, 'estado' | 'habilitado'> &
+  Partial<Pick<Dispositivo, 'plataforma' | 'alertaActiva'>>;
 
 export function claveEstado(dispositivo: EstadoOperativo): string {
   // Un equipo deshabilitado no trabaja aunque figure conectado.
@@ -29,5 +30,14 @@ export function etiquetaEstado(dispositivo: EstadoOperativo): string {
 
 export function colorEstado(dispositivo: EstadoOperativo): string {
   return COLOR_ESTADO[claveEstado(dispositivo)] ?? COLOR_ESTADO.deshabilitado;
+}
+
+/** Clave de color: la alerta en jornada manda sobre el estado (se ve en rojo). */
+export function claveVisual(dispositivo: EstadoOperativo): string {
+  return dispositivo.alertaActiva ? 'alerta' : claveEstado(dispositivo);
+}
+
+export function colorEquipo(dispositivo: EstadoOperativo): string {
+  return COLOR_ESTADO[claveVisual(dispositivo)] ?? COLOR_ESTADO.deshabilitado;
 }
 

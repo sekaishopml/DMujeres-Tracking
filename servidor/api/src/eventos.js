@@ -1,6 +1,6 @@
 // Eventos del día para Inicio, en una sola línea de tiempo:
 //  - de la app: inicio y fin de jornada, GPS apagado o encendido, permiso de
-//    ubicación, ahorro de batería, batería crítica, teléfono apagado o
+//    ubicación, notificaciones, ahorro de batería, batería crítica, teléfono apagado o
 //    encendido y silencio con la jornada abierta;
 //  - actividades que se subieron al cronograma (por la hora de carga).
 // GET /api/v1/eventos?desde=ISO&hasta=ISO -> {total, conteo, datos}
@@ -12,7 +12,7 @@ import { PREDICADO_PERMISO, permisoDe } from './flota.js';
 
 // Tipo de evento de la app y su categoría y texto. Los que no están aquí
 // (presencia, diagnóstico, movimiento) son internos.
-const TIPOS = {
+export const TIPOS = {
   mobileJourneyStarted: { categoria: 'inicio_jornada', texto: 'Inició jornada' },
   mobileJourneyEnded: { categoria: 'fin_jornada', texto: 'Finalizó jornada' },
   mobileGpsDisabled: { categoria: 'alerta', texto: 'Apagó el GPS' },
@@ -25,8 +25,10 @@ const TIPOS = {
   mobilePowerOn: { categoria: 'recuperacion', texto: 'Encendió el teléfono' },
   mobilePermissionLost: { categoria: 'alerta', texto: 'Quitó el permiso de ubicación' },
   mobilePermissionRestored: { categoria: 'recuperacion', texto: 'Devolvió el permiso de ubicación' },
-  mobileBatterySaverOn: { categoria: 'alerta', texto: 'Puso la app en ahorro de batería' },
-  mobileBatterySaverOff: { categoria: 'recuperacion', texto: 'Quitó la app del ahorro de batería' },
+  mobileNotificationsOff: { categoria: 'alerta', texto: 'Apagó las notificaciones de la app' },
+  mobileNotificationsOn: { categoria: 'recuperacion', texto: 'Volvió a activar las notificaciones de la app' },
+  mobileBatterySaverOn: { categoria: 'alerta', texto: 'El teléfono activó el ahorro de batería' },
+  mobileBatterySaverOff: { categoria: 'recuperacion', texto: 'El teléfono quitó la app del ahorro de batería' },
   mobilePowerSaveOn: { categoria: 'alerta', texto: 'Activó el ahorro de batería del teléfono' },
   mobilePowerSaveOff: { categoria: 'recuperacion', texto: 'Quitó el ahorro de batería del teléfono' },
   mobileClockOff: { categoria: 'alerta', texto: 'La hora del teléfono no coincide con la real' },

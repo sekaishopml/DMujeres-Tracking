@@ -5,6 +5,7 @@
 //   - Los roles y lo demás delicado, solo los administradores.
 
 import { noAutenticado, sinPermiso } from './errores.js';
+import { seccionDeRuta } from './secciones.js';
 
 export async function codigosRol(ejecutor, usuarioId) {
   const { rows } = await ejecutor.query(
@@ -72,5 +73,24 @@ export async function exigirAdministracion(ctx) {
   await exigirEscritura(ctx);
   if (!(await esAdministradora(ctx.pool, ctx.usuario))) {
     throw sinPermiso('Se requiere una cuenta administradora.');
+  }
+}
+
+// Escrituras que una cuenta de solo lectura sí puede hacer (cerrar sesión y
+// marcar como visto lo que ya miró).
+const ESCRITURAS_LIBRES = ['/api/v1/auth/logout', '/api/v1/cronograma/visto'];
+
+// Se aplica a toda ruta con sesión: la cuenta de solo lectura no escribe nada
+// y nadie entra a una parte de administración que no tiene asignada.
+export async function exigirAccesoDeRuta(ctx) {
+  const { usuario } = ctx;
+  if (!usuario) return;
+  const camino = ctx.url.pathname;
+  if (!['GET', 'HEAD'].includes(ctx.req.method) && !ESCRITURAS_LIBRES.includes(camino)) {
+    await exigirEscritura(ctx);
+  }
+  const seccion = seccionDeRuta(camino);
+  if (seccion && !usuario.secciones?.includes(seccion)) {
+    throw sinPermiso('La cuenta no tiene acceso a esta parte del panel.');
   }
 }

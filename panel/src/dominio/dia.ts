@@ -25,6 +25,7 @@ export interface FixDia {
   registradoEn: string;
   latitud: number;
   longitud: number;
+  precisionM?: number | null;
 }
 
 export interface ResumenDia {
@@ -82,23 +83,53 @@ export function coberturaDe(posiciones: readonly FixDia[], huecos: readonly Huec
   return { porcentaje, cortes, sinSenalSegundos: Math.round(sinSenal), mayorCorteSegundos: Math.round(mayor) };
 }
 
+const VIAJE_ENTRE_M = 300;
+const VIAJE_ENTRE_MS = 60_000;
+const PRECISION_VIAJE_M = 30;
+
+function huboViaje(a: ParadaDia, b: ParadaDia, posiciones: readonly FixDia[]): boolean {
+  const [desde, hasta] = [ms(a.fin), ms(b.inicio)];
+  let racha: FixDia[] = [];
+  for (const p of posiciones) {
+    const t = ms(p.registradoEn);
+    if (t < desde || t > hasta || (p.precisionM ?? 0) > PRECISION_VIAJE_M) continue;
+    if (distanciaM(a, p) > VIAJE_ENTRE_M) {
+      racha.push(p);
+      if (racha.length >= 3 && ms(p.registradoEn) - ms(racha[0].registradoEn) >= VIAJE_ENTRE_MS) return true;
+    } else racha = [];
+  }
+  return false;
+}
+
 export function resumenDia(entrada: {
   posiciones: readonly FixDia[];
   paradas: readonly ParadaDia[];
   huecos: readonly HuecoDia[];
+  // Puntos tal como llegaron: la depuración quita como pico un viaje corto.
+  crudas?: readonly FixDia[];
 }): ResumenDia {
   const { posiciones, paradas, huecos } = entrada;
+  const crudas = entrada.crudas ?? posiciones;
   const cobertura = coberturaDe(posiciones, huecos);
   if (posiciones.length === 0 || paradas.length === 0) {
     return { numeroVisita: paradas.map(() => null), visitas: 0, cobertura };
   }
   // Paradas seguidas en el mismo lugar (el GPS corta una estancia larga en
-  // varias) son una sola visita.
+  // varias) son una sola visita, salvo que entre ellas hubo un viaje: tres
+  // lecturas precisas seguidas a más de VIAJE_ENTRE_M, durante VIAJE_ENTRE_MS
+  // o más. Se compara con la primera parada de la visita, no con la anterior,
+  // para que la deriva paso a paso no junte lugares distintos.
   const numeroVisita: (number | null)[] = [];
   let visitas = 0;
+  let ancla = paradas[0];
   paradas.forEach((parada, i) => {
     const anterior = i > 0 ? paradas[i - 1] : null;
-    numeroVisita.push(anterior && distanciaM(parada, anterior) <= RADIO_MISMA_VISITA_M ? numeroVisita[i - 1] : (visitas += 1));
+    if (anterior && distanciaM(parada, ancla) <= RADIO_MISMA_VISITA_M && !huboViaje(anterior, parada, crudas)) {
+      numeroVisita.push(numeroVisita[i - 1]);
+    } else {
+      numeroVisita.push((visitas += 1));
+      ancla = parada;
+    }
   });
   return { numeroVisita, visitas, cobertura };
 }

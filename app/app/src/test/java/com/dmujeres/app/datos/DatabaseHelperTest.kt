@@ -44,6 +44,7 @@ class DatabaseHelperTest {
     fun `el bufer respeta el tope y descarta los mas viejos`() {
         val databaseHelper = DatabaseHelper(ApplicationProvider.getApplicationContext())
         val limit = 5000
+        databaseHelper.topeBufer = limit.toLong()
         // Referencia real del primer insertado (Robolectric aplica un offset al Location.time).
         val referenceLocation = Location("gps")
         referenceLocation.time = 1_000L

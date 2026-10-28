@@ -88,15 +88,16 @@
   --color-marino-500: #6f93c2;
   --color-marino-400: #5577a6;
   --color-marino-300: #34507a;
-  --color-marino-200: #263d5f;
-  --color-marino-100: #1a2c47;
-  --color-marino-50: #13213a;
+  --color-marino-200: #102342;
+  --color-marino-100: #0a1830;
+  --color-marino-50: #050f22;
 
   --color-marca-suave: rgb(235 0 69 / 0.16);
-  --color-fondo: #070b14;
-  --color-superficie: #0e1729;
-  --color-borde: #1d2b44;
-  --color-borde-fuerte: #2a3c5c;
+  /* Más oscuro, pero azul marino y no gris: el tono se mantiene saturado. */
+  --color-fondo: #000208;
+  --color-superficie: #020814;
+  --color-borde: #0b1730;
+  --color-borde-fuerte: #132546;
   --color-texto: #e6edf7;
   --color-texto-2: #9eb0c9;
   --color-texto-3: #6c7f9b;
@@ -143,6 +144,13 @@
   h1, h2, h3 { @apply font-display text-marino-900; }
   :focus-visible { @apply outline-2 outline-offset-2 outline-marca; }
   ::selection { background: var(--color-marca-suave); }
+  /* Barras de desplazamiento finas y azules: solo aparecen con el mouse
+     encima de lo que se desplaza. Con las propiedades estándar Chrome la
+     vuelve a ocultar al salir; con ::-webkit-scrollbar quedaba pintada. */
+  * { scrollbar-width: thin; scrollbar-color: transparent transparent; }
+  :hover { scrollbar-color: var(--color-marino-500) transparent; }
+  /* En oscuro, la barra en el tono de los bordes: el azul claro encandilaba. */
+  :root[data-tema='oscuro'] :hover { scrollbar-color: var(--color-borde-fuerte) transparent; }
 }
 
 /* Cifras alineadas en tablas y fichas. */
@@ -165,7 +173,7 @@
 :root[data-tema='oscuro'] .maplibregl-ctrl-group { background: var(--color-superficie); }
 :root[data-tema='oscuro'] .maplibregl-ctrl-group button + button { border-top-color: var(--color-borde); }
 :root[data-tema='oscuro'] .maplibregl-ctrl-icon { filter: invert(1) hue-rotate(180deg); }
-:root[data-tema='oscuro'] .maplibregl-ctrl-attrib { background: rgb(14 23 41 / 0.8); color: var(--color-texto-2); }
+:root[data-tema='oscuro'] .maplibregl-ctrl-attrib { background: rgb(2 8 20 / 0.8); color: var(--color-texto-2); }
 :root[data-tema='oscuro'] .maplibregl-ctrl-attrib a { color: var(--color-texto-2); }
 :root[data-tema='oscuro'] .maplibregl-popup-content { background: var(--color-superficie); color: var(--color-texto); }
 

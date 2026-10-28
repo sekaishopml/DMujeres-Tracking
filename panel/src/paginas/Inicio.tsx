@@ -2,7 +2,7 @@ import { Fragment, useMemo, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { FileText, Map as MapaIcono, Route } from 'lucide-react';
+import { Download, FileText, Route } from 'lucide-react';
 import type { Dispositivo, ResumenReporte } from '@contratos';
 import { api, consulta } from '@/lib/api';
 import { cn } from '@/lib/cn';
@@ -13,6 +13,7 @@ import { Tarjeta } from '@/componentes/ui/Tarjeta';
 import { ErrorCarga, Esqueleto } from '@/componentes/ui/Estados';
 import '@/componentes/inicio/inicio.css';
 import { claseBoton } from '@/componentes/ui/Boton';
+import { Entrada } from '@/componentes/ui/Campo';
 import { AccionesPagina } from '@/componentes/marco/Marco';
 import { bateria, duracion, hace, hora, GUION } from '@/dominio/formatoBase';
 import { traerFlota, traerJornadasFlota, traerSalud, CLAVE_FLOTA, equiposHabilitados } from '@/dominio/datos';
@@ -20,7 +21,8 @@ import { agruparPorDepartamento } from '@/dominio/departamentos';
 import { mensajeError } from '@/dominio/errores';
 import { etiquetaEstado, claveEstado } from '@/dominio/estado';
 import { finDeDia, fechaHoyLocal, inicioDeDia, sumarDias } from '@/dominio/rango';
-import { traerCronograma } from '@/dominio/cronograma';
+import { TIPOS, useAusenciasDeHoy } from '@/dominio/cronograma';
+import type { Actividad, TipoActividad } from '@/dominio/cronograma';
 import { CLAVE_NOVEDADES_CRONOGRAMA, REFRESCO_NOVEDADES_MS, traerNovedadesCronograma } from '@/componentes/reportes/novedades';
 
 // Inicio: el tablero del día. Arriba, cómo está el equipo ahora y las cifras
@@ -33,6 +35,46 @@ const REFRESCO_DIA_MS = 60_000;
 const BATERIA_BAJA_PCT = 15;
 const JORNADA_LARGA_H = 16;
 
+// Reporte de Marketing en Excel del día elegido (por defecto ayer: se hace
+// con días cerrados, por eso hoy no se puede elegir). Lo arma el servidor:
+// Reporte_Marketing_DD-MM-AA.xlsm.
+function DescargarReporte() {
+  const ayer = sumarDias(fechaHoyLocal(), -1);
+  const [dia, setDia] = useState(ayer);
+  const [cargando, setCargando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const descargar = async () => {
+    if (!dia) return;
+    setCargando(true);
+    setError(null);
+    try {
+      const respuesta = await fetch(`/api/v1/reports/marketing?fecha=${dia}`, { credentials: 'same-origin' });
+      if (!respuesta.ok) throw new Error();
+      const nombre = /filename="([^"]+)"/.exec(respuesta.headers.get('content-disposition') ?? '')?.[1] ?? 'Reporte_Marketing.xlsm';
+      const url = URL.createObjectURL(await respuesta.blob());
+      const enlace = document.createElement('a');
+      enlace.href = url;
+      enlace.download = nombre;
+      enlace.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      setError('No se pudo descargar el reporte.');
+    } finally {
+      setCargando(false);
+    }
+  };
+  return (
+    <span className="inline-flex items-center gap-2">
+      {error && <span className="text-[12px] font-medium text-peligro">{error}</span>}
+      <Entrada type="date" aria-label="Fecha del reporte" className="w-36" value={dia} max={ayer} onChange={(evento) => setDia(evento.target.value)} />
+      <button type="button" className={claseBoton('secundario')} disabled={cargando || !dia} onClick={() => void descargar()}>
+        <Download className="size-4" />
+        {cargando ? 'Descargando…' : 'Descargar reporte'}
+      </button>
+    </span>
+  );
+}
+
 type FiltroPersonas = 'todas' | 'jornada' | 'revisar' | 'senal';
 const FILTROS: { valor: FiltroPersonas; etiqueta: string }[] = [
   { valor: 'todas', etiqueta: 'Todas' },
@@ -41,11 +83,12 @@ const FILTROS: { valor: FiltroPersonas; etiqueta: string }[] = [
   { valor: 'senal', etiqueta: 'Sin señal' },
 ];
 
+// Solo verde, azul y gris: el naranja no se usa para el estado de la persona.
 const PUNTO_ESTADO: Record<string, string> = {
   enLinea: 'bg-movimiento',
   detenido: 'bg-detenido',
-  sinSenal: 'bg-sin-senal',
-  desconocido: 'bg-sin-senal',
+  sinSenal: 'bg-deshabilitado',
+  desconocido: 'bg-deshabilitado',
   deshabilitado: 'bg-deshabilitado',
 };
 
@@ -91,10 +134,23 @@ interface RespuestaEventos {
 }
 
 // Color de severidad de cada categoría en la línea de tiempo.
+// Vacaciones en verde, permisos en azul (celeste en nocturno), novedad en
+// naranja. Con varias el mismo día se muestra la de más peso.
+const COLOR_AUSENCIA: Partial<Record<TipoActividad, string>> = {
+  vacaciones: 'bg-movimiento-suave text-movimiento',
+  permiso: 'bg-detenido-suave text-detenido',
+  permiso_medico: 'bg-detenido-suave text-detenido',
+  novedad: 'bg-sin-senal-suave text-sin-senal',
+};
+
+// De abajo hacia arriba en cada barra por hora.
+const ORDEN_BARRA: CategoriaEvento[] = ['inicio_jornada', 'fin_jornada', 'actividad', 'recuperacion', 'alerta'];
+
 const COLOR_EVENTO: Record<CategoriaEvento, string> = {
   inicio_jornada: 'bg-movimiento',
   fin_jornada: 'bg-deshabilitado',
-  actividad: 'bg-marino-700',
+  // Azul en claro, celeste en nocturno (el marino se perdía sobre el fondo).
+  actividad: 'bg-[#2563eb] dark:bg-[#38bdf8]',
   alerta: 'bg-peligro',
   recuperacion: 'bg-detenido',
 };
@@ -130,12 +186,7 @@ export default function Inicio() {
     refetchInterval: () => (document.hidden ? false : REFRESCO_DIA_MS),
     retry: false,
   });
-  const actividades = useQuery({
-    queryKey: ['inicio', 'cronograma', hoy],
-    queryFn: () => traerCronograma(hoy, hoy),
-    refetchInterval: () => (document.hidden ? false : REFRESCO_DIA_MS),
-    retry: false,
-  });
+  const { actividades, ausencias: ausenciaPorPersona } = useAusenciasDeHoy(hoy, REFRESCO_DIA_MS);
   const novedades = useQuery({
     queryKey: CLAVE_NOVEDADES_CRONOGRAMA,
     queryFn: traerNovedadesCronograma,
@@ -144,7 +195,8 @@ export default function Inicio() {
   });
   // Eventos de hoy: se refrescan seguido, es lo que más cambia.
   const eventos = useQuery({
-    queryKey: ['inicio', 'eventos', hoy],
+    // Misma clave que la campana de avisos: una sola petición para los dos.
+    queryKey: ['notificaciones', 'eventos', hoy],
     queryFn: () =>
       api.get<RespuestaEventos>(`/api/v1/eventos${consulta({ desde: inicioDeDia(hoy), hasta: finDeDia(hoy) })}`, {
         redirigir401: false,
@@ -208,8 +260,8 @@ export default function Inicio() {
       const motivos: string[] = [];
       let grave = false;
       const clave = claveEstado(e);
-      // El servidor ya decide: sin reporte reciente = más de 15 min sin responder
-      // (30 si estaba quieto),
+      // El servidor ya decide: señal débil = más de 15 min sin responder
+      // (30 si estaba quieto), o responde sin dar un punto en 30 min;
       // sin señal = más de 60 min (ver flota.js).
       if (clave === 'sinSenal' || clave === 'desconocido') {
         motivos.push(
@@ -283,10 +335,7 @@ export default function Inicio() {
           {actualizado ? `Actualizado ${actualizado}` : 'Sin datos todavía'}
           {flota.isFetching ? ' · actualizando…' : ''}
         </span>
-        <Link to="/en-vivo" className={claseBoton('secundario')}>
-          <MapaIcono className="size-4" />
-          Mapa en vivo
-        </Link>
+        <DescargarReporte />
       </AccionesPagina>
 
       {flota.isPending && <InicioEsqueleto />}
@@ -342,7 +391,7 @@ export default function Inicio() {
                   className="h-7 w-40 rounded-full border border-borde bg-superficie px-3 text-[12px] focus-visible:border-marca focus-visible:outline-none"
                 />
               </div>
-              <div className="inicio-scroll min-h-0 flex-1 overflow-auto max-lg:max-h-[560px]">
+              <div className="min-h-0 flex-1 overflow-auto max-lg:max-h-[560px]">
                 <table className="w-full min-w-[820px] text-[13px]">
                   <thead className="sticky top-0 z-[2]">
                     <tr className="border-y border-borde bg-marino-50 text-left text-[12px] font-medium text-texto-2">
@@ -381,9 +430,10 @@ export default function Inicio() {
                             key={e.id}
                             equipo={e}
                             hoy={hoy}
-                            jornada={jornadaPorPersona.get(e.idPublico) ?? null}
+                            jornada={jornadas.data ? (jornadaPorPersona.get(e.idPublico) ?? null) : undefined}
                             recorrido={recorridoPorPersona.get(e.idPublico) ?? null}
                             actividades={actividadesPorPersona.get(e.idPublico) ?? 0}
+                            ausencia={ausenciaPorPersona.get(e.idPublico) ?? null}
                             nuevas={nuevasPorPersona.get(e.idPublico) ?? 0}
                             versionMasNueva={versionMasNueva}
                           />
@@ -410,14 +460,17 @@ function FilaPersona({
   jornada,
   recorrido,
   actividades,
+  ausencia,
   nuevas,
   versionMasNueva,
 }: {
   equipo: Dispositivo;
   hoy: string;
-  jornada: { inicioEn: string; finEn: string | null; duracionMin: number | null } | null;
+  // undefined: las jornadas aún no llegan o fallaron (no es "sin jornada").
+  jornada: { inicioEn: string; finEn: string | null; duracionMin: number | null } | null | undefined;
   recorrido: { distanciaKm: number; paradas: number } | null;
   actividades: number;
+  ausencia: Actividad | null;
   nuevas: number;
   versionMasNueva: string | null;
 }) {
@@ -451,12 +504,14 @@ function FilaPersona({
           <>
             <span className="text-marino-900">
               {inicioJornada(jornada.inicioEn, hoy)} –{' '}
-              {jornada.finEn ? hora(jornada.finEn) : 'ahora'}
+              {jornada.finEn ? hora(jornada.finEn) : 'En curso'}
             </span>
             <span className="block text-[11px] text-texto-3">
               {jornada.duracionMin != null ? duracion(jornada.duracionMin * 60) : 'En curso'}
             </span>
           </>
+        ) : jornada === undefined ? (
+          <span className="text-texto-3">—</span>
         ) : (
           <span className="text-texto-3">{equipo.plataforma === 'ios' ? 'App sin activar hoy' : 'Sin jornada'}</span>
         )}
@@ -469,6 +524,15 @@ function FilaPersona({
         )}
       </td>
       <td className="px-3 py-2 text-right whitespace-nowrap cifras">
+        {ausencia && (
+          <Link
+            to={`/reportes?persona=${encodeURIComponent(equipo.idPublico)}&fecha=${ausencia.fecha}&actividad=${encodeURIComponent(ausencia.id)}`}
+            className={cn('mr-1.5 rounded-full px-1.5 py-0.5 text-[10.5px] font-semibold hover:underline', COLOR_AUSENCIA[ausencia.tipo])}
+            title={[TIPOS[ausencia.tipo].etiqueta, ausencia.nota].filter(Boolean).join(' · ')}
+          >
+            {TIPOS[ausencia.tipo].etiqueta}
+          </Link>
+        )}
         <span className={actividades > 0 ? 'text-marino-900' : 'text-texto-3'}>{actividades}</span>
         {nuevas > 0 && (
           <span
@@ -601,9 +665,11 @@ function EnJornada({
     { clave: 'detenido', texto: 'detenidas', clase: 'bg-detenido', n: personas.filter((p) => claveEstado(p) === 'detenido').length },
     {
       clave: 'sinSenal',
-      texto: 'sin señal',
+      // Naranja como en el resto del panel; la señal débil también cuenta aquí
+      // (antes no entraba en ninguna parte de la barra).
+      texto: 'sin señal o débil',
       clase: 'bg-sin-senal',
-      n: personas.filter((p) => ['sinSenal', 'desconocido'].includes(claveEstado(p))).length,
+      n: personas.filter((p) => ['sinSenal', 'senalDebil', 'desconocido'].includes(claveEstado(p))).length,
     },
   ];
   const sinIniciar = total - personas.length;
@@ -724,11 +790,11 @@ function ContadorEventos({ eventos }: { eventos: RespuestaEventos | null }) {
   ];
   const horaActual = Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'America/Guayaquil', hour: '2-digit', hourCycle: 'h23' }).format(new Date()));
   const porHora = useMemo(() => {
-    const cuenta = Array.from({ length: 24 }, () => ({ total: 0, alerta: 0 }));
+    const cuenta = Array.from({ length: 24 }, () => ({ total: 0, por: {} as Partial<Record<CategoriaEvento, number>> }));
     for (const e of eventos?.datos ?? []) {
       const h = Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'America/Guayaquil', hour: '2-digit', hourCycle: 'h23' }).format(new Date(e.en)));
       cuenta[h].total += 1;
-      if (e.categoria === 'alerta') cuenta[h].alerta += 1;
+      cuenta[h].por[e.categoria] = (cuenta[h].por[e.categoria] ?? 0) + 1;
     }
     return cuenta;
   }, [eventos]);
@@ -756,16 +822,21 @@ function ContadorEventos({ eventos }: { eventos: RespuestaEventos | null }) {
         <div className="flex flex-1 flex-col">
         <div className="flex h-8 items-end gap-[2px]" role="img" aria-label="Eventos por hora de hoy">
           {porHora.map((h, i) => (
+            // Cada hora apilada por tipo, con el color de la leyenda de abajo.
             <span
               key={i}
               title={`${String(i).padStart(2, '0')}:00 · ${h.total} ${h.total === 1 ? 'evento' : 'eventos'}`}
               className={cn(
-                'flex-1 rounded-t-[2px] transition-[height] duration-500',
-                h.alerta > 0 ? 'bg-peligro' : i === horaActual ? 'bg-marca' : h.total > 0 ? 'bg-marino-700' : 'bg-fondo',
+                'flex flex-1 flex-col-reverse overflow-hidden rounded-t-[2px] transition-[height] duration-500',
+                h.total === 0 && 'bg-fondo',
                 i > horaActual && 'opacity-40',
               )}
               style={{ height: h.total > 0 ? `${Math.max(14, (h.total / maximo) * 100)}%` : '3px' }}
-            />
+            >
+              {ORDEN_BARRA.map((c) =>
+                h.por[c] ? <span key={c} className={COLOR_EVENTO[c]} style={{ flexGrow: h.por[c] }} /> : null,
+              )}
+            </span>
           ))}
         </div>
         <div className="mt-0.5 flex justify-between text-[9.5px] text-texto-3 cifras" aria-hidden="true">

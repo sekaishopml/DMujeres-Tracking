@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Tarjeta de la actividad en curso. -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
     <solid android:color="@color/navy" />
-    <corners android:topLeftRadius="22dp" android:topRightRadius="22dp" />
+    <corners android:radius="22dp" />
 </shape>

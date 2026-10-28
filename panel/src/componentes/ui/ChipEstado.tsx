@@ -10,6 +10,10 @@ const CLASES: Record<string, string> = {
   senalDebil: 'bg-sin-senal-suave text-sin-senal',
   deshabilitado: 'bg-deshabilitado-suave text-deshabilitado',
   desconocido: 'bg-deshabilitado-suave text-deshabilitado',
+  // Ausencias cargadas en el cronograma (Seguimiento las muestra en vez del estado).
+  vacaciones: 'bg-movimiento-suave text-movimiento',
+  permiso: 'bg-detenido-suave text-detenido',
+  permiso_medico: 'bg-detenido-suave text-detenido',
 };
 
 export function Chip({ clase, children, className }: { clase: string; children: React.ReactNode; className?: string }) {
@@ -28,7 +32,7 @@ export function Chip({ clase, children, className }: { clase: string; children: 
 }
 
 // Estado operativo de un equipo con su etiqueta oficial (En línea, Detenido,
-// Sin señal, Sin reporte reciente, Fuera de jornada).
+// Sin señal, Señal débil, Fuera de jornada).
 export function ChipEstado({ equipo, className }: { equipo: EstadoOperativo; className?: string }) {
   return (
     <Chip clase={claveEstado(equipo)} className={className}>

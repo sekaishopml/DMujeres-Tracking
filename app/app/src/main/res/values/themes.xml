@@ -10,6 +10,15 @@
         <item name="android:windowOptOutEdgeToEdgeEnforcement">true</item>
         <!-- Fondo blanco desde el primer cuadro (antes del layout). -->
         <item name="android:windowBackground">@color/white</item>
+        <item name="android:windowAnimationStyle">@style/AnimacionPantallas</item>
+    </style>
+
+    <!-- Transición común entre pantallas: avanzar entra por la derecha, volver sale por ella. -->
+    <style name="AnimacionPantallas" parent="@android:style/Animation.Activity">
+        <item name="android:activityOpenEnterAnimation">@anim/pantalla_entra</item>
+        <item name="android:activityOpenExitAnimation">@anim/pantalla_cede</item>
+        <item name="android:activityCloseEnterAnimation">@anim/pantalla_regresa</item>
+        <item name="android:activityCloseExitAnimation">@anim/pantalla_sale</item>
     </style>
 
 </resources>

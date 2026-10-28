@@ -3,8 +3,8 @@
 
 import { pbkdf2Sync, randomBytes, timingSafeEqual } from 'node:crypto';
 import { iso, aUsuario } from './dto.js';
-import { ErrorApi, datosInvalidos, noAutenticado } from './errores.js';
-import { limpiarFallos, mensajeBloqueo, minutosBloqueo, registrarFallo } from '../../comun/acceso.js';
+import { datosInvalidos, noAutenticado } from './errores.js';
+import { limpiarFallos } from '../../comun/acceso.js';
 import { leerCuerpoJson, respuestaJson, respuestaSinContenido } from './http.js';
 import {
   actualizarUltimoAcceso,
@@ -53,7 +53,7 @@ export async function iniciarSesion(ctx) {
     throw datosInvalidos('Los campos usuario y clave son obligatorios.');
   }
   const { rows } = await ctx.pool.query(
-    `SELECT u.id, u.id_publico, u.nombre, u.correo, u.administrador, u.solo_lectura, u.habilitado,
+    `SELECT u.id, u.id_publico, u.nombre, u.correo, u.administrador, u.solo_lectura, u.habilitado, u.atributos,
             u.hash_clave, u.sal, u.bloqueado_hasta, ${SUBCONSULTA_DISPOSITIVOS}
      FROM iam.dmt_usuario u
      WHERE u.nombre_usuario = $1 OR lower(u.correo) = lower($1)
@@ -61,21 +61,8 @@ export async function iniciarSesion(ctx) {
     [identificador],
   );
   const fila = rows[0];
-  const bloqueo = minutosBloqueo(fila?.bloqueado_hasta);
-  if (bloqueo > 0) {
-    await auditar(ctx.pool, ctx.log, {
-      usuarioId: fila.id,
-      accion: 'login_bloqueado',
-      entidad: 'usuario',
-      entidadId: fila.id,
-      descripcion: 'Intento de entrar con la cuenta bloqueada.',
-      req: ctx.req,
-    });
-    throw new ErrorApi('CUENTA_BLOQUEADA', mensajeBloqueo(bloqueo), 423);
-  }
   const credencialValida = verificarClave(clave, fila?.hash_clave, fila?.sal);
   if (!fila || !credencialValida || !fila.habilitado) {
-    const minutos = fila && fila.habilitado ? await registrarFallo(ctx.pool, fila.id) : 0;
     await auditar(ctx.pool, ctx.log, {
       usuarioId: fila?.id,
       accion: 'login_denegado',
@@ -84,7 +71,6 @@ export async function iniciarSesion(ctx) {
       descripcion: 'Credencial invalida o cuenta no habilitada.',
       req: ctx.req,
     });
-    if (minutos > 0) throw new ErrorApi('CUENTA_BLOQUEADA', mensajeBloqueo(minutos), 423);
     throw noAutenticado('Usuario o clave incorrectos.');
   }
   await limpiarFallos(ctx.pool, fila.id);

@@ -92,7 +92,8 @@ export function filaSalud(datos, agente, ahoraMs) {
   const recuperaciones = numero(reporte.recoveryCount);
   const servicio = texto(reporte.fgsState, 40);
   return {
-    fabricante: fabricanteDeModelo(equipo.modelo),
+    // Si el modelo no dice la marca, la que manda la app (2.10 en adelante).
+    fabricante: fabricanteDeModelo(equipo.modelo) ?? texto(objeto(reporte.sistema)?.fabricante, 40),
     modelo: equipo.modelo,
     versionAndroid: equipo.versionAndroid,
     versionApp: app ? texto(app.versionName, 40) : null,

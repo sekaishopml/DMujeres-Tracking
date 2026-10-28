@@ -4,6 +4,7 @@
     <!-- Marca DMujeres -->
     <color name="primary">#EB0045</color>
     <color name="primary_dark">#C4003B</color>
+    <color name="primary_soft">#FDEBF1</color>
     <color name="accent">#FF1464</color>
     <color name="white">#FFFFFF</color>
     <color name="background">#F6F6F6</color>

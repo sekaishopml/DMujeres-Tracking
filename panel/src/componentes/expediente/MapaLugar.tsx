@@ -10,6 +10,8 @@ export interface PuntoMapa {
 }
 
 // Mapa pequeño con un único marcador que se recentra al cambiar el punto.
+const CAPAS_LUGAR = ['google-mapa', 'google-satelite'] as const;
+
 export function MapaLugar({ punto, className }: { punto: PuntoMapa | null; className?: string }) {
   const [mapa, setMapa] = useState<TipoMapa | null>(null);
   const marcador = useRef<Marker | null>(null);
@@ -41,5 +43,17 @@ export function MapaLugar({ punto, className }: { punto: PuntoMapa | null; class
     [],
   );
 
-  return <MapaBase clase={className ?? 'h-72 w-full'} alListo={setMapa} zoom={14} />;
+  // Mapa chico: dos capas, selector abajo y zoom abajo a la derecha, sin
+  // escala; así el punto queda a la vista.
+  return (
+    <MapaBase
+      clase={className ?? 'h-72 w-full'}
+      alListo={setMapa}
+      zoom={14}
+      capas={CAPAS_LUGAR}
+      selectorAbajo
+      zoomAbajoDerecha
+      escala={false}
+    />
+  );
 }

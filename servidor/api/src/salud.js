@@ -136,17 +136,25 @@ function bufferDepthDe(atributos) {
     ?? enteroAtributo(atributos, 'mobile.bufferPending')
     ?? enteroAtributo(atributos, 'mobile.bufferDepth');
   if (directo !== null) return directo;
+  const pendiente = latidoDe(atributos)?.report?.buffer?.pending;
+  return typeof pendiente === 'number' && Number.isFinite(pendiente) ? Math.trunc(pendiente) : null;
+}
+
+// Último diagnóstico guardado en el equipo (texto JSON); null si no hay.
+function latidoDe(atributos) {
   const crudo = atributos?.lastDiagnostics;
-  if (typeof crudo === 'string' && crudo !== '') {
-    try {
-      const latido = JSON.parse(crudo);
-      const pendiente = latido?.report?.buffer?.pending;
-      if (typeof pendiente === 'number' && Number.isFinite(pendiente)) return Math.trunc(pendiente);
-    } catch {
-      return null;
-    }
+  if (typeof crudo !== 'string' || crudo === '') return null;
+  try {
+    return JSON.parse(crudo);
+  } catch {
+    return null;
   }
-  return null;
+}
+
+// °C de la batería en el último diagnóstico (app 2.10 en adelante).
+function temperaturaDe(atributos) {
+  const grados = latidoDe(atributos)?.report?.power?.tempC;
+  return typeof grados === 'number' && Number.isFinite(grados) ? grados : null;
 }
 
 function minutosLegibles(segundos) {
@@ -170,6 +178,7 @@ function aSaludDispositivo(fila, ahoraMs) {
     ? null
     : Math.max(0, Math.floor((registradoEn - previoMs) / 1000));
   const bufferDepth = bufferDepthDe(atributos);
+  const temperaturaC = temperaturaDe(atributos);
   // Igual que /fleet: vale la lectura más reciente entre la muestra de
   // telemetría y el último fix.
   const hayPa = fila.pa_bateria !== null && fila.pa_bateria !== undefined;
@@ -256,6 +265,7 @@ function aSaludDispositivo(fila, ahoraMs) {
     gps,
     permisos,
     bateriaExenta,
+    temperaturaC,
     fgs,
     jornada,
     red,
@@ -346,11 +356,19 @@ export async function historialSalud(ctx) {
             count(*) FILTER (WHERE h.estado_salud = 'cola_pendiente')::int AS cola_pendiente,
             count(*) FILTER (WHERE h.estado_salud NOT IN ('ok', 'gps_atrasado', 'cola_pendiente'))::int AS otros_problemas,
             max(h.cola_salida)::int AS cola_maxima,
+            max(t.maxima) AS temperatura_maxima,
             u.fabricante, u.modelo, u.version_android, u.version_app, u.estado_salud AS ultimo_estado,
             u.registrado_en AS ultimo_reporte, r.recuperaciones
        FROM h
        JOIN ultimo u ON u.dispositivo_id = h.dispositivo_id
        LEFT JOIN recuperaciones r ON r.dispositivo_id = h.dispositivo_id
+       -- Cada diagnóstico trae las lecturas de 5 min desde el anterior.
+       LEFT JOIN LATERAL (
+         SELECT max((l->>1)::numeric) AS maxima
+           FROM jsonb_array_elements(
+                  CASE WHEN jsonb_typeof(h.atributos->'report'->'power'->'tempLecturas') = 'array'
+                       THEN h.atributos->'report'->'power'->'tempLecturas' ELSE '[]'::jsonb END) l
+       ) t ON TRUE
       GROUP BY h.dispositivo_publico, h.nombre, u.fabricante, u.modelo, u.version_android, u.version_app,
                u.estado_salud, u.registrado_en, r.recuperaciones
       ORDER BY h.nombre`,
@@ -368,6 +386,7 @@ export async function historialSalud(ctx) {
       colaPendiente: f.cola_pendiente,
       otrosProblemas: f.otros_problemas,
       colaMaxima: f.cola_maxima,
+      temperaturaMaxima: f.temperatura_maxima === null ? null : Number(f.temperatura_maxima),
       recuperaciones: f.recuperaciones ?? null,
       // "Infinix" + "Infinix X6876" no se repite; "Samsung" + "SM-A175F" sí se une.
       telefono:

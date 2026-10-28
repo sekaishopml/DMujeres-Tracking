@@ -21,3 +21,11 @@ test('sin diagnósticos la app no estaba o no tenía datos; con diagnósticos es
 test('un evento de otra hora no cuenta', () => {
   assert.equal(causaDeHueco(hueco, [{ tipo: 'mobileGpsDisabled', en: t(11) }], [t(9, 10)]), 'SIN_SENAL');
 });
+
+test('la jornada que empieza con el GPS apagado: reactivarlo dentro del corte dice la causa', () => {
+  // Israel 21/10: sin aviso de apagado; solo "Reactivó el GPS" a mitad del corte.
+  assert.equal(causaDeHueco(hueco, [{ tipo: 'mobileGpsReenabled', en: t(9, 40) }], [t(9, 10)]), 'GPS_APAGADO');
+  assert.equal(causaDeHueco(hueco, [{ tipo: 'mobilePermissionRestored', en: t(9, 40) }], [t(9, 10)]), 'SIN_PERMISO');
+  // Reactivado justo antes del corte: es otro apagado que ya pasó.
+  assert.equal(causaDeHueco(hueco, [{ tipo: 'mobileGpsReenabled', en: t(8, 59) }], [t(9, 10)]), 'SIN_SENAL');
+});

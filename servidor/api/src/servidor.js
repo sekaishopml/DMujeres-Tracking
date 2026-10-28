@@ -8,7 +8,9 @@ import { crearLog } from './log.js';
 import { ConsultaAbortada, crearPool } from './db.js';
 import { noAutenticado, noEncontrado, responderError } from './errores.js';
 import { buscarRuta, prepararRutas } from './rutas.js';
+import { exigirAccesoDeRuta } from './permisos.js';
 import { tokenDeSesion, validarSesion } from './sesiones.js';
+import { cerrarVivo } from './vivo.js';
 
 export function crearServidor({ configuracion, pool, log }) {
   const rutas = prepararRutas();
@@ -53,6 +55,7 @@ async function atender(req, res, deps) {
       usuario: sesion?.usuario ?? null,
       signal: controlador.signal,
     };
+    await exigirAccesoDeRuta(contexto);
     await ruta.manejar(contexto);
   } catch (capturado) {
     error = capturado;
@@ -100,6 +103,7 @@ export function arrancar(configuracion = cargarEntorno()) {
       process.exit(1);
     }, 10000);
     forzar.unref();
+    cerrarVivo();
     servidor.close(() => {
       pool
         .end()

@@ -72,6 +72,28 @@ test('depuración: quita la ida y vuelta del GPS que no cuadra con su velocidad'
   assert.equal(r.calidad.descartadasExcursion, 2);
 });
 
+// Diego, 26/10 en Quito: el GPS bajo techo saltó 2,8 km a "55 km/h" y volvió.
+test('depuración: salto de kilómetros que vuelve sin un solo paso se quita', () => {
+  const p = (lat, lon, hora, pasos) => ({ ...leido(lat, lon, hora, 55, 9), pasos });
+  // El contador funciona ese día: avanzó en la mañana.
+  const manana = Array.from({ length: 25 }, (_, i) => p(-0.18388, -78.49191, `12:${String(i * 2).padStart(2, '0')}:00`, i * 12));
+  const r = depurarPosiciones([
+    ...manana,
+    p(-0.18388, -78.49191, '13:20:39', 304),
+    p(-0.19605, -78.46988, '13:22:49', 304),
+    p(-0.19625, -78.46969, '13:22:51', 304),
+    p(-0.18480, -78.49214, '13:24:12', 304),
+  ]);
+  assert.deepEqual(r.conservadas.slice(-2).map((x) => x.registradoEn.slice(11, 19)), ['13:20:39', '13:24:12']);
+  // Con pasos de por medio sí salió: se conserva.
+  const conPasos = depurarPosiciones([
+    p(-0.18388, -78.49191, '13:20:39', 304),
+    p(-0.19605, -78.46988, '13:24:39', 350),
+    p(-0.18480, -78.49214, '13:28:12', 420),
+  ]);
+  assert.equal(conPasos.conservadas.length, 3);
+});
+
 test('depuración: avanzar de verdad aunque el GPS reporte 0 km/h no se quita', () => {
   const r = depurarPosiciones([
     leido(-2.2000, -79.9, '15:00:00', 0, 5),
@@ -102,4 +124,12 @@ test('depuración: la salida de una parada con 24 a 100 m de error sale entera',
     leido(-2.227053, -79.889261, '00:45:06', 23.2, 15),
   ]);
   assert.deepEqual(r.conservadas.map((p) => p.precisionM), [14, 15]);
+});
+
+test('ESTIMATED: una ruta por calles que arranca lejos del punto no se dibuja', () => {
+  const B = fix(-2.2030, -79.9000, '2026-09-28T13:01:00.000Z');
+  const cerca = [[-79.9, -2.2001], [-79.9, -2.2029]];
+  const lejos = [[-79.9, -2.1980], [-79.9, -2.2029]]; // empieza ~220 m antes
+  assert.equal(estimadoPlausible(A, B, cerca, 340), true);
+  assert.equal(estimadoPlausible(A, B, lejos, 340), false);
 });

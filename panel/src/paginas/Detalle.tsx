@@ -18,7 +18,8 @@ import { colorEstado, claveEstado } from '@/dominio/estado';
 import { mensajeError, esNoEncontrado } from '@/dominio/errores';
 import { bateria, duracion, fecha, fechaHora, GUION, hace, hora, velocidad } from '@/dominio/formatoBase';
 import { coordenadas, entero, grados, metros, siNo } from '@/dominio/formato';
-import { fechaAyerLocal, fechaHoyLocal, finDeDia, inicioDeDia } from '@/dominio/rango';
+import { fechaAyerLocal, fechaHoyLocal, finDeDia, inicioDeDia, sumarDias } from '@/dominio/rango';
+import { traerCronograma } from '@/dominio/cronograma';
 import { AccionesPagina } from '@/componentes/marco/Marco';
 import { Avatar } from '@/componentes/ui/Avatar';
 import { claseBoton } from '@/componentes/ui/Boton';
@@ -121,6 +122,12 @@ export default function Detalle() {
     queryFn: () => traerParadas(idPublico, desde, hasta),
     ...opcionesDia,
   });
+  // Desde el día anterior: lo de ayer se puede cargar o corregir hoy.
+  const actividades = useQuery({
+    queryKey: ['expediente', idPublico, dia, 'cronograma'],
+    queryFn: () => traerCronograma(sumarDias(dia, -1), dia, idPublico),
+    ...opcionesDia,
+  });
   const bateriaDia = useQuery({
     queryKey: ['expediente', idPublico, dia, 'bateria'],
     queryFn: () => traerBateriaEquipo(idPublico, desde, hasta),
@@ -135,8 +142,12 @@ export default function Detalle() {
         huecos: replay.data?.huecos,
         paradas: paradas.data?.datos,
         muestrasBateria: bateriaDia.data?.muestras,
+        avisos: replay.data?.avisos,
+        actividades: actividades.data?.datos,
+        desde,
+        hasta,
       }),
-    [jornadas.data, replay.data, paradas.data, bateriaDia.data],
+    [jornadas.data, replay.data, paradas.data, bateriaDia.data, actividades.data, desde, hasta],
   );
   const resumen = useMemo(() => resumenBitacora(eventos), [eventos]);
 
@@ -285,7 +296,7 @@ export default function Detalle() {
           <Hito etiqueta="Primera salida" icono={ArrowUpRight} valor={hora(resumen.primeraSalida?.instante)} tono="text-movimiento" />
           <Hito etiqueta="Primera llegada" icono={MapPin} valor={hora(resumen.primeraLlegada?.instante)} tono="text-detenido" />
           <Hito
-            etiqueta={esIphone ? 'App desactivada' : 'Finalizó jornada'}
+            etiqueta={esIphone ? 'App sin cobertura' : 'Finalizó jornada'}
             icono={Flag}
             valor={resumen.finJornada ? hora(resumen.finJornada.instante) : resumen.inicioJornada ? 'En curso' : GUION}
           />

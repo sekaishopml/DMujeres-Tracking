@@ -43,12 +43,37 @@ y notificaciones, y `regular`, sin servicios de Google.
 
 ## Cómo se actualizan los teléfonos
 
-Al abrir la app, y cada minuto mientras está abierta, la app pregunta al
-servidor (`/api/mobile/v1/ota`) si hay una versión mayor que la instalada. Si
-el puerto 999 no responde, mira el último release de GitHub del repositorio
-`sekaishopml/DMujeres-Tracking`. Si hay versión nueva aparece un aviso
-arriba; al tocarlo se descarga el APK, se revisa su sha256 y Android pide
-confirmar la instalación.
+La app pregunta al servidor (`/api/mobile/v1/ota`) si hay una versión mayor
+que la instalada (compara el versionCode). Si el puerto 999 no responde, mira
+el último release de GitHub del repositorio `sekaishopml/DMujeres-Tracking`.
+El servidor responde con `ota/por-equipo/<identificador>.json` si existe para
+ese equipo, y si no con `ota/latest.json`.
+
+Cuándo pregunta y qué hace:
+
+- Cuando la pantalla principal se crea desde cero (app cerrada del todo y
+  abierta de nuevo): si hay versión nueva, abre sola la pantalla de
+  actualización, descarga e instala.
+- Al volver a la app que seguía abierta en segundo plano, y cada minuto con
+  la app en pantalla: solo baja el aviso de arriba ("Actualizar a la X"). No
+  abre nada solo, para no cortar lo que la persona está escribiendo. Al tocar
+  el aviso se actualiza.
+
+Cómo instala:
+
+- Desde la 2.10.1, en Android 12 o superior y con el permiso "instalar apps
+  desconocidas" concedido, instala sin preguntar (sesión de PackageInstaller
+  con `UPDATE_PACKAGES_WITHOUT_USER_ACTION`). La app se cierra al
+  reemplazarse y `AutostartReceiver` (`MY_PACKAGE_REPLACED`) vuelve a arrancar
+  el seguimiento si había jornada abierta.
+- Si el sistema exige confirmar igual, se abre su pantalla de "Instalar".
+- En Android 11 o anterior, o desde una versión anterior a la 2.10.1 (que
+  instala a la antigua), Android pide tocar "Instalar". Por eso el paso de la
+  2.9.5 a la 2.10.1 todavía pide confirmación; la siguiente ya no.
+- Sin el permiso de instalar, el aviso de arriba lo pide y abre el ajuste.
+
+Antes de instalar se revisa el sha256 del APK descargado contra el del json;
+si no coincide se descarta.
 
 Los teléfonos con la versión 2.4.1 o anterior todavía buscan en el
 repositorio viejo, `sekaishopml/Dmujeres-Traccar`. Ese repositorio tiene que

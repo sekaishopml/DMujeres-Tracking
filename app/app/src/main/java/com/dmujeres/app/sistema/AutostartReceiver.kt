@@ -38,6 +38,10 @@ class AutostartReceiver : WakefulBroadcastReceiver() {
                 com.dmujeres.app.recuperacion.DozeAlarmReceiver.schedule(context)
             }
         }
+        // Se actualizó sola: la app vuelve a abrirse.
+        if (intent.action == Intent.ACTION_MY_PACKAGE_REPLACED) {
+            runCatching { com.dmujeres.app.actualizacion.OtaNotifier.reabrir(context) }
+        }
         // Encendido del teléfono (no la reinstalación de la app).
         if (intent.action == Intent.ACTION_BOOT_COMPLETED) {
             runCatching { PowerEvents.onBoot(context) }

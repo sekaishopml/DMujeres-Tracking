@@ -22,12 +22,12 @@ import android.os.Build
 import android.os.Bundle
 import android.os.SystemClock
 import android.view.View
+import android.view.ViewGroup
 import android.widget.Button
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
-import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.preference.PreferenceManager
@@ -40,6 +40,7 @@ import com.dmujeres.app.datos.Prefs
 import com.dmujeres.app.datos.RefreshOutcome
 import com.dmujeres.app.datos.RefreshSummary
 import com.dmujeres.app.sistema.AjustesPermisos
+import com.dmujeres.app.sistema.EstadoTelefono
 import com.dmujeres.app.sistema.ServiceHeartbeat
 import com.dmujeres.app.datos.RemoteConfig
 import com.dmujeres.app.red.ConnectionState
@@ -51,6 +52,8 @@ import com.dmujeres.app.sesion.SessionStore
 
 /** Refresco en vivo del home (estado, pendientes, batería y duración). */
 private const val LIVE_REFRESH_MS = 5_000L
+private const val AVISOS_MS = 1_500L
+private const val DURACION_AVISO_VERDE_MS = 4_000L
 
 /** Extra del menú de depuración para probar la animación del banner. */
 const val EXTRA_BANNER_DEMO = "bannerDemo"
@@ -62,11 +65,13 @@ private const val KEY_LAST_OTA_CHECK = "lastOtaCheckApp"
 private const val REFRESH_STEPS = 3
 private const val REQUEST_PERMISO_UBICACION = 201
 private const val REQUEST_PERMISO_ACTIVIDAD = 202
-private const val PAUSA_REFRESCO_MS = 30_000L
+private const val PAUSA_REFRESCO_MS = 10_000L
 
 /** Bloqueo del botón de jornada tras un toque (anti doble toque). */
-private const val JOURNEY_TAP_GUARD_MS = 1_200L
-private const val KEY_PIE_OCULTO = "pieActividadesOculto"
+private const val JOURNEY_TAP_GUARD_MS = 600L
+
+/** Tiempo para el segundo toque que confirma el fin de la jornada. */
+private const val CONFIRMAR_FIN_MS = 5_000L
 
 /** Pendientes a partir de los cuales el estado pasa a "Sin conexión". */
 private const val PENDING_OFFLINE_THRESHOLD = 30
@@ -115,6 +120,9 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_locked_home)
         adaptarATablet()
         wireLockedHome()
+        // Al entrar se presenta la ayuda; al girar la pantalla, no.
+        presentarAyuda(animar = savedInstanceState == null)
+        animarEntrada(savedInstanceState == null)
         // Al abrir la app siempre se busca actualización. Al girar la pantalla
         // no se vuelve a buscar.
         maybeCheckOta(force = savedInstanceState == null)
@@ -143,7 +151,7 @@ class MainActivity : AppCompatActivity() {
         val now = System.currentTimeMillis()
         val last = prefs.getLong(KEY_LAST_OTA_CHECK, 0L)
         if (!force && !OtaPolicy.shouldCheck(now, last, coldStart = false)) return
-        showUpdateDialogIfAvailable {
+        showUpdateDialogIfAvailable(automatica = force) {
             prefs.edit().putLong(KEY_LAST_OTA_CHECK, System.currentTimeMillis()).apply()
         }
     }
@@ -153,13 +161,19 @@ class MainActivity : AppCompatActivity() {
      * deslizándose y empuja el home; al tocarlo descarga e instala. Se revisa
      * en vivo (al abrir, al volver y cada minuto con la app abierta).
      */
-    private fun showUpdateDialogIfAvailable(onDone: (() -> Unit)? = null) {
+    private fun showUpdateDialogIfAvailable(automatica: Boolean = false, onDone: (() -> Unit)? = null) {
         DmujeresApi.checkOta(this) { label, url, sha256 ->
             runOnUiThread {
                 onDone?.invoke()
                 if (isFinishing || isDestroyed) return@runOnUiThread
                 if (label == null) return@runOnUiThread
                 showUpdateBanner(url, sha256, version = label)
+                // Al abrir la app, si se puede instalar sin confirmar, se
+                // actualiza sola; con la app ya en uso solo queda el aviso
+                // (no se corta lo que la persona está escribiendo).
+                if (automatica && UpdateActivity.puedeSinConfirmar(this)) {
+                    UpdateActivity.start(this, url, sha256, label)
+                }
             }
         }
     }
@@ -198,8 +212,9 @@ class MainActivity : AppCompatActivity() {
         banner.visibility = View.VISIBLE
         banner.translationY = -height.toFloat()
         banner.animate().translationY(0f).setDuration(420).setInterpolator(slide).start()
-        // La hamburguesa acompaña la bajada para quedar visible debajo.
+        // La consola y la ayuda acompañan la bajada para quedar visibles debajo.
         console?.animate()?.translationY(height.toFloat())?.setDuration(420)?.setInterpolator(slide)?.start()
+        findViewById<View>(R.id.ayuda_boton)?.animate()?.translationY(height.toFloat())?.setDuration(420)?.setInterpolator(slide)?.start()
     }
 
     private var bannerPulse: android.animation.Animator? = null
@@ -237,6 +252,7 @@ class MainActivity : AppCompatActivity() {
             .withEndAction { banner.visibility = View.GONE }
             .start()
         console?.animate()?.translationY(0f)?.setDuration(320)?.setInterpolator(slide)?.start()
+        findViewById<View>(R.id.ayuda_boton)?.animate()?.translationY(0f)?.setDuration(320)?.setInterpolator(slide)?.start()
     }
 
     /** Menú de depuración: muestra la animación del banner sin tocar la OTA. */
@@ -247,6 +263,7 @@ class MainActivity : AppCompatActivity() {
             banner.visibility = View.GONE
             banner.translationY = 0f
             findViewById<android.widget.ImageButton>(R.id.console_button)?.translationY = 0f
+            findViewById<View>(R.id.ayuda_boton)?.translationY = 0f
         }
         showUpdateBanner("", "", demo = true)
     }
@@ -265,11 +282,8 @@ class MainActivity : AppCompatActivity() {
         findViewById<android.widget.ImageButton>(R.id.console_button).setOnClickListener {
             startActivity(Intent(this, StatusActivity::class.java))
         }
-        // Cronograma de actividades.
-        findViewById<View>(R.id.cronograma_card).setOnClickListener {
-            startActivity(Intent(this, com.dmujeres.app.cronograma.CronogramaActivity::class.java))
-        }
-        configurarPie()
+        // Actividad: inicio rápido y la que está en curso (abre también el cronograma).
+        actividadExpress = ActividadExpress(this)
 
         button.setOnClickListener {
             // Anti doble toque: el botón se bloquea un instante mientras cambia
@@ -277,23 +291,21 @@ class MainActivity : AppCompatActivity() {
             if (SystemClock.elapsedRealtime() - lastJourneyTapAt < JOURNEY_TAP_GUARD_MS) return@setOnClickListener
             lastJourneyTapAt = SystemClock.elapsedRealtime()
             if (DmujeresApi.isJourneyOpen(this)) {
-                val startedAt = PreferenceManager.getDefaultSharedPreferences(this)
-                    .getLong(DmujeresApi.KEY_JOURNEY_STARTED_AT, 0L)
-                val minutes = if (startedAt > 0L) ((System.currentTimeMillis() - startedAt) / 60_000L).toInt() else 0
-                AlertDialog.Builder(this)
-                    .setTitle(R.string.journey_confirm_title)
-                    .setMessage(getString(R.string.journey_confirm_body, minutes / 60, minutes % 60))
-                    .setPositiveButton(R.string.journey_confirm_ok) { _, _ ->
-                        DmujeresApi.journeyEnded(this)
-                        refreshLockedHome()
-                    }
-                    .setNegativeButton(R.string.journey_confirm_cancel, null)
-                    .show()
+                // Sin ventana de confirmación: el primer toque avisa en el
+                // mismo botón y el segundo, dentro de unos segundos, finaliza.
+                if (finArmado()) {
+                    finArmadoHasta = 0L
+                    DmujeresApi.journeyEnded(this)
+                } else {
+                    finArmadoHasta = SystemClock.elapsedRealtime() + CONFIRMAR_FIN_MS
+                    uiHandler.postDelayed({ runCatching { refreshLockedHome() } }, CONFIRMAR_FIN_MS + 50)
+                }
+                refreshLockedHome()
             } else {
                 // Sin los permisos que mantienen la captura y las notificaciones
-                // la jornada no arranca: se avisa y se abre el paso de permisos.
+                // la jornada no arranca: se abre lo que falta (el aviso en rojo
+                // de esta pantalla dice qué es).
                 if (!journeyPermissionsGranted()) {
-                    Toast.makeText(this, R.string.journey_missing_permissions, Toast.LENGTH_LONG).show()
                     if (AjustesPermisos.ubicacion(this) && !AjustesPermisos.ubicacionSiempre(this)) {
                         // Solo falta "todo el tiempo": directo a ese permiso.
                         AjustesPermisos.abrirUbicacion(this)
@@ -321,9 +333,9 @@ class MainActivity : AppCompatActivity() {
                 accion()
                 return@setOnClickListener
             }
-            // Tocarlo seguido no repite todo: se vuelve a mostrar el último resultado.
+            // Tocarlo seguido no repite todo: el botón dice cuánto falta para volver a usarlo.
             if (!refreshing && SystemClock.elapsedRealtime() - ultimoRefresco < PAUSA_REFRESCO_MS && ultimoResumen != null) {
-                Toast.makeText(this, ultimoResumen, Toast.LENGTH_SHORT).show()
+                mostrarEspera()
                 return@setOnClickListener
             }
             runProgressiveRefresh()
@@ -381,33 +393,107 @@ class MainActivity : AppCompatActivity() {
     /** Banner de estado (3 colores), cuadros y botón con el estado real. */
     private val uiHandler = android.os.Handler(android.os.Looper.getMainLooper())
 
-    /** Último estado de la pill (para no re-animar en cada refresco). */
-    private var pillStateRes = 0
-
-    /** Cambia el estado de la pill con una transición suave de color. */
+    /** Cambia el estado de la pill con una transición suave de color y texto. */
     private fun applyPillState(pill: LinearLayout, text: TextView, bgRes: Int, label: String, textColorRes: Int) {
-        if (pillStateRes != bgRes) {
-            val newBg = androidx.core.content.ContextCompat.getDrawable(this, bgRes)
-            val oldBg = (pill.background as? android.graphics.drawable.DrawableWrapper)?.drawable
-                ?: pill.background
-            if (oldBg != null && newBg != null) {
-                val transition = android.graphics.drawable.TransitionDrawable(arrayOf(oldBg, newBg))
-                transition.isCrossFadeEnabled = true
-                pill.background = transition
-                transition.startTransition(400)
-            } else {
-                pill.setBackgroundResource(bgRes)
-            }
-            pillStateRes = bgRes
-        }
-        text.text = label
+        Animaciones.fondo(pill, bgRes)
+        Animaciones.texto(text, label)
         text.setTextColor(getColor(textColorRes))
+    }
+
+    /** Entrada escalonada de las tarjetas y respuesta al toque en los botones. */
+    private fun animarEntrada(conEntrada: Boolean) {
+        Animaciones.respuestaAlToque(
+            findViewById(R.id.journey_button), findViewById(R.id.update_button),
+            findViewById(R.id.ayuda_boton), findViewById(R.id.permission_warning),
+        )
+        if (!conEntrada) return
+        val tarjetas = listOf(
+            R.id.tarjeta_jornada, R.id.actividad_card, R.id.skeleton_group, R.id.fila_jornada,
+        ).mapNotNull { findViewById<View>(it) }
+        Animaciones.entradaEscalonada(tarjetas)
+        // El resumen aparece en lugar del cuadro vacío: se anima el contenedor de ambos.
+        findViewById<View>(R.id.home_content)?.let { Animaciones.entradaEscalonada(listOf(it), 60 + 2 * 70L) }
+    }
+
+    // Lo último que se sabe del día, para decir qué toca hacer ahora.
+    private var ubicacionActiva = true
+    private var firmaEstado = ""
+
+    /** Frase de la tarjeta principal según el estado real; cambia con un fundido. */
+    private fun actualizarSugerencia() {
+        val texto = findViewById<TextView>(R.id.sugerencia_texto) ?: return
+        val fila = findViewById<View>(R.id.sugerencia) ?: return
+        val abierta = DmujeresApi.isJourneyOpen(this)
+        // Solo lo urgente: las actividades ya se leen debajo, en la misma tarjeta.
+        val mensaje = when {
+            abierta && finArmado() -> getString(R.string.sug_confirmar)
+            !ubicacionActiva -> getString(R.string.sug_ubicacion)
+            !abierta -> getString(R.string.sug_iniciar)
+            cachedPending >= PENDING_OFFLINE_THRESHOLD -> getString(R.string.sug_pendientes_fmt, cachedPending)
+            ConnectionState.isFailing() ->
+                if (cachedPending > 0) getString(R.string.sug_pendientes_fmt, cachedPending) else getString(R.string.sug_sin_conexion)
+            else -> null
+        }
+        val visible = if (mensaje == null) View.GONE else View.VISIBLE
+        if (fila.visibility != visible) {
+            findViewById<ViewGroup>(R.id.cuerpo)?.let { Animaciones.suave(it) }
+            fila.visibility = visible
+        }
+        if (mensaje == null) {
+            texto.text = ""
+            texto.tag = null
+            return
+        }
+        if (texto.text.isNullOrEmpty()) {
+            texto.text = mensaje
+            return
+        }
+        // La tarjeta puede cambiar de alto: el resto de la pantalla se acomoda con suavidad.
+        if (((texto.tag as? String) ?: texto.text.toString()) != mensaje) {
+            findViewById<ViewGroup>(R.id.cuerpo)?.let { Animaciones.suave(it) }
+        }
+        Animaciones.texto(texto, mensaje)
+    }
+
+    private fun saludo(): String {
+        val hora = java.util.Calendar.getInstance(java.util.TimeZone.getTimeZone("America/Guayaquil"))
+            .get(java.util.Calendar.HOUR_OF_DAY)
+        val base = getString(
+            when {
+                hora < 12 -> R.string.saludo_dia
+                hora < 19 -> R.string.saludo_tarde
+                else -> R.string.saludo_noche
+            },
+        )
+        val nombre = SessionStore.state(this).displayName.trim().substringBefore(' ')
+        return if (nombre.isBlank()) base else getString(R.string.saludo_nombre_fmt, base, nombre)
+    }
+
+    /**
+     * Un toque fuera del campo que se está escribiendo cierra el teclado; el
+     * toque sigue su curso (si cae en un botón, el botón responde igual).
+     */
+    override fun dispatchTouchEvent(ev: android.view.MotionEvent): Boolean {
+        val campo = currentFocus
+        if (ev.actionMasked == android.view.MotionEvent.ACTION_DOWN && campo is android.widget.EditText) {
+            val zona = android.graphics.Rect().also { campo.getGlobalVisibleRect(it) }
+            if (!zona.contains(ev.rawX.toInt(), ev.rawY.toInt())) {
+                (getSystemService(INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager)
+                    .hideSoftInputFromWindow(campo.windowToken, 0)
+                campo.clearFocus()
+            }
+        }
+        return super.dispatchTouchEvent(ev)
     }
 
     override fun onResume() {
         super.onResume()
+        com.dmujeres.app.actualizacion.OtaNotifier.quitarAvisoActualizada(this)
         // Refresco inmediato + vivo cada 5 s mientras la pantalla esté abierta.
         runCatching { refreshLockedHome() }
+        // Los avisos se miran cada 1,5 s: el rojo sale al instante.
+        uiHandler.removeCallbacks(tickAvisos)
+        uiHandler.post(tickAvisos)
         durationTicker?.let {
             uiHandler.removeCallbacks(it)
             uiHandler.postDelayed(it, LIVE_REFRESH_MS)
@@ -438,6 +524,17 @@ class MainActivity : AppCompatActivity() {
         super.onPause()
         // En segundo plano no se refresca (ahorra batería); al volver, sigue.
         durationTicker?.let { uiHandler.removeCallbacks(it) }
+        uiHandler.removeCallbacks(tickEspera)
+        uiHandler.removeCallbacks(tickAvisos)
+        enEspera = false
+    }
+
+    private val tickAvisos = object : Runnable {
+        override fun run() {
+            if (isFinishing || isDestroyed) return
+            runCatching { revisarAvisos() }
+            uiHandler.postDelayed(this, AVISOS_MS)
+        }
     }
 
     private fun refreshLockedHome() {
@@ -445,17 +542,15 @@ class MainActivity : AppCompatActivity() {
         val open = DmujeresApi.isJourneyOpen(this)
         val running = TrackingService.isRunning
         // Si la ubicación del sistema está apagada no hay ruta: se avisa en la
-        // píldora y con una fila que abre los ajustes.
+        // píldora y en el aviso de arriba.
         val locationOn = runCatching {
             (getSystemService(android.content.Context.LOCATION_SERVICE) as android.location.LocationManager)
                 .isProviderEnabled(android.location.LocationManager.GPS_PROVIDER)
         }.getOrDefault(true)
-        findViewById<LinearLayout>(R.id.location_warning)?.visibility =
-            if (locationOn) View.GONE else View.VISIBLE
-        findViewById<LinearLayout>(R.id.location_warning)?.setOnClickListener {
-            startActivity(Intent(android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS))
-        }
-        refreshPermissionWarning()
+        ubicacionActiva = locationOn
+        revisarAvisos()
+        // Si se apagan o encienden las notificaciones, el panel lo sabe enseguida.
+        ServiceHeartbeat.avisarSiCambianNotificaciones(this)
         val pill = findViewById<LinearLayout>(R.id.status_pill)
         val pillText = findViewById<TextView>(R.id.pill_text)
         val button = findViewById<Button>(R.id.journey_button)
@@ -464,22 +559,40 @@ class MainActivity : AppCompatActivity() {
         // Estados que se ven en el teléfono: EN LÍNEA (verde), SIN CONEXIÓN
         // (naranja), DESHABILITADO (gris, sin jornada) y UBICACIÓN APAGADA
         // (rojo, tiene prioridad). "Detenido" solo se muestra en el panel.
+        // Sin red del teléfono también es "Sin señal", aunque no haya fallos de envío aún.
+        val sinRed = EstadoTelefono.conexion(this) == "ninguna"
         val target = when {
-            !locationOn -> Triple(R.drawable.bg_pill_red, getString(R.string.pill_location_off), R.color.white)
+            !locationOn -> Triple(R.drawable.bg_pill_red, getString(R.string.pill_sin_senal), R.color.white)
             !open -> Triple(R.drawable.bg_pill_gray, getString(R.string.pill_disabled), R.color.white)
-            !canSend() -> Triple(R.drawable.bg_pill_orange, getString(R.string.pill_no_connection), R.color.white)
+            sinRed || !canSend() -> Triple(R.drawable.bg_pill_orange, getString(R.string.pill_sin_senal), R.color.white)
             else -> Triple(R.drawable.bg_pill_green, getString(R.string.pill_online), R.color.white)
         }
+        if (!open) finArmadoHasta = 0L
+        // Cuando cambia el estado de fondo, lo que cuelga de la tarjeta se acomoda con suavidad.
+        val firma = "$open|${finArmado()}|$locationOn|${canSend()}|$sinRed"
+        if (firma != firmaEstado) {
+            if (firmaEstado.isNotEmpty()) findViewById<ViewGroup>(R.id.cuerpo)?.let { Animaciones.suave(it) }
+            firmaEstado = firma
+        }
         applyPillState(pill, pillText, target.first, target.second, target.third)
-        button.setBackgroundResource(
+        findViewById<TextView>(R.id.saludo_texto)?.text = saludo()
+        Animaciones.fondo(
+            button,
             if (open) R.drawable.bg_button_primary else R.drawable.bg_button_green,
         )
-        button.text = getString(
-            if (open) R.string.journey_stop_upper else R.string.journey_start_upper,
+        Animaciones.texto(
+            button,
+            getString(
+                when {
+                    open && finArmado() -> R.string.journey_confirm_tap
+                    open -> R.string.journey_stop_upper
+                    else -> R.string.journey_start_upper
+                },
+            ),
         )
-        // ACTUALIZAR se ve apagado (texto gris) sin jornada abierta; un refresco
-        // o el aviso en curso mandan sobre este estado de reposo.
-        if (!refreshing) {
+        // ACTUALIZAR se ve apagado (texto gris) sin jornada abierta; un refresco,
+        // el aviso en curso o la cuenta de espera mandan sobre este reposo.
+        if (!refreshing && !enEspera) {
             updateButton.text = getString(R.string.refresh_button)
             updateButton.setTextColor(updateButtonIdleColor())
         }
@@ -505,7 +618,11 @@ class MainActivity : AppCompatActivity() {
                 if (isFinishing || isDestroyed) return@runOnUiThread
                 // Guardamos el valor para que canSend() sepa si queda algo por enviar.
                 cachedPending = pending
-                findViewById<TextView>(R.id.pending_value)?.text = pending.toString()
+                findViewById<TextView>(R.id.pending_value)?.let {
+                    // Sin salto: en movimiento cambia cada pocos segundos y mareaba.
+                    if (it.text.toString() != pending.toString()) it.text = pending.toString()
+                }
+                actualizarSugerencia()
             }
         }.start()
         refreshDuration()
@@ -531,102 +648,22 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /**
-     * Pie de actividades: al arrastrar el asa hacia abajo queda solo el
-     * resumen; hacia arriba, o con un toque, vuelve a su tamaño. Se recuerda.
-     */
-    @android.annotation.SuppressLint("ClickableViewAccessibility")
-    private fun configurarPie() {
-        val pie = findViewById<View>(R.id.pie_actividades) ?: return
-        val asa = findViewById<View>(R.id.pie_asa) ?: return
-        val prefs = PreferenceManager.getDefaultSharedPreferences(this)
-        val visibleOculto = 48 * resources.displayMetrics.density
-        val umbral = android.view.ViewConfiguration.get(this).scaledTouchSlop
-        fun recorrido() = (pie.height - asa.height - visibleOculto).coerceAtLeast(0f)
-        fun ir(oculto: Boolean) {
-            prefs.edit().putBoolean(KEY_PIE_OCULTO, oculto).apply()
-            pie.animate().translationY(if (oculto) recorrido() else 0f).setDuration(280)
-                .setInterpolator(android.view.animation.DecelerateInterpolator(1.6f)).start()
-        }
-        // Si cambia el alto (otro texto), el pie oculto sigue mostrando lo mismo.
-        pie.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
-            if (prefs.getBoolean(KEY_PIE_OCULTO, false) && !arrastrandoPie) pie.translationY = recorrido()
-        }
-        var inicioY = 0f
-        var inicioTraslado = 0f
-        var movio = false
-        asa.setOnTouchListener { vista, e ->
-            when (e.actionMasked) {
-                android.view.MotionEvent.ACTION_DOWN -> {
-                    pie.animate().cancel()
-                    arrastrandoPie = true
-                    inicioY = e.rawY
-                    inicioTraslado = pie.translationY
-                    movio = false
-                }
-                android.view.MotionEvent.ACTION_MOVE -> {
-                    val delta = e.rawY - inicioY
-                    if (kotlin.math.abs(delta) > umbral) movio = true
-                    if (movio) pie.translationY = (inicioTraslado + delta).coerceIn(0f, recorrido())
-                }
-                android.view.MotionEvent.ACTION_UP, android.view.MotionEvent.ACTION_CANCEL -> {
-                    arrastrandoPie = false
-                    if (movio) {
-                        ir(pie.translationY > recorrido() / 2)
-                    } else if (e.actionMasked == android.view.MotionEvent.ACTION_UP) {
-                        vista.performClick()
-                    }
-                }
-            }
-            true
-        }
-        asa.setOnClickListener { ir(pie.translationY < recorrido() / 2) }
-    }
-
-    private var arrastrandoPie = false
+    private var actividadExpress: ActividadExpress? = null
 
     private fun refreshCronograma() {
-        val resumen = findViewById<TextView>(R.id.crono_resumen) ?: return
-        val detalle = findViewById<TextView>(R.id.crono_detalle)
-        val accion = findViewById<TextView>(R.id.crono_accion)
         val zona = java.util.TimeZone.getTimeZone("America/Guayaquil")
-        val ahora = java.util.Calendar.getInstance(zona)
-        val hoy = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).apply { timeZone = zona }.format(ahora.time)
-        val horaActual = String.format(java.util.Locale.US, "%02d:%02d", ahora.get(java.util.Calendar.HOUR_OF_DAY), ahora.get(java.util.Calendar.MINUTE))
+        val hoy = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).apply { timeZone = zona }.format(java.util.Date())
         val actividades = com.dmujeres.app.cronograma.Actividades
         val delDia = actividades.delDia(this, hoy)
-        val hc = com.dmujeres.app.cronograma.HoraCronograma
-        val enCurso = hc.enCurso(delDia, horaActual, { it.hora }, { it.horaFin })
-        val siguiente = hc.siguiente(delDia, horaActual) { it.hora }
-        // Solo una actividad iniciada sin hora de fin se finaliza desde aquí; al
-        // finalizarla recibe su hora de fin y deja de estar abierta.
-        val abierta = enCurso?.takeIf { it.horaFin == null && it.hora <= horaActual }
-        fun nombre(a: com.dmujeres.app.cronograma.Actividad) =
-            a.tipo.etiqueta + (a.lugar?.let { " · $it" } ?: "")
-        resumen.text = if (enCurso != null) nombre(enCurso) else getString(R.string.crono_home_ninguna)
-        detalle.text = when {
-            abierta != null -> getString(
-                R.string.crono_home_abierta_fmt,
-                hc.legible(abierta.hora),
-                hc.duracion(hc.aMinutos(horaActual) - hc.aMinutos(abierta.hora)),
-            )
-            enCurso?.horaFin != null -> getString(R.string.crono_home_rango_fmt, hc.legible(enCurso.horaFin))
-            siguiente != null -> getString(R.string.crono_home_sigue_fmt, hc.legible(siguiente.hora), nombre(siguiente))
-            delDia.isEmpty() -> getString(R.string.crono_home_vacio)
-            else -> getString(R.string.crono_home_terminado_fmt, delDia.size)
-        }
-        accion.setText(if (abierta != null) R.string.crono_finalizar else R.string.crono_iniciar)
-        accion.setBackgroundResource(if (abierta != null) R.drawable.ds_button_primary else R.drawable.ds_boton_blanco)
-        accion.setTextColor(getColor(if (abierta != null) R.color.white else R.color.navy))
-        accion.setOnClickListener {
-            if (abierta == null) {
-                startActivity(Intent(this, com.dmujeres.app.cronograma.ActividadActivity::class.java))
-                return@setOnClickListener
+        findViewById<TextView>(R.id.actividades_value)?.let {
+            if (it.text.toString() != delDia.size.toString()) {
+                val primera = it.text.toString() == "—"
+                it.text = delDia.size.toString()
+                if (!primera) Animaciones.pulso(it)
             }
-            val fin = maxOf(horaActual, hc.sumar(abierta.hora, 1))
-            actividades.guardar(this, abierta.copy(horaFin = fin))
-            refreshCronograma()
         }
+        actualizarSugerencia()
+        actividadExpress?.refrescar()
         val pendientes = actividades.pendientes(this)
         val sync = actividades.sincronizadoEn(this)
         findViewById<TextView>(R.id.crono_sync_home)?.text = when {
@@ -693,6 +730,73 @@ class MainActivity : AppCompatActivity() {
     @Volatile
     private var accionPendiente: (() -> Unit)? = null
 
+    // Fin de jornada pedido con un toque: se confirma con otro antes de esta hora.
+    private var finArmadoHasta = 0L
+
+    private fun finArmado(): Boolean = SystemClock.elapsedRealtime() < finArmadoHasta
+
+    // Cuenta atrás dentro del botón ACTUALIZAR cuando se toca antes de tiempo:
+    // así se ve que el toque se recibió y cuándo vuelve a estar disponible.
+    private var enEspera = false
+    private val tickEspera = object : Runnable {
+        override fun run() {
+            if (isFinishing || isDestroyed) return
+            val button = findViewById<Button>(R.id.update_button) ?: return
+            val faltan = (PAUSA_REFRESCO_MS - (SystemClock.elapsedRealtime() - ultimoRefresco) + 999) / 1000
+            if (faltan <= 0 || refreshing) {
+                enEspera = false
+                if (!refreshing) {
+                    button.text = getString(R.string.refresh_button)
+                    button.setTextColor(updateButtonIdleColor())
+                }
+                return
+            }
+            button.text = getString(R.string.refresh_cooldown_fmt, faltan.toInt())
+            button.setTextColor(getColor(R.color.text_secondary))
+            uiHandler.postDelayed(this, 1_000)
+        }
+    }
+
+    private fun mostrarEspera() {
+        if (enEspera) return
+        enEspera = true
+        tickEspera.run()
+    }
+
+    /**
+     * "¿Cómo usar?": al entrar en la app el texto se despliega de izquierda a
+     * derecha y después se recoge; queda el signo, que abre la guía.
+     */
+    private fun presentarAyuda(animar: Boolean) {
+        val boton = findViewById<View>(R.id.ayuda_boton) ?: return
+        val texto = findViewById<TextView>(R.id.ayuda_texto) ?: return
+        boton.setOnClickListener { startActivity(Intent(this, AyudaActivity::class.java)) }
+        if (!animar) return
+        texto.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED)
+        val ancho = texto.measuredWidth
+        fun anchoA(desde: Int, hasta: Int, ms: Long, alTerminar: () -> Unit) {
+            android.animation.ValueAnimator.ofInt(desde, hasta).apply {
+                duration = ms
+                interpolator = android.view.animation.DecelerateInterpolator()
+                addUpdateListener { texto.layoutParams = texto.layoutParams.apply { width = it.animatedValue as Int } }
+                addListener(object : android.animation.AnimatorListenerAdapter() {
+                    override fun onAnimationEnd(animation: android.animation.Animator) = alTerminar()
+                })
+                start()
+            }
+        }
+        texto.layoutParams = texto.layoutParams.apply { width = 0 }
+        texto.visibility = View.VISIBLE
+        uiHandler.postDelayed({
+            if (isFinishing || isDestroyed) return@postDelayed
+            anchoA(0, ancho, 450) {
+                uiHandler.postDelayed({
+                    if (!isFinishing && !isDestroyed) anchoA(ancho, 0, 350) { texto.visibility = View.GONE }
+                }, 6_000)
+            }
+        }, 600)
+    }
+
     /** Color de reposo del botón ACTUALIZAR: navy con jornada, gris sin ella. */
     private fun updateButtonIdleColor(): Int = androidx.core.content.ContextCompat.getColor(
         this,
@@ -707,6 +811,8 @@ class MainActivity : AppCompatActivity() {
     private fun runProgressiveRefresh() {
         if (refreshing) return
         refreshing = true
+        uiHandler.removeCallbacks(tickEspera)
+        enEspera = false
         val button = findViewById<Button>(R.id.update_button)
         val fill = (button.background as android.graphics.drawable.LayerDrawable)
             .findDrawableByLayerId(R.id.progress_fill) as android.graphics.drawable.ClipDrawable
@@ -765,6 +871,7 @@ class MainActivity : AppCompatActivity() {
         fun say(text: String, step: Int, durationMs: Long = 1_100) {
             runOnUiThread {
                 if (isFinishing || isDestroyed) return@runOnUiThread
+                // Cada paso y el resultado se leen dentro del mismo botón.
                 button.text = text
                 fillTo(step, durationMs)
             }
@@ -906,41 +1013,108 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /**
-     * Aviso fijo cuando falta un permiso: ubicación, ubicación "todo el tiempo"
-     * o actividad física. Cada uno abre su ajuste (el de "todo el tiempo", la
-     * página de ubicación de la app).
-     */
-    private fun refreshPermissionWarning() {
-        val banner = findViewById<LinearLayout>(R.id.permission_warning) ?: return
-        val text = findViewById<TextView>(R.id.permission_warning_text) ?: return
-        val faltante = when {
-            !AjustesPermisos.ubicacion(this) -> R.string.permission_warning_location to {
+    /** Un aviso que se muestra en rojo mientras falta; en verde cuando se arregla. */
+    private class Aviso(val rojo: Int, val verde: Int, val accion: () -> Unit)
+
+    private var avisoMostrado: Aviso? = null
+    private var verdeHasta = 0L
+
+    private fun avisosPendientes(): List<Aviso> {
+        val ctx = this
+        return buildList {
+            val gps = runCatching {
+                (getSystemService(android.content.Context.LOCATION_SERVICE) as android.location.LocationManager)
+                    .isProviderEnabled(android.location.LocationManager.GPS_PROVIDER)
+            }.getOrDefault(true)
+            if (!gps) add(Aviso(R.string.location_warning_text, R.string.aviso_ok_gps) {
+                startActivity(Intent(android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS))
+            })
+            if (!AjustesPermisos.ubicacion(ctx)) add(Aviso(R.string.permission_warning_location, R.string.aviso_ok_ubicacion) {
                 androidx.core.app.ActivityCompat.requestPermissions(
-                    this,
+                    ctx,
                     arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION),
                     REQUEST_PERMISO_UBICACION,
                 )
-            }
-            !AjustesPermisos.ubicacionSiempre(this) -> R.string.permission_warning_background to {
-                AjustesPermisos.abrirUbicacion(this)
-            }
-            !AjustesPermisos.actividadFisica(this) -> R.string.permission_warning_activity to {
+            })
+            if (!AjustesPermisos.ubicacionSiempre(ctx)) add(Aviso(R.string.permission_warning_background, R.string.aviso_ok_todo_el_tiempo) {
+                AjustesPermisos.abrirUbicacion(ctx)
+            })
+            // Con la batería restringida el sistema duerme la app y la ruta sale con cortes.
+            val optimizada = Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && runCatching {
+                !(getSystemService(android.content.Context.POWER_SERVICE) as android.os.PowerManager)
+                    .isIgnoringBatteryOptimizations(packageName)
+            }.getOrDefault(false)
+            val restringida = optimizada || AjustesPermisos.segundoPlanoRestringido(ctx)
+            if (restringida) add(Aviso(R.string.aviso_bateria_restringida, R.string.aviso_ok_bateria_restringida) {
+                // Ya sin optimización pero en "Restringida": se cambia en la ficha.
+                val intento = if (optimizada) {
+                    Intent(android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, android.net.Uri.parse("package:$packageName"))
+                } else {
+                    Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, android.net.Uri.parse("package:$packageName"))
+                }
+                runCatching { startActivity(intento) }.onFailure {
+                    runCatching { startActivity(Intent(android.provider.Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)) }
+                }
+            })
+            if (!AjustesPermisos.notificaciones(ctx)) add(Aviso(R.string.permission_warning_notifications, R.string.aviso_ok_notificaciones) {
+                AjustesPermisos.abrirNotificaciones(ctx)
+            })
+            if (!AjustesPermisos.actividadFisica(ctx)) add(Aviso(R.string.permission_warning_activity, R.string.aviso_ok_actividad) {
                 androidx.core.app.ActivityCompat.requestPermissions(
-                    this,
+                    ctx,
                     arrayOf(Manifest.permission.ACTIVITY_RECOGNITION),
                     REQUEST_PERMISO_ACTIVIDAD,
                 )
+            })
+            if (EstadoTelefono.ahorroDeBateria(ctx)) add(Aviso(R.string.aviso_ahorro_bateria, R.string.aviso_ok_ahorro) {
+                startActivity(Intent(android.provider.Settings.ACTION_BATTERY_SAVER_SETTINGS))
+            })
+        }
+    }
+
+    /**
+     * Revisa los avisos: el primero pendiente sale en rojo al momento; cuando
+     * se arregla, sale en verde unos segundos.
+     */
+    private fun revisarAvisos() {
+        val banner = findViewById<LinearLayout>(R.id.permission_warning) ?: return
+        val text = findViewById<TextView>(R.id.permission_warning_text) ?: return
+        val pendiente = avisosPendientes().firstOrNull()
+        val ahora = SystemClock.elapsedRealtime()
+        when {
+            pendiente != null -> {
+                avisoMostrado = pendiente
+                verdeHasta = 0L
+                pintarAviso(banner, text, getString(pendiente.rojo), verde = false) { pendiente.accion() }
             }
-            else -> null
+            avisoMostrado != null -> {
+                pintarAviso(banner, text, getString(avisoMostrado!!.verde), verde = true, accion = null)
+                avisoMostrado = null
+                verdeHasta = ahora + DURACION_AVISO_VERDE_MS
+            }
+            ahora >= verdeHasta && banner.visibility != View.GONE -> {
+                findViewById<ViewGroup>(R.id.cuerpo)?.let { Animaciones.suave(it) }
+                banner.visibility = View.GONE
+            }
         }
-        if (faltante == null) {
-            banner.visibility = View.GONE
-            return
+    }
+
+    private fun pintarAviso(banner: LinearLayout, text: TextView, mensaje: String, verde: Boolean, accion: (() -> Unit)?) {
+        // Aparece o cambia de rojo a verde con transición; los refrescos iguales no la repiten.
+        if (banner.visibility != View.VISIBLE || text.text.toString() != mensaje) {
+            findViewById<ViewGroup>(R.id.cuerpo)?.let { Animaciones.suave(it) }
         }
-        text.setText(faltante.first)
+        text.text = mensaje
+        text.setTextColor(getColor(if (verde) R.color.ok else R.color.primary_dark))
+        // Arreglado: solo el texto en verde, sin ícono.
+        findViewById<TextView>(R.id.permission_warning_icono)?.apply {
+            visibility = if (verde) View.GONE else View.VISIBLE
+            this.text = "!"
+            setBackgroundResource(R.drawable.ds_circulo_rojo)
+        }
+        Animaciones.fondo(banner, if (verde) R.drawable.ds_ok_aviso else R.drawable.ds_aviso_rojo)
+        banner.setOnClickListener(accion?.let { a -> View.OnClickListener { a() } })
         banner.visibility = View.VISIBLE
-        banner.setOnClickListener { faltante.second() }
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {

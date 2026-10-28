@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { BatteryWarning, Bell, CirclePlay, CircleStop, SignalHigh, TriangleAlert, WifiOff } from 'lucide-react';
+import { BatteryWarning, Bell, CircleCheck, CirclePlay, CircleStop, SignalHigh, TriangleAlert, WifiOff } from 'lucide-react';
 import type { Dispositivo } from '@contratos';
 import { CLAVE_FLOTA, traerFlota } from '@/dominio/datos';
 import { api, consulta } from '@/lib/api';
@@ -11,8 +11,9 @@ import { cn } from '@/lib/cn';
 
 // Notificaciones del día, solo lo que la supervisión necesita:
 //  - quién empezó y quién terminó la jornada;
-//  - si en jornada apagó el GPS, quitó el permiso de ubicación, puso la app en
-//    ahorro de batería o se quedó con batería crítica;
+//  - si en jornada apagó el GPS, quitó el permiso de ubicación, apagó las
+//    notificaciones, puso la app en ahorro de batería o se quedó con batería
+//    crítica, y cuando lo volvió a activar;
 //  - a quién en jornada se le cortó el envío (30 min sin puntos), y por qué: con 5 %
 //    de batería o menos se atribuye a la batería; si no, se dice que se apagó
 //    o perdió cobertura (la app no avisa de un apagado manual, así que no se
@@ -21,7 +22,7 @@ import { cn } from '@/lib/cn';
 //    "Recuperó señal" con la hora, en vez de sumar otra.
 // Los cortes y lo leído se guardan en este navegador (localStorage).
 
-type Tipo = 'inicio' | 'fin' | 'corte' | 'alerta';
+type Tipo = 'inicio' | 'fin' | 'corte' | 'alerta' | 'arreglo';
 
 interface Notificacion {
   id: string;
@@ -109,16 +110,18 @@ interface EventoJornada {
 // ese cierre y esa apertura no son hechos de la persona y no se notifican.
 const RENOVACION_MS = 2 * 60_000;
 
-// Alertas del teléfono durante la jornada: GPS apagado, permiso quitado,
-// ahorro de batería o batería crítica. El silencio ya lo cuentan los cortes.
-const TEXTO_SILENCIO = 'Dejó de reportar con la jornada abierta';
+// Alertas del teléfono durante la jornada (GPS apagado, permiso quitado,
+// notificaciones apagadas, ahorro de batería o batería crítica) y el momento
+// en que la persona lo arregló. El silencio y la vuelta de la señal ya los
+// cuentan los cortes.
+const TEXTOS_DE_CORTE = ['Dejó de reportar con la jornada abierta', 'Volvió a reportar'];
 
 function alertasDeEventos(eventos: EventoJornada[]): Notificacion[] {
   return eventos
-    .filter((e) => e.categoria === 'alerta' && e.texto && e.texto !== TEXTO_SILENCIO)
+    .filter((e) => (e.categoria === 'alerta' || e.categoria === 'recuperacion') && e.texto && !TEXTOS_DE_CORTE.includes(e.texto))
     .map((e) => ({
       id: `alerta-${e.dispositivoId}-${e.en}-${e.texto}`,
-      tipo: 'alerta' as const,
+      tipo: e.categoria === 'alerta' ? ('alerta' as const) : ('arreglo' as const),
       idPublico: e.dispositivoId,
       nombre: e.nombre,
       instante: e.en,
@@ -174,7 +177,7 @@ function desdeCortes(cortes: Corte[]): Notificacion[] {
   });
 }
 
-const ICONOS: Record<Tipo, typeof Bell> = { inicio: CirclePlay, fin: CircleStop, corte: WifiOff, alerta: TriangleAlert };
+const ICONOS: Record<Tipo, typeof Bell> = { inicio: CirclePlay, fin: CircleStop, corte: WifiOff, alerta: TriangleAlert, arreglo: CircleCheck };
 
 export function Notificaciones() {
   const navegar = useNavigate();
@@ -288,6 +291,7 @@ export function Notificaciones() {
                         n.tipo === 'inicio' && 'bg-movimiento-suave text-movimiento',
                         n.tipo === 'fin' && 'bg-deshabilitado-suave text-deshabilitado',
                         n.tipo === 'alerta' && 'bg-sin-senal-suave text-sin-senal',
+                        n.tipo === 'arreglo' && 'bg-movimiento-suave text-movimiento',
                         n.tipo === 'corte' && !n.recuperada && (n.porBateria ? 'bg-peligro-suave text-peligro' : 'bg-sin-senal-suave text-sin-senal'),
                         n.tipo === 'corte' && n.recuperada && 'bg-movimiento-suave text-movimiento',
                       )}

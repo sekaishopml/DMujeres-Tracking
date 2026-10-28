@@ -1,5 +1,6 @@
 package com.dmujeres.app.movimiento
 
+import com.dmujeres.app.captura.Geo
 import com.dmujeres.app.captura.WalkDetector
 import com.dmujeres.app.seguimiento.MotionMonitor
 
@@ -12,10 +13,17 @@ import com.dmujeres.app.seguimiento.MotionMonitor
  * importancia y, si no hay datos, captura seguido en vez de espaciar.
  *
  * Orden de las señales:
- * 1. Velocidad del GPS de 3 nudos o más: manda siempre.
-+ * 1b. Caminata (avance neto 2-8 km/h sostenido 3 min): también es movimiento,
-+ *     aunque la instantánea quede bajo 3 kn; nunca se degrada a STATIONARY
-+ *     mientras haya avance sostenido.
+ * 1. GPS: alejarse del sitio. Con coordenadas ([onFixWithPosition]) la
+ *    velocidad sola no basta: bajo techo el GPS salta 20-60 m y marca
+ *    velocidad sin salir del lugar, y la persona nunca quedaba quieta (el
+ *    mapa la mostraba moviéndose en el mismo sitio). Cuenta estar a 80 m
+ *    del centro del sitio, o a 30 m (o el doble de la precisión) con
+ *    velocidad de 3 nudos o más; siempre en dos puntos seguidos del mismo
+ *    lado. Sin
+ *    coordenadas ([onFix]) manda la velocidad, como antes.
+ * 1b. Caminata (avance neto 2-8 km/h sostenido 3 min): también es movimiento,
+ *     aunque la instantánea quede bajo 3 kn; nunca se degrada a STATIONARY
+ *     mientras haya avance sostenido.
  * 2. Desplazamiento acumulado entre puntos de 150 m o más: cubre los
  *    teléfonos que reportan velocidad 0.
  * 3. Movimiento significativo o giro: arranque.
@@ -69,6 +77,17 @@ class MovementStateMachine {
      */
     private val walkDetector = WalkDetector()
 
+    // Centro del sitio donde parece quieta: promedio de los puntos desde la
+    // última evidencia de movimiento (el promedio no se va tras un salto).
+    private var centroLat = 0.0
+    private var centroLon = 0.0
+    private var centroN = 0
+
+    // Punto anterior, si ya estaba lejos del centro con velocidad.
+    private var lejosLat = 0.0
+    private var lejosLon = 0.0
+    private var lejosAntes = false
+
     /** ¿El avance acumulado indica que está caminando? (para el panel). */
     val isWalking: Boolean
         get() = walkDetector.walking
@@ -82,6 +101,7 @@ class MovementStateMachine {
         lastFixAtMs = -1L
         lastMotionAtMs = nowMs
         walkDetector.reset()
+        centroN = 0
         return state
     }
 
@@ -91,6 +111,7 @@ class MovementStateMachine {
         lastFixAtMs = -1L
         lastMotionAtMs = -1L
         walkDetector.reset()
+        centroN = 0
         return state
     }
 
@@ -129,7 +150,10 @@ class MovementStateMachine {
         displacementM: Double,
         imuMoving: Boolean?,
         significantMotion: Boolean = false,
-    ): State = onFixInternal(nowMs, speedKn, displacementM, imuMoving, significantMotion, isWalking)
+    ): State = onFixInternal(
+        nowMs, speedKn >= MOVING_SPEED_KN || displacementM >= MOVING_DISTANCE_M,
+        imuMoving, significantMotion, isWalking,
+    )
 
     /**
      * Punto de GPS aceptado con coordenadas: hace lo mismo que [onFix] y
@@ -144,23 +168,47 @@ class MovementStateMachine {
         longitude: Double,
         imuMoving: Boolean?,
         significantMotion: Boolean = false,
+        accuracyM: Double = 0.0,
     ): State {
         if (state == State.STOPPED) return state
         val walking = walkDetector.add(nowMs, latitude, longitude)
-        return onFixInternal(nowMs, speedKn, displacementM, imuMoving, significantMotion, walking)
+        val alejamiento = if (centroN == 0) 0.0 else Geo.distanceM(centroLat, centroLon, latitude, longitude)
+        // Lejos del centro (con velocidad basta menos distancia), en dos
+        // puntos seguidos y del mismo lado: el temblor salta de un lado al
+        // otro del sitio y un salto suelto no es salida.
+        val lejos = alejamiento >= ALEJAMIENTO_M || (
+            speedKn >= MOVING_SPEED_KN &&
+                alejamiento >= maxOf(ALEJAMIENTO_CON_VELOCIDAD_M, 2 * accuracyM)
+            )
+        val mismoLado = lejosAntes && Geo.distanceM(lejosLat, lejosLon, latitude, longitude) < alejamiento
+        val gpsMoving = lejos && mismoLado
+        lejosAntes = lejos
+        lejosLat = latitude
+        lejosLon = longitude
+        val result = onFixInternal(nowMs, gpsMoving, imuMoving, significantMotion, walking)
+        if (stillSinceMs < 0L || centroN == 0) {
+            // Hubo movimiento (o es el primero): el sitio empieza aquí.
+            centroLat = latitude
+            centroLon = longitude
+            centroN = 1
+        } else {
+            centroN++
+            centroLat += (latitude - centroLat) / centroN
+            centroLon += (longitude - centroLon) / centroN
+        }
+        return result
     }
 
     private fun onFixInternal(
         nowMs: Long,
-        speedKn: Double,
-        displacementM: Double,
+        gpsMoving: Boolean,
         imuMoving: Boolean?,
         significantMotion: Boolean,
         walking: Boolean,
     ): State {
         if (state == State.STOPPED) return state
         lastFixAtMs = nowMs
-        val moving = isMovingEvidence(speedKn, displacementM, imuMoving, significantMotion, walking)
+        val moving = isMovingEvidence(gpsMoving, imuMoving, significantMotion, walking)
         if (moving) {
             lastMotionAtMs = nowMs
             stillSinceMs = -1L
@@ -243,6 +291,7 @@ class MovementStateMachine {
             lastMotionAtMs = nowMs
             // El avance de antes del hueco ya no dice nada de ahora.
             walkDetector.reset()
+            centroN = 0
         }
         return state
     }
@@ -273,6 +322,7 @@ class MovementStateMachine {
         // Lo guardado no trae coordenadas: el avance se vuelve a calcular con
         // los primeros puntos.
         walkDetector.reset()
+        centroN = 0
         if (!journeyOpen) {
             state = State.STOPPED
             return state
@@ -319,20 +369,17 @@ class MovementStateMachine {
     }
 
     private fun isMovingEvidence(
-        speedKn: Double,
-        displacementM: Double,
+        gpsMoving: Boolean,
         imuMoving: Boolean?,
         significantMotion: Boolean,
         walking: Boolean,
     ): Boolean {
-        // 1. El GPS manda siempre. 1b. La caminata (avance bajo pero sostenido)
-        // también es movimiento: nunca se degrada a STATIONARY por velocidad
-        // instantánea <3 kn mientras haya avance. 2. El desplazamiento suple
-        // velocidad nula. 3. El sensor significativo arranca ruta. 4. El IMU
-        // es el último indicio: suma, pero su UNKNOWN (null) nunca resta.
-        if (speedKn >= MOVING_SPEED_KN) return true
+        // 1. El GPS (alejamiento o velocidad) manda siempre. 1b. La caminata
+        // (avance bajo pero sostenido) también es movimiento. 2. El sensor
+        // significativo arranca ruta. 3. El IMU es el último indicio: suma,
+        // pero su UNKNOWN (null) nunca resta.
+        if (gpsMoving) return true
         if (walking) return true
-        if (displacementM >= MOVING_DISTANCE_M) return true
         if (significantMotion) return true
         return imuMoving == true
     }
@@ -343,6 +390,12 @@ class MovementStateMachine {
 
         /** Desplazamiento (m) que suple una velocidad nula. */
         const val MOVING_DISTANCE_M = 150.0
+
+        /** Distancia al centro del sitio que es salida sin mirar la velocidad. */
+        const val ALEJAMIENTO_M = 80.0
+
+        /** Con velocidad de 3 kn, basta esto (o el doble de la precisión). */
+        const val ALEJAMIENTO_CON_VELOCIDAD_M = 30.0
 
         /** STATIONARY exige 3 min de evidencia consistente. */
         const val STATIONARY_AFTER_MS = 3 * 60_000L

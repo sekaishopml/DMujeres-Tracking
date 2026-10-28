@@ -39,7 +39,7 @@
   <string name="status_service_destroy">Servicio de registro detenido</string>
   <string name="status_send_success">Puntos enviados al servidor</string>
   <string name="status_send_fail">No se pudo enviar; se reintentará</string>
-  <string name="status_platform_gps">GPS del sistema activado (fused sin respuesta)</string>
+  <string name="status_proveedor_fmt">Sin ubicación: se prueba %1$s</string>
   <string name="status_network_online">Conexión a internet disponible</string>
   <string name="status_network_offline">Sin conexión a internet</string>
   <string name="request_exception">Para recoger continuamente los datos de localización, desactiva la optimización de la batería de la aplicación.</string>
@@ -96,7 +96,7 @@ Se registrará el cierre en el panel.</string>
   <string name="journey_started_toast">Jornada iniciada</string>
   <string name="journey_ended_toast">Jornada finalizada</string>
   <string name="journey_renewed">Nuevo día: la jornada sigue como una nueva desde las 00:00</string>
-  <string name="journey_missing_permissions">Faltan permisos · complétalos para registrar la jornada</string>
+  <string name="journey_confirm_tap">Toca otra vez para finalizar</string>
   <string name="pending_label">Pendientes por enviar</string>
   <string name="battery_label">Batería</string>
   <string name="duration_label">Duración</string>
@@ -104,33 +104,69 @@ Se registrará el cierre en el panel.</string>
   <string name="battery_value_fmt">%1$d%%</string>
   <string name="refresh_step_sending">Enviando lo pendiente…</string>
   <string name="refresh_step_checking">Comprobando con el servidor…</string>
-  <string name="refresh_summary_ok_fmt">Al día · el servidor tiene tu ubicación de las %1$s</string>
+  <string name="refresh_summary_ok_fmt">Al día · el servidor tiene su ubicación de las %1$s</string>
   <string name="refresh_summary_ok">Al día · todo enviado</string>
   <string name="refresh_summary_sin_jornada">Sin jornada · actividades al día</string>
   <string name="refresh_summary_no_net">Sin datos móviles · se enviará al volver la señal</string>
   <string name="refresh_summary_server_off">El servidor no responde · se reintentará</string>
-  <string name="refresh_summary_gps_off">GPS apagado · toca para activarlo</string>
-  <string name="refresh_summary_battery_saver">Ahorro de batería activo · toca para quitarlo</string>
+  <string name="refresh_summary_gps_off">GPS apagado · toque para activarlo</string>
+  <string name="refresh_summary_battery_saver">Ahorro de batería activo · toque para quitarlo</string>
   <string name="refresh_summary_pending">Quedan puntos por enviar · se reintentará</string>
-  <string name="journey_receipt_ok_fmt">Registrada %1$s</string>
+  <string name="journey_receipt_ok_fmt">Jornada registrada a las %1$s</string>
   <string name="journey_receipt_pending">Sin confirmar · se reintenta</string>
   <string name="journey_duration_fmt">%1$d h %2$d min</string>
   <string name="pill_online">En línea</string>
   <string name="pill_no_connection">Sin conexión</string>
+  <string name="pill_sin_senal">Sin señal</string>
   <string name="pill_disabled">Deshabilitado</string>
   <string name="pill_location_off">Ubicación apagada</string>
   <string name="location_warning_text">Ubicación apagada · Toca para activarla</string>
   <string name="permission_warning_background">Falta elegir “Permitir todo el tiempo” · Toca para abrir el permiso</string>
   <string name="permission_warning_location">Falta el permiso de ubicación · Toca para permitirlo</string>
+  <string name="permission_warning_notifications">Las notificaciones están apagadas · Toca para activarlas</string>
   <string name="permission_warning_activity">Falta el permiso de actividad física · Toca para permitirlo</string>
+  <string name="canal_avisos">Avisos de la jornada</string>
+  <string name="canal_avisos_descripcion">Recordatorios a las 08:00, 14:00, 15:00 y 17:00 cuando algo impide registrar su ruta.</string>
+  <string name="aviso_h_titulo">Revise su aplicación</string>
+  <string name="aviso_h_titulo_jornada">Jornada sin iniciar</string>
+  <string name="aviso_h_sin_jornada">Todavía no ha iniciado su jornada. Ábrala y pulse Iniciar jornada.</string>
+  <string name="aviso_h_sin_conexion">Sin conexión con el servidor. Sus puntos se guardan y se envían al recuperar la señal.</string>
+  <string name="aviso_h_senal_debil">Señal débil: hay puntos de su ruta pendientes de enviar.</string>
+  <string name="aviso_h_gps">La ubicación del teléfono está apagada. Actívela para registrar su ruta.</string>
+  <string name="aviso_h_permiso">Falta el permiso de ubicación. Abra la aplicación para concederlo.</string>
+  <string name="aviso_h_todo_el_tiempo">Falta elegir «Permitir todo el tiempo» en el permiso de ubicación.</string>
+  <string name="aviso_h_bateria">El teléfono restringe la batería de la aplicación. Quite la restricción para no perder su ruta.</string>
+  <string name="aviso_h_ahorro">El ahorro de batería está activo y puede interrumpir el registro de su ruta.</string>
+  <string name="debug_section_avisos">Avisos de horario</string>
+  <string name="debug_aviso_evaluar_title">Revisar ahora</string>
+  <string name="debug_aviso_evaluar_summary">Evalúa el estado real como a las 08:00, 14:00, 15:00 y 17:00, y muestra el aviso si hay novedades</string>
+  <string name="debug_aviso_ultimo_title">Último aviso atendido</string>
+  <string name="debug_aviso_ninguno">Ninguno todavía</string>
+  <string name="debug_aviso_probar_title">Probar aviso</string>
+  <string name="debug_aviso_todas_title">Probar con varias novedades</string>
+  <string name="debug_aviso_todas_summary">Una sola notificación con todas las novedades juntas</string>
+  <string name="debug_aviso_resultado_fmt">%1$s → %2$s</string>
+  <string name="debug_aviso_sin_novedades">sin novedades: no se avisa</string>
+  <string name="aviso_ahorro_bateria">El ahorro de batería está activo · Toca para quitarlo</string>
+  <string name="aviso_bateria_restringida">El teléfono restringe la batería de la app · Toca para quitar la restricción</string>
+  <string name="aviso_ok_bateria_restringida">Restricción de batería quitada</string>
+  <string name="aviso_ok_gps">GPS activado</string>
+  <string name="aviso_ok_ubicacion">Permiso de ubicación activado</string>
+  <string name="aviso_ok_todo_el_tiempo">Ubicación “Permitir todo el tiempo” activada</string>
+  <string name="aviso_ok_notificaciones">Notificaciones activadas</string>
+  <string name="aviso_ok_actividad">Permiso de actividad física activado</string>
+  <string name="aviso_ok_ahorro">Ahorro de batería desactivado</string>
   <string name="pill_none">Sin jornada</string>
   <string name="refresh_button">Actualizar</string>
+  <string name="ota_actualizada_titulo">DMujeres se actualizó</string>
+  <string name="ota_actualizada_texto">Toque para volver a abrir la app.</string>
+  <string name="refresh_cooldown_fmt">Recién actualizado · podrá repetirlo en %1$d s</string>
   <string name="version_footer_fmt">Versión %1$s · código %2$d</string>
   <string name="update_installing">Instalando</string>
   <string name="update_retry">Tocar para reintentar</string>
   <string name="update_downloading">Descargando</string>
   <string name="update_download_failed">No se pudo descargar la actualización</string>
-  <string name="update_allow_installs">Permite "instalar apps desconocidas" para actualizar</string>
+  <string name="update_allow_installs">Permita «instalar apps desconocidas» y vuelva a tocar aquí</string>
   <string name="update_banner_text">Actualización disponible · Toca para instalar</string>
   <string name="widget_description">Shows the service status</string>
   <string name="widget_label">Status widget</string>
@@ -235,6 +271,15 @@ Se registrará el cierre en el panel.</string>
   <string name="perm_battery_why">Evita que el sistema detenga el registro para ahorrar energía.</string>
   <string name="perm_autostart_why">Retoma el registro al reiniciar el teléfono.</string>
   <string name="perm_autostart_open">Abrir</string>
+  <string name="perm_alarmas">Alarmas y recordatorios</string>
+  <string name="perm_alarmas_why">Permite revisar el registro cada pocos minutos.</string>
+  <string name="perm_xiaomi_ahorro">Ahorro de batería de Xiaomi</string>
+  <string name="perm_xiaomi_ahorro_why">Elige “Sin restricciones”. Sin esto la app se detiene con la pantalla apagada.</string>
+  <string name="perm_inicio_apps">Inicio de apps</string>
+  <string name="perm_inicio_apps_why">Desactiva “Gestionar automáticamente” y deja encendidas las tres opciones.</string>
+  <string name="perm_nunca_suspender">Nunca suspender</string>
+  <string name="perm_nunca_suspender_why">Agrega la app a “Apps que nunca se suspenden”.</string>
+  <string name="perm_phone_master_why">En Phone Master permite el inicio automático y la actividad en segundo plano.</string>
 
   <!-- Consola 2.2 -->
   <string name="console_title">Consola del equipo</string>
@@ -283,14 +328,14 @@ Se registrará el cierre en el panel.</string>
   <string name="crono_lugar">Lugar o dirección</string>
   <string name="crono_lugar_hint">Por ejemplo: Coral Río</string>
   <string name="crono_nota">Nota (opcional)</string>
-  <string name="crono_nota_obligatoria">Describe la novedad</string>
+  <string name="crono_nota_obligatoria">Describa la novedad</string>
   <string name="crono_nota_hint">Por ejemplo: me quedé sin batería</string>
   <string name="crono_nueva">Nueva actividad</string>
   <string name="crono_editar">Editar actividad</string>
+  <string name="crono_marca_editar">Editar</string>
   <string name="crono_guardar">Guardar</string>
   <string name="crono_iniciar">Iniciar actividad</string>
   <string name="crono_finalizar">Finalizar actividad</string>
-  <string name="pie_asa">Mostrar u ocultar actividades</string>
   <string name="crono_home_titulo">Actividades de hoy</string>
   <string name="crono_home_ninguna">Sin actividad en curso</string>
   <string name="crono_home_abierta_fmt">Desde las %1$s · lleva %2$s</string>
@@ -298,8 +343,8 @@ Se registrará el cierre en el panel.</string>
   <string name="crono_home_sigue_fmt">Sigue a las %1$s: %2$s</string>
   <string name="crono_cancelar">Cancelar</string>
   <string name="crono_eliminar">Eliminar</string>
-  <string name="crono_error_lugar">Escribe el lugar de la visita.</string>
-  <string name="crono_error_nota">Describe la novedad.</string>
+  <string name="crono_error_lugar">Escriba el lugar de la visita.</string>
+  <string name="crono_error_nota">Describa la novedad.</string>
   <string name="crono_vacio">Sin actividades este día.</string>
   <string name="crono_todo_dia">Marcar todo el día como:</string>
   <string name="crono_sync_pend_fmt">%1$d por enviar · se sube al tener conexión</string>
@@ -307,14 +352,13 @@ Se registrará el cierre en el panel.</string>
   <string name="crono_con_ubicacion">Con ubicación</string>
   <string name="crono_pendiente">Por enviar</string>
   <string name="crono_confirmar_eliminar">¿Eliminar esta actividad?</string>
-  <string name="crono_home_vacio">Sin actividades hoy · toca para planificar tu día</string>
+  <string name="crono_home_vacio">Sin actividades hoy · toque para planificar su día</string>
   <string name="crono_sync_at_fmt">Sincronizado a las %1$s</string>
   <string name="crono_sync_pend_corto_fmt">%1$d por enviar</string>
   <string name="crono_sync_nunca">Aún sin sincronizar</string>
   <string name="crono_todo_el_dia">Todo el día</string>
   <string name="crono_eliminar_actividad">Eliminar actividad</string>
-  <string name="crono_resumen_fmt">%1$s · %2$s</string>
-  <string name="crono_resumen_falta">Escribe la hora, por ejemplo 9:30 o 14:30.</string>
+  <string name="crono_resumen_falta">Escriba la hora, por ejemplo 9:30 o 14:30.</string>
   <string name="crono_error_rango_noche">La hora de fin debe ser después de la de inicio. Si pasa de la medianoche, regístrala hasta las 23:59</string>
   <string name="crono_cruce_titulo">Se cruza con otra actividad</string>
   <string name="crono_cruce_al_guardar">Al guardar:</string>
@@ -322,11 +366,10 @@ Se registrará el cierre en el panel.</string>
   <string name="crono_cruce_corre_fmt">• %1$s empezará a las %2$s.</string>
   <string name="crono_cruce_divide_fmt">• %1$s queda en dos partes: %2$s y %3$s.</string>
   <string name="crono_cruce_cubre_fmt">• Tapa por completo a %1$s (%2$s).</string>
-  <string name="crono_cruce_cubre_ayuda">Cambia las horas o elimina esa actividad.</string>
+  <string name="crono_cruce_cubre_ayuda">Cambie las horas o elimine esa actividad.</string>
   <string name="crono_cruce_mover_fmt">Mejor mover esta: %1$s</string>
   <string name="crono_cruce_eliminar_fmt">Eliminar %1$s</string>
   <string name="crono_error_cruce">Resuelve el cruce de horas antes de guardar.</string>
-  <string name="crono_ajustada_fmt">Guardada · se acomodó %1$s</string>
   <string name="crono_hoy">Hoy</string>
   <string name="crono_ayer">Ayer</string>
   <string name="crono_manana">Mañana</string>
@@ -337,12 +380,14 @@ Se registrará el cierre en el panel.</string>
   <string name="crono_sin_registrar_fmt">Sin registrar · %1$s</string>
   <string name="crono_agregar_corto">+ Agregar</string>
   <string name="crono_parada_fmt">Detenido %1$s según el GPS</string>
-  <string name="crono_parada_cerca_fmt">Detenido %1$s · cerca de %2$s</string>
+  <string name="crono_parada_fila_fmt">%1$s–%2$s · Detenido %3$s</string>
   <string name="crono_registrar_corto">Registrar</string>
   <string name="crono_ahora_fmt">Ahora · %1$s</string>
+  <string name="crono_ahora">ahora</string>
+  <string name="crono_en_curso_corto">en curso</string>
+  <string name="crono_lista_vacia">Sin actividades este día.\nToque «Agregar actividad» para anotar una.</string>
   <string name="crono_en_curso_fmt">En curso · termina %1$s</string>
-  <string name="crono_en_curso">En curso</string>
-  <string name="crono_terminar_ahora">Terminé</string>
+  <string name="crono_terminar_ahora">Finalizar</string>
   <string name="crono_confirmar_eliminar_fmt">¿Eliminar %1$s?</string>
   <string name="crono_descartar">¿Salir sin guardar los cambios?</string>
   <string name="crono_descartar_si">Salir</string>
@@ -351,7 +396,120 @@ Se registrará el cierre en el panel.</string>
   <string name="crono_hasta">Hasta</string>
   <string name="crono_hora_hint">00:00</string>
   <string name="crono_hasta_hint">Opcional</string>
-  <string name="crono_resumen_sin_fin_fmt">Desde las %1$s · sin hora de fin (termina cuando empiece la siguiente o al tocar Terminé)</string>
-  <string name="crono_error_hora">Escribe una hora válida, por ejemplo 9:30 o 14:30.</string>
+  <string name="crono_error_hora">Escriba una hora válida, por ejemplo 9:30 o 14:30.</string>
   <string name="crono_home_terminado_fmt">Hoy %1$d actividades · todas terminadas</string>
+  <string name="crono_home_terminado_una">Hoy 1 actividad · terminada</string>
+  <string name="crono_modo_ahora">Iniciar ahora</string>
+  <string name="crono_modo_programar">Programar horario</string>
+  <string name="crono_que">¿Qué va a registrar?</string>
+  <string name="crono_cambiar">Cambiar</string>
+  <string name="crono_sel_nueva">Nueva actividad</string>
+  <string name="crono_sel_cancelar">Cancelar</string>
+  <string name="crono_cuando">¿Cuándo?</string>
+  <string name="crono_donde">¿Dónde?</string>
+  <string-array name="crono_tipos_ayuda">
+    <item>A un cliente o un lugar</item>
+    <item>Pausa para comer</item>
+    <item>Algo que avisar</item>
+    <item>Cita médica o reposo</item>
+    <item>Ausencia autorizada</item>
+    <item>Día libre completo</item>
+  </string-array>
+  <string name="crono_sug_parada_fmt">Última parada · %1$s</string>
+  <string name="crono_falta_lugar">Falta el lugar de la visita</string>
+  <string name="crono_falta_nota">Falta describir la novedad</string>
+  <string name="crono_resumen_ahora_fmt">%1$s · empieza ahora, a las %2$s</string>
+  <string name="crono_resumen_abierta_fmt">%1$s · desde las %2$s, sin hora de fin</string>
+  <string name="crono_resumen_rango_fmt">%1$s · %2$s (%3$s)</string>
+  <string name="crono_en_curso_titulo">Hay una actividad en curso</string>
+  <string name="crono_en_curso_cierra_fmt">%1$s está en curso desde las %2$s. Al iniciar esta, se finalizará a las %3$s.</string>
+  <string name="crono_en_curso_antes_fmt">%1$s está en curso desde las %2$s. Esta no puede empezar antes: ponle hora de fin o finaliza primero la que está en curso.</string>
+  <string name="crono_error_en_curso">Ya hay una actividad en curso. Ponle hora de fin a esta o finaliza primero la otra.</string>
+  <string name="crono_nombre_en_curso_fmt">%1$s (en curso desde las %2$s)</string>
+  <string name="crono_cruce_divide_en_curso_fmt">• %1$s queda de %2$s y sigue en curso desde las %3$s.</string>
+  <string name="crono_cruce_cubre_en_curso_fmt">• Tapa por completo a %1$s.</string>
+  <string name="crono_inicio_marcado_fmt">Empieza a las %1$s</string>
+  <string name="crono_dia_cerrado">Día cerrado para el reporte: ya no se puede modificar. Cada día se corrige hasta las 11:15 del día siguiente.</string>
+  <string name="crono_dia_por_cerrar">Puede corregir este día hasta hoy a las 11:15. Después queda cerrado para el reporte.</string>
+  <string name="crono_arrastre_fmt">%1$s – %2$s</string>
+  <string name="crono_arrastre_cruce">Ese horario se cruza con otra actividad. No se movió.</string>
+  <string name="crono_programar_a_fmt">Programar una actividad a las %1$s</string>
+  <string name="crono_en_curso_lleva_fmt">En curso · lleva %1$s</string>
+  <string name="crono_desde_las_fmt">Desde las %1$s</string>
+
+  <!-- Ayuda: guía breve de uso -->
+  <string name="ayuda_boton">¿Cómo usar?</string>
+  <string name="ayuda_titulo">Cómo usar la aplicación</string>
+  <string name="ayuda_intro">Esta guía resume cómo registrar su jornada. Puede consultarla en cualquier momento desde el signo «?» de la pantalla principal.</string>
+  <string name="ayuda_paso_fmt">PASO %1$d DE %2$d</string>
+  <string name="ayuda_cierre">Gracias por su compromiso. Ante cualquier duda, comuníquese con el departamento de CCTV.</string>
+  <string name="ayuda_demo_ayer">Ayer · sábado 10 de octubre</string>
+  <string name="ayuda_demo_descargando">Descargando la versión nueva…</string>
+  <string name="ayuda_demo_instalando">Instalando la actualización…</string>
+  <string-array name="ayuda_titulos">
+    <item>Inicie su jornada</item>
+    <item>Actualice a la nueva versión de la app</item>
+    <item>Registre su actividad</item>
+    <item>Tipos de actividad y notas</item>
+    <item>Organice su día en el cronograma</item>
+    <item>Edite su cronograma antes de las 11:15</item>
+    <item>Envíe sus datos con Actualizar</item>
+    <item>Atienda los avisos en rojo</item>
+    <item>Finalice su jornada</item>
+  </string-array>
+  <string-array name="ayuda_textos">
+    <item>Al comenzar el día, pulse Iniciar jornada. Desde ese momento la aplicación registra su recorrido automáticamente; no es necesario mantenerla abierta. La tarjeta principal le muestra el estado de su jornada y su actividad del momento.</item>
+    <item>Cuando hay una versión nueva, aparece este aviso magenta en la parte superior de la pantalla. Púlselo para descargarla e instalarla.</item>
+    <item>Al llegar a un sitio, pulse Iniciar actividad. Ahí mismo elija Visita o Almuerzo, escriba dónde está (o toque uno de sus lugares) y pulse Iniciar ahora. La tarjeta mostrará Actividad en curso con el lugar y el tiempo. Para terminarla, pulse Finalizar actividad; con Siguiente actividad, la actual se finaliza al iniciar la nueva.</item>
+    <item>Para otros tipos (novedad, permiso, vacaciones) pulse Otra… o use el cronograma: ahí se elige el tipo en las fichas de colores y, si es un permiso, vacaciones o una ausencia, puede marcarse todo el día con un solo toque.</item>
+    <item>Pulse Hoy, al pie de la tarjeta de actividad, para ver su día sobre una regla de horas. Para crear una actividad con dos toques, pulse la hora en que empieza y luego la hora hasta la que llega: se abre lista para guardar. También puede mantener pulsado un espacio libre durante un segundo y medio, hasta que el teléfono vibre, y arrastrar hacia abajo o hacia arriba; el horario avanza de quince en quince minutos y el teléfono vibra suavemente en cada paso. Para cambiar una actividad que ya tiene hora de fin, manténgala pulsada y arrástrela a otra hora; desde su borde inferior se alarga o se acorta. Una actividad no puede quedar encima de otra. Los espacios punteados son ratos sin registrar: púlselos para anotarlos.</item>
+    <item>Las actividades de un día pueden corregirse hasta las 11:15 de la mañana siguiente. A esa hora el día se cierra para elaborar el reporte y ya no admite cambios: se puede consultar, pero no agregar, mover ni eliminar actividades.</item>
+    <item>Pulse Actualizar para enviar lo pendiente. Si lo pulsa de nuevo en poco tiempo, el botón muestra la cuenta atrás. Sin conexión, todo queda guardado y se envía al recuperar la señal.</item>
+    <item>Un aviso en rojo, arriba de la pantalla, indica que la ubicación, un permiso, las notificaciones o la batería necesitan su atención. Púlselo para ir al ajuste que debe corregir; al resolverlo, el aviso se muestra en verde.</item>
+    <item>Al terminar el día, pulse Finalizar jornada y vuelva a pulsarlo para confirmar. Recuerde finalizar antes la actividad en curso.</item>
+  </string-array>
+  <string-array name="ayuda_tipos">
+    <item>Visita: indique el lugar. La nota es opcional.</item>
+    <item>Almuerzo: solo el horario, sin lugar.</item>
+    <item>Permiso médico: puede marcarse todo el día (08:00 a 17:00). La nota es opcional.</item>
+    <item>Vacaciones: puede marcarse todo el día (08:00 a 17:00). La nota es opcional.</item>
+    <item>Permiso: puede marcarse todo el día (08:00 a 17:00). La nota es opcional.</item>
+    <item>Novedad: describa lo ocurrido. La nota es obligatoria.</item>
+  </string-array>
+  <string name="actividades_hoy_label">Actividades hoy</string>
+  <string name="pendientes_corto">Ruta por enviar</string>
+  <string name="saludo_dia">Buenos días</string>
+  <string name="saludo_tarde">Buenas tardes</string>
+  <string name="saludo_noche">Buenas noches</string>
+  <string name="saludo_nombre_fmt">%1$s, %2$s</string>
+  <string name="sug_confirmar">Toque otra vez el botón para finalizar la jornada.</string>
+  <string name="sug_ubicacion">Encienda la ubicación del teléfono para que se registre su recorrido.</string>
+  <string name="sug_iniciar">Inicie su jornada para comenzar a registrar su recorrido.</string>
+  <string name="sug_pendientes_fmt">Hay %1$d puntos por enviar; se enviarán al volver la señal.</string>
+  <string name="sug_sin_conexion">Sin señal por ahora; lo registrado se enviará al volver.</string>
+  <!-- Inicio: actividad rápida -->
+  <string name="act_home_etiqueta">ACTIVIDAD</string>
+  <string name="act_home_nueva">Nueva actividad</string>
+  <string name="act_home_cancelar">Volver</string>
+  <string name="act_home_que">¿QUÉ HACE?</string>
+  <string name="act_home_visita">Visita</string>
+  <string name="act_home_permiso">Permiso</string>
+  <string name="act_home_nota_curso_hint">Ej.: El encargado no estaba</string>
+  <string name="act_home_guardar_nota">Guardar nota</string>
+  <string name="act_home_nota">NOTA</string>
+  <string name="act_home_nota_hint">Ej.: Permiso en la mañana…</string>
+  <string name="act_home_otro">Otra…</string>
+  <string name="act_home_donde">¿DÓNDE?</string>
+  <string name="act_home_lugar_hint">Ej.: Mall del Sur</string>
+  <string name="act_home_iniciar_ahora">Iniciar ahora</string>
+  <string name="act_home_ayuda_fmt">Empieza a las %1$s · otra hora: cronograma</string>
+  <string name="act_home_ayuda_cierra_fmt">Empieza a las %1$s y cierra la que está en curso</string>
+  <string name="act_home_falta_lugar">Escriba el lugar de la visita</string>
+  <string name="act_home_en_curso">ACTIVIDAD EN CURSO</string>
+  <string name="act_home_desde_fmt">En curso · %1$s · desde las %2$s</string>
+  <string name="act_home_agregar_nota">Agregar nota</string>
+  <string name="act_home_siguiente">Siguiente actividad</string>
+  <string name="act_home_hoy_ninguna">Ver cronograma · 0 hoy</string>
+  <string name="act_home_hoy_una">Ver cronograma · 1 hoy</string>
+  <string name="act_home_hoy_fmt">Ver cronograma · %1$d hoy</string>
 </resources>

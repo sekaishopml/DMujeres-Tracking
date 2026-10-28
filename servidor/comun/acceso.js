@@ -1,10 +1,5 @@
 // Reglas de entrada que comparten el panel y la app.
-//  - Tres claves equivocadas seguidas bloquean la cuenta 15 minutos: nadie
-//    puede probar contraseñas al azar. Entrar bien deja el contador en cero.
 //  - Una cuenta solo puede tener la app abierta en un teléfono a la vez.
-
-export const MAX_INTENTOS = 3;
-export const MINUTOS_BLOQUEO = 15;
 
 // Minutos que le faltan a un bloqueo; 0 si la cuenta no está bloqueada.
 export function minutosBloqueo(bloqueadoHasta, ahoraMs = Date.now()) {
@@ -13,30 +8,10 @@ export function minutosBloqueo(bloqueadoHasta, ahoraMs = Date.now()) {
   return resta > 0 ? Math.ceil(resta / 60_000) : 0;
 }
 
-export function mensajeBloqueo(minutos) {
-  return `La cuenta quedó bloqueada por ${MAX_INTENTOS} intentos fallidos. Intenta en ${minutos} min o pide al administrador que la desbloquee.`;
-}
-
 export const MENSAJE_OTRO_TELEFONO =
   'La cuenta ya está abierta en otro teléfono. Pide al administrador que cierre esa sesión.';
 
-// Suma un intento fallido; al tercero bloquea y vuelve a empezar la cuenta.
-// Devuelve los minutos de bloqueo (0 si todavía no se bloquea).
-export async function registrarFallo(pool, usuarioId) {
-  const { rows } = await pool.query(
-    `UPDATE iam.dmt_usuario
-        SET bloqueado_hasta = CASE WHEN intentos_fallidos + 1 >= $2
-                                   THEN now() + ($3::int * interval '1 minute')
-                                   ELSE bloqueado_hasta END,
-            intentos_fallidos = CASE WHEN intentos_fallidos + 1 >= $2 THEN 0
-                                     ELSE intentos_fallidos + 1 END
-      WHERE id = $1
-      RETURNING bloqueado_hasta`,
-    [usuarioId, MAX_INTENTOS, MINUTOS_BLOQUEO],
-  );
-  return minutosBloqueo(rows[0]?.bloqueado_hasta);
-}
-
+// Borra bloqueos que quedaron de cuando tres claves equivocadas bloqueaban.
 export async function limpiarFallos(pool, usuarioId) {
   await pool.query(
     `UPDATE iam.dmt_usuario SET intentos_fallidos = 0, bloqueado_hasta = NULL

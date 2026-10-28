@@ -62,3 +62,9 @@ test('hora del teléfono corrida más de un día: se usa la del servidor', () =>
   assert.equal(fila.versionApp, null);
   assert.equal(fila.colaSalida, null);
 });
+
+test('si el modelo no dice la marca, se usa la que manda la app', () => {
+  const agente = 'Dalvik/2.1.0 (Linux; U; Android 14; Z2450 Build/UP1A)';
+  assert.equal(filaSalud({ report: {} }, agente, Date.now()).fabricante, null);
+  assert.equal(filaSalud({ report: { sistema: { fabricante: 'ZTE' } } }, agente, Date.now()).fabricante, 'ZTE');
+});

@@ -28,7 +28,7 @@ import com.dmujeres.app.red.DmujeresApi
 import com.dmujeres.app.seguimiento.TrackingService
 import com.dmujeres.app.sistema.AjustesPermisos
 import com.dmujeres.app.sistema.OemAutostart
-import com.judemanutd.autostarter.AutoStartPermissionHelper
+import com.dmujeres.app.recuperacion.DozeAlarmReceiver
 
 /**
  * Primer arranque: bienvenida, inicio de sesión y permisos.
@@ -258,12 +258,10 @@ class OnboardingActivity : AppCompatActivity() {
                 }
             }
         }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            row(R.drawable.ds_ic_bell, R.string.perm_notifications, R.string.perm_notifications_why,
-                isGranted(Manifest.permission.POST_NOTIFICATIONS), true, R.string.onboarding_perms_allow) {
-                requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), REQUEST_NOTIFICATIONS)
-            }
-        }
+        // En todas las versiones: antes de Android 13 no hay permiso que pedir,
+        // pero la persona puede apagarlas en Ajustes y dejaría de ver los avisos.
+        row(R.drawable.ds_ic_bell, R.string.perm_notifications, R.string.perm_notifications_why,
+            notificacionesListas(), true, R.string.onboarding_perms_allow) { pedirNotificaciones() }
         // Pasos: comprueba que el teléfono va con la persona. No es obligatorio.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             row(R.drawable.ds_ic_pasos, R.string.perm_activity, R.string.perm_activity_why,
@@ -272,11 +270,38 @@ class OnboardingActivity : AppCompatActivity() {
             }
         }
         row(R.drawable.ds_ic_battery, R.string.perm_battery, R.string.perm_battery_why,
-            ignoringBatteryOptimizations(), true, R.string.onboarding_perms_allow) { requestBattery() }
-        // El inicio automático del fabricante no se puede consultar: queda
-        // como recomendado, con un botón que abre su ajuste.
-        addRow(rows, R.drawable.ds_ic_power, R.string.perm_autostart, R.string.perm_autostart_why,
-            null, false, R.string.perm_autostart_open) { openAutostart() }
+            bateriaLibre(), true, R.string.onboarding_perms_allow) { requestBattery() }
+        // Android 12 deja quitar las alarmas exactas; sin ellas la supervisión
+        // cada pocos minutos se vuelve irregular.
+        if (!DozeAlarmReceiver.exactas(this)) {
+            row(R.drawable.ds_ic_power, R.string.perm_alarmas, R.string.perm_alarmas_why,
+                false, false, R.string.onboarding_perms_allow) { pedirAlarmas() }
+        }
+        // Ajustes del fabricante: casi ninguno se puede consultar, así que
+        // quedan como recomendados (sin visto) con un botón a su pantalla.
+        when (OemAutostart.marca()) {
+            OemAutostart.Marca.XIAOMI -> {
+                addRow(rows, R.drawable.ds_ic_power, R.string.perm_autostart, R.string.perm_autostart_why,
+                    OemAutostart.inicioAutomaticoXiaomi(this), false, R.string.perm_autostart_open) { openAutostart() }
+                addRow(rows, R.drawable.ds_ic_battery, R.string.perm_xiaomi_ahorro, R.string.perm_xiaomi_ahorro_why,
+                    OemAutostart.sinRestriccionXiaomi(this), false, R.string.perm_autostart_open) {
+                    OemAutostart.abrirAhorroXiaomi(this)
+                }
+            }
+            OemAutostart.Marca.HUAWEI, OemAutostart.Marca.HONOR ->
+                addRow(rows, R.drawable.ds_ic_power, R.string.perm_inicio_apps, R.string.perm_inicio_apps_why,
+                    null, false, R.string.perm_autostart_open) { OemAutostart.abrirInicioDeApps(this) }
+            OemAutostart.Marca.SAMSUNG ->
+                addRow(rows, R.drawable.ds_ic_power, R.string.perm_nunca_suspender, R.string.perm_nunca_suspender_why,
+                    null, false, R.string.perm_autostart_open) { OemAutostart.abrirNuncaSuspender(this) }
+            OemAutostart.Marca.TRANSSION ->
+                addRow(rows, R.drawable.ds_ic_power, R.string.perm_autostart, R.string.perm_phone_master_why,
+                    null, false, R.string.perm_autostart_open) { openAutostart() }
+            OemAutostart.Marca.OTRA -> if (OemAutostart.hayInicioAutomatico(this)) {
+                addRow(rows, R.drawable.ds_ic_power, R.string.perm_autostart, R.string.perm_autostart_why,
+                    null, false, R.string.perm_autostart_open) { openAutostart() }
+            }
+        }
 
         view.findViewById<android.widget.ProgressBar>(R.id.perms_progress)?.progress = if (total > 0) done * 100 / total else 0
         view.findViewById<TextView>(R.id.perms_count)?.text = getString(R.string.onboarding_perms_count_fmt, done, total)
@@ -331,9 +356,23 @@ class OnboardingActivity : AppCompatActivity() {
         ) {
             return false
         }
-        if (!ignoringBatteryOptimizations()) return false
-        return Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
-            isGranted(Manifest.permission.POST_NOTIFICATIONS)
+        if (!bateriaLibre()) return false
+        return notificacionesListas()
+    }
+
+    /** Permiso (Android 13+) y notificaciones encendidas en Ajustes. */
+    private fun notificacionesListas(): Boolean =
+        (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU || isGranted(Manifest.permission.POST_NOTIFICATIONS)) &&
+            AjustesPermisos.notificaciones(this)
+
+    private fun pedirNotificaciones() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            !isGranted(Manifest.permission.POST_NOTIFICATIONS)
+        ) {
+            requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), REQUEST_NOTIFICATIONS)
+        } else {
+            AjustesPermisos.abrirNotificaciones(this)
+        }
     }
 
     private fun requestMissing() {
@@ -344,12 +383,23 @@ class OnboardingActivity : AppCompatActivity() {
             )
             Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
                 !isGranted(Manifest.permission.ACCESS_BACKGROUND_LOCATION) -> requestBackground()
-            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-                !isGranted(Manifest.permission.POST_NOTIFICATIONS) -> requestPermissions(
-                arrayOf(Manifest.permission.POST_NOTIFICATIONS),
-                REQUEST_NOTIFICATIONS,
-            )
-            !ignoringBatteryOptimizations() -> requestBattery()
+            !notificacionesListas() -> pedirNotificaciones()
+            !bateriaLibre() -> requestBattery()
+        }
+    }
+
+    /**
+     * Sin optimización de batería y sin "Restringida": con la batería de la
+     * app en "Restringida" (Android 9+) el servicio no puede volver a
+     * arrancar desde segundo plano aunque la optimización esté quitada.
+     */
+    private fun bateriaLibre(): Boolean =
+        ignoringBatteryOptimizations() && !AjustesPermisos.segundoPlanoRestringido(this)
+
+    private fun pedirAlarmas() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return
+        runCatching {
+            startActivity(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, Uri.parse("package:$packageName")))
         }
     }
 
@@ -365,6 +415,14 @@ class OnboardingActivity : AppCompatActivity() {
 
     private fun requestBattery() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return
+        // Ya sin optimización pero "Restringida": se cambia en la ficha de la
+        // app, Batería > Sin restricciones.
+        if (ignoringBatteryOptimizations()) {
+            runCatching {
+                startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName")))
+            }
+            return
+        }
         runCatching {
             startActivity(
                 Intent(
@@ -378,12 +436,7 @@ class OnboardingActivity : AppCompatActivity() {
     }
 
     private fun openAutostart() {
-        runCatching {
-            if (OemAutostart.open(this)) return
-            if (!AutoStartPermissionHelper.getInstance().getAutoStartPermission(this)) {
-                Toast.makeText(this, R.string.perm_autostart_manual, Toast.LENGTH_LONG).show()
-            }
-        }.onFailure {
+        if (!runCatching { OemAutostart.open(this) }.getOrDefault(false)) {
             Toast.makeText(this, R.string.perm_autostart_manual, Toast.LENGTH_LONG).show()
         }
     }

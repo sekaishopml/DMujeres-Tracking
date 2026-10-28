@@ -16,13 +16,38 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <uses-permission android:name="android.permission.UPDATE_PACKAGES_WITHOUT_USER_ACTION" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <!-- Supervisor con alarma exacta: despierta en reposo y puede volver a
+         arrancar el servicio si el sistema lo mató. -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
 
     <uses-permission android:name="oppo.permission.OPPO_COMPONENT_SAFE" />
     <uses-permission android:name="com.huawei.permission.external_app_settings.USE_COMPONENT" />
 
     <uses-feature android:name="android.hardware.location.network" />
     <uses-feature android:name="android.hardware.location.gps" />
+
+    <!-- Desde Android 11 la app solo ve los paquetes que declara: sin esto
+         no puede abrir las pantallas de batería e inicio de cada fabricante. -->
+    <queries>
+        <package android:name="com.miui.securitycenter" />
+        <package android:name="com.miui.powerkeeper" />
+        <package android:name="com.huawei.systemmanager" />
+        <package android:name="com.hihonor.systemmanager" />
+        <package android:name="com.samsung.android.lool" />
+        <package android:name="com.transsion.phonemaster" />
+        <package android:name="com.itel.autobootmanager" />
+        <package android:name="com.coloros.safecenter" />
+        <package android:name="com.oppo.safe" />
+        <package android:name="com.iqoo.secure" />
+        <package android:name="com.vivo.permissionmanager" />
+        <package android:name="com.asus.mobilemanager" />
+        <package android:name="com.oneplus.security" />
+        <package android:name="com.evenwell.powersaving.g3" />
+        <package android:name="com.letv.android.letvsafe" />
+    </queries>
 
     <application
         android:allowBackup="true"
@@ -40,7 +65,8 @@
         <activity
             android:name=".pantallas.MainActivity"
             android:exported="true"
-            android:launchMode="singleTask" />
+            android:launchMode="singleTask"
+            android:windowSoftInputMode="stateHidden|adjustResize" />
 
         <activity
             android:name=".cronograma.CronogramaActivity"
@@ -76,6 +102,10 @@
             android:exported="false"
             android:theme="@style/AppTheme" />
 
+        <receiver
+            android:name=".pantallas.UpdateActivity$ResultadoInstalacion"
+            android:exported="false" />
+
         <activity
             android:name=".pantallas.OnboardingActivity"
             android:exported="false"
@@ -88,6 +118,10 @@
 
         <activity
             android:name=".pantallas.StatusActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".pantallas.AyudaActivity"
             android:exported="false" />
 
         <activity
@@ -133,9 +167,14 @@
             </intent-filter>
         </receiver>
 
-        <!-- Rescate de Doze: alarma inexacta 9 min (solo PendingIntent explícito). -->
+        <!-- Supervisor: alarma exacta cada 3 min con jornada (solo PendingIntent explícito). -->
         <receiver
             android:name=".recuperacion.DozeAlarmReceiver"
+            android:exported="false" />
+
+        <!-- Avisos de horario (08:00, 14:00, 15:00 y 17:00). -->
+        <receiver
+            android:name=".avisos.AvisosDelDia$Receptor"
             android:exported="false" />
 
         <receiver

@@ -6,7 +6,7 @@ import { Insignia } from '@/componentes/ui/ChipEstado';
 import { Tabla, Th, Td, Fila } from '@/componentes/ui/Tabla';
 import { Segmentado } from '@/componentes/ui/Segmentado';
 import { Cargando, ErrorCarga, Vacio } from '@/componentes/ui/Estados';
-import { GUION, hace } from '@/dominio/formatoBase';
+import { GUION, grados, hace } from '@/dominio/formatoBase';
 import { mensajeError } from '@/dominio/errores';
 import Persona from '@/componentes/reportes/Persona';
 
@@ -24,6 +24,7 @@ interface FilaHistorial {
   colaPendiente: number;
   otrosProblemas: number;
   colaMaxima: number | null;
+  temperaturaMaxima: number | null;
   recuperaciones: number | null;
   telefono: string | null;
   versionAndroid: string | null;
@@ -93,6 +94,7 @@ export default function HistorialSalud() {
               <Th numerico>GPS atrasado</Th>
               <Th numerico>Puntos sin enviar (máx.)</Th>
               <Th numerico>Recuperaciones del GPS</Th>
+              <Th numerico>Temp. máx.</Th>
               <Th>Último diagnóstico</Th>
             </tr>
           </thead>
@@ -115,6 +117,9 @@ export default function HistorialSalud() {
                   <Td numerico>{f.colaMaxima ?? GUION}</Td>
                   <Td numerico title="Veces que la app tuvo que reactivar el GPS en la ventana">
                     {f.recuperaciones ?? GUION}
+                  </Td>
+                  <Td numerico title="Temperatura más alta de la batería en la ventana (se mide cada 5 min)">
+                    {grados(f.temperaturaMaxima)}
                   </Td>
                   <Td className="whitespace-nowrap">{hace(f.ultimoReporte)}</Td>
                 </Fila>

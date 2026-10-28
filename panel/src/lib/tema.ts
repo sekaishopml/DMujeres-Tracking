@@ -22,7 +22,7 @@ function aplicar(tema: Tema, animar: boolean) {
     window.setTimeout(() => raiz.classList.remove('tema-transicion'), 260);
   }
   raiz.dataset.tema = tema;
-  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', tema === 'oscuro' ? '#070b14' : '#ffffff');
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', tema === 'oscuro' ? '#000208' : '#ffffff');
 }
 
 interface EstadoTema {

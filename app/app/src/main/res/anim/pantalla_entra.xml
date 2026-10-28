@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Pantalla que se abre: entra desde la derecha con un fundido. -->
+<set xmlns:android="http://schemas.android.com/apk/res/android"
+    android:interpolator="@android:interpolator/decelerate_cubic">
+    <translate
+        android:duration="320"
+        android:fromXDelta="12%"
+        android:toXDelta="0%" />
+    <alpha
+        android:duration="260"
+        android:fromAlpha="0"
+        android:toAlpha="1" />
+</set>

@@ -11,11 +11,14 @@
 // No se inventan puntos: solo se quitan picos y se mueven los de una
 // estancia a su centro. Hora, batería y velocidad no cambian.
 import type { Posicion } from '@contratos';
+import { milisegundos as ms } from './replay.ts';
 
 const RADIO_ESTANCIA_M = 60; // igual que servidor/api/src/paradas.js
 const DURACION_ESTANCIA_MS = 2 * 60_000;
 // Desde esta precisión, un punto no alcanza para sacar a alguien de una estancia.
 const PRECISION_DUDOSA_M = 80;
+const PRECISION_ANTENA_M = 100;
+const ANTENA_TOPE_M = 250;
 const PICO_MIN_M = 60;
 const PICO_VELOCIDAD_KMH = 90;
 // Velocidad reportada con la que una lectura del borde ya es movimiento.
@@ -44,7 +47,6 @@ function metros(a: { latitud: number; longitud: number }, b: { latitud: number; 
   return Math.hypot(dLat, dLon);
 }
 
-const ms = (iso: string) => new Date(iso).getTime();
 
 function mediana(valores: number[]): number {
   const orden = [...valores].sort((x, y) => x - y);
@@ -72,23 +74,34 @@ function recortarNucleo(posiciones: Posicion[], desde: number, hasta: number): [
   return [inicio, fin];
 }
 
+// Entre edificios el rebote puede durar 2 o 3 lecturas seguidas (Israel 26/10
+// 13:01: 270 m al norte y de vuelta, yendo en carro): se prueba quitar hasta
+// PICO_MAX_PUNTOS juntos.
+const PICO_MAX_PUNTOS = 3;
+
 function quitarPicos(posiciones: Posicion[]): Posicion[] {
   if (posiciones.length < 3) return posiciones;
   const salida: Posicion[] = [posiciones[0]];
-  for (let i = 1; i < posiciones.length - 1; i += 1) {
+  for (let i = 1; i < posiciones.length - 1; ) {
     const anterior = salida[salida.length - 1];
     const actual = posiciones[i];
-    const siguiente = posiciones[i + 1];
-    const ida = metros(anterior, actual);
-    const vuelta = metros(actual, siguiente);
-    const directo = metros(anterior, siguiente);
-    const horas = Math.max(ms(siguiente.registradoEn) - ms(anterior.registradoEn), 1000) / 3_600_000;
-    const esPico =
-      ida > PICO_MIN_M && vuelta > PICO_MIN_M && directo < 0.4 * Math.min(ida, vuelta) && (ida + vuelta) / 1000 / horas > PICO_VELOCIDAD_KMH;
-    const dudoso = (actual.precisionM ?? 0) > PRECISION_DUDOSA_M * 2 && directo < ida;
-    if (!esPico && !dudoso) salida.push(actual);
+    let saltar = 0;
+    for (let k = 1; k <= PICO_MAX_PUNTOS && i + k < posiciones.length && saltar === 0; k += 1) {
+      const siguiente = posiciones[i + k];
+      const ida = metros(anterior, actual);
+      const vuelta = metros(posiciones[i + k - 1], siguiente);
+      let rodeo = ida + vuelta;
+      for (let j = i + 1; j < i + k; j += 1) rodeo += metros(posiciones[j - 1], posiciones[j]);
+      const directo = metros(anterior, siguiente);
+      const horas = Math.max(ms(siguiente.registradoEn) - ms(anterior.registradoEn), 1000) / 3_600_000;
+      const limite = k === 1 ? 0.4 * Math.min(ida, vuelta) : 0.4 * rodeo;
+      if (ida > PICO_MIN_M && vuelta > PICO_MIN_M && directo < limite && rodeo / 1000 / horas > PICO_VELOCIDAD_KMH) saltar = k;
+    }
+    const dudoso = (actual.precisionM ?? 0) > PRECISION_DUDOSA_M * 2 && metros(anterior, posiciones[i + 1]) < metros(anterior, actual);
+    if (saltar === 0 && !dudoso) salida.push(actual);
+    i += Math.max(saltar, 1);
   }
-  salida.push(posiciones[posiciones.length - 1]);
+  if (salida[salida.length - 1] !== posiciones[posiciones.length - 1]) salida.push(posiciones[posiciones.length - 1]);
   return salida;
 }
 
@@ -128,6 +141,24 @@ function fundirEstancias(posiciones: Posicion[], grupos: [number, number][]): [n
   return fundidos;
 }
 
+// Un rato corto en que el contador de pasos sube a ritmo de caminata no es
+// una estancia aunque la persona no salga de un radio chico: camina en la
+// esquina o da la vuelta a la manzana (Diego 26/10 18:21-18:26, 110 pasos por
+// minuto). Una visita larga sí puede ser caminando (un centro comercial).
+const CAMINATA_PASOS_MIN = 60;
+const CAMINATA_MAX_MS = 10 * 60_000;
+
+export function caminando(puntos: readonly { registradoEn: string; pasos?: number | null }[]): boolean {
+  const conPasos = puntos.filter((p) => p.pasos != null);
+  if (conPasos.length < 2) return false;
+  const duracion = ms(conPasos[conPasos.length - 1].registradoEn) - ms(conPasos[0].registradoEn);
+  if (duracion < 60_000 || duracion > CAMINATA_MAX_MS) return false;
+  // Solo lo que sube: al empezar otra jornada el contador vuelve a cero.
+  let pasos = 0;
+  for (let k = 1; k < conPasos.length; k += 1) pasos += Math.max(0, (conPasos[k].pasos ?? 0) - (conPasos[k - 1].pasos ?? 0));
+  return pasos / (duracion / 60_000) >= CAMINATA_PASOS_MIN;
+}
+
 export function depurarRecorrido(originales: Posicion[]): { posiciones: Posicion[]; estancias: Estancia[] } {
   const posiciones = quitarPicos(sinRepetidos(originales));
   const salida = posiciones.map((p) => ({ ...p }));
@@ -143,7 +174,14 @@ export function depurarRecorrido(originales: Posicion[]): { posiciones: Posicion
     while (j < salida.length) {
       const centro = { latitud: sumaLat / n, longitud: sumaLon / n };
       const d = metros(centro, salida[j]);
-      const radio = Math.max(RADIO_ESTANCIA_M, Math.min(salida[j].precisionM ?? 0, PRECISION_DUDOSA_M));
+      // Un fix de antena (100 m o más de precisión) no dice dónde está la
+      // persona: basta que su círculo de error toque el radio de la estancia.
+      // Así el vaivén entre dos puntos de antena a 200 m no parte la estancia.
+      const precision = salida[j].precisionM ?? 0;
+      const radio =
+        precision >= PRECISION_ANTENA_M
+          ? RADIO_ESTANCIA_M + Math.min(precision, ANTENA_TOPE_M)
+          : Math.max(RADIO_ESTANCIA_M, Math.min(precision, PRECISION_DUDOSA_M));
       if (d > radio) break;
       sumaLat += salida[j].latitud;
       sumaLon += salida[j].longitud;
@@ -157,7 +195,7 @@ export function depurarRecorrido(originales: Posicion[]): { posiciones: Posicion
     let [desde, hasta] = j - 1 > i ? recortarNucleo(salida, i, j - 1) : [i, j - 1];
     while (desde < hasta && (salida[desde].velocidadKmh ?? 0) >= VELOCIDAD_BORDE_KMH) desde += 1;
     while (hasta > desde && (salida[hasta].velocidadKmh ?? 0) >= VELOCIDAD_BORDE_KMH) hasta -= 1;
-    if (hasta > desde && ms(salida[hasta].registradoEn) - ms(salida[desde].registradoEn) >= DURACION_ESTANCIA_MS) {
+    if (hasta > desde && ms(salida[hasta].registradoEn) - ms(salida[desde].registradoEn) >= DURACION_ESTANCIA_MS && !caminando(salida.slice(desde, hasta + 1))) {
       grupos.push([desde, hasta]);
       i = hasta + 1;
     } else {

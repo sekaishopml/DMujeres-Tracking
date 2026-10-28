@@ -4,10 +4,11 @@ package com.dmujeres.app.seguimiento
  * Cada cuánto se captura (sin Android, se prueba en la JVM).
  *
  * Dos decisiones:
- * - El PEDIDO al GPS: con jornada abierta, alta precisión cada 1 s, se mueva
- *   o no. Bajar a red cada 120 s estando quieta dependía de que el sensor
- *   avisara la salida, y en algunos teléfonos el sensor se duerme y se
- *   perdían kilómetros. Sin jornada, el GPS descansa (red, 120 s).
+ * - El PEDIDO al GPS: con jornada abierta, alta precisión cada 1 s. Quieta
+ *   (3 min sin moverse según GPS y sensor) sigue en GPS pero cada 10 s, para
+ *   que descanse entre lecturas; la salida la ve el propio GPS, no depende
+ *   del sensor (que en algunos teléfonos se duerme). Bajar a red estando
+ *   quieta perdía kilómetros. Sin jornada, el GPS descansa (red, 120 s).
  * - Lo que se GUARDA: lo filtra PositionProvider por distancia, giro y
  *   latido. En movimiento el latido es la "Frecuencia" del panel; quieta,
  *   120 s.
@@ -16,6 +17,9 @@ object AdaptiveCadence {
 
     /** Petición al GPS con jornada abierta: continua, 1 Hz. */
     const val TRACKING_GPS_INTERVAL_MS = 1_000L
+
+    /** Petición al GPS con jornada abierta y quieta: sigue en GPS, cada 10 s. */
+    const val QUIETA_GPS_INTERVAL_MS = 10_000L
 
     /** Latido de reporte en movimiento por defecto (sin distancia recorrida). */
     const val MOVING_INTERVAL_MS = 10_000L
@@ -57,9 +61,9 @@ object AdaptiveCadence {
      * mínima ni envíos agrupados (`mobile.accuracy` no lo baja: una ruta que se
      * audita no se captura con antenas). Sin jornada: red cada 120 s.
      */
-    fun request(journeyOpen: Boolean): Request = if (journeyOpen) {
+    fun request(journeyOpen: Boolean, quieta: Boolean = false): Request = if (journeyOpen) {
         Request(
-            intervalMs = TRACKING_GPS_INTERVAL_MS,
+            intervalMs = if (quieta) QUIETA_GPS_INTERVAL_MS else TRACKING_GPS_INTERVAL_MS,
             minDistanceM = 0f,
             maxUpdateDelayMs = 0L,
             accuracy = Accuracy.HIGH,

@@ -42,6 +42,11 @@ import com.dmujeres.app.seguimiento.PositionProvider.PositionListener
 import com.dmujeres.app.sesion.SessionCloser
 import com.dmujeres.app.sistema.PowerEvents
 import com.dmujeres.app.sistema.SendWakeLock
+import com.dmujeres.app.sistema.ServiceHeartbeat
+import com.dmujeres.app.sistema.VigiliaGps
+import com.dmujeres.app.seguimiento.EscaleraProveedores.Escalon
+import android.location.Location
+import android.location.LocationManager
 
 /**
  * Único lugar que manda en el registro: captura, máquina de estados, cola y
@@ -56,6 +61,27 @@ class TrackingController(private val context: Context) :
     private val preferences = PreferenceManager.getDefaultSharedPreferences(context)
     private var positionProvider = PositionProviderFactory.create(context, this)
     private val watchdog = LocationWatchdog()
+
+    /** Escalera de proveedores: Google solo si el sabor lo trae. */
+    private val conGoogle = positionProvider !is AndroidPositionProvider
+    private var escalon = EscaleraProveedores.primero(conGoogle)
+    private var escalonDesdeMs = System.currentTimeMillis()
+
+    /**
+     * GPS del teléfono caliente mientras se mueve con Google. Si Google calla
+     * o da posiciones malas y este GPS ya es estable, se pasa a él al momento
+     * (antes la escalera tardaba 6 min y el GPS arrancaba en frío con saltos).
+     */
+    private val gpsTibio = GpsTibio(context) { revisarTibio(it) }
+    /** Último fix de Google con precisión útil (o de cualquier escalón). */
+    private var ultimoFixBuenoMs = 0L
+    /** Última posición buena que dio el proveedor vigente (no el GPS en paralelo). */
+    private var ultimoFixPropioMs = 0L
+    /** La posición en curso viene del GPS en paralelo. */
+    private var desdeTibio = false
+
+    /** Último estado conocido de la ubicación del sistema (null = sin leer). */
+    private var ultimaUbicacion: Boolean? = null
 
     /**
      * Máquina de estados de movimiento: es la que decide cada cuánto se pide
@@ -81,7 +107,6 @@ class TrackingController(private val context: Context) :
     private var fineCadence = true
     /** GPS continuo: con jornada abierta, en todos los estados menos STOPPED. */
     private var gpsContinuous = true
-    private var platformFallback = false
 
     private var lastFixLat = 0.0
     private var lastFixLon = 0.0
@@ -125,6 +150,7 @@ class TrackingController(private val context: Context) :
         // Al arrancar, la captura queda abierta aunque un cierre anterior la
         // haya dejado congelada.
         captureFrozen = false
+        proveedorVigente = escalon.name
         // boot_id: uno nuevo cada vez que arranca la app (los puntos viejos
         // conservan el suyo).
         runCatching { databaseHelper.rotateBootId() }
@@ -239,20 +265,7 @@ class TrackingController(private val context: Context) :
                 handler.postDelayed(this, WATCHDOG_PERIOD_MS)
                 return
             }
-            machine.onTick(now)
-            applyCadence(requestFixOnFine = false)
-            persistMovementState()
-            when (watchdog.tick(now)) {
-                LocationWatchdog.Action.RE_REQUEST -> {
-                    Log.w(TAG, "GPS sin fix: re-solicitando actualizaciones")
-                    runCatching {
-                        positionProvider.stopUpdates()
-                        positionProvider.startUpdates()
-                    }
-                }
-                LocationWatchdog.Action.FALLBACK -> switchToPlatformProvider()
-                LocationWatchdog.Action.NONE -> Unit
-            }
+            revisar(now)
             handler.postDelayed(this, WATCHDOG_PERIOD_MS)
         }
     }
@@ -293,6 +306,7 @@ class TrackingController(private val context: Context) :
             runCatching { DozeAlarmReceiver.schedule(context) }
         } else {
             runCatching { positionProvider.stopUpdates() }
+            gpsTibio.apagar()
             if (fenceArmed) {
                 runCatching { stationaryFence.disarm() }
                 fenceArmed = false
@@ -354,20 +368,149 @@ class TrackingController(private val context: Context) :
         }
     }
 
-    /** Cambia al GPS del sistema cuando el de Google no responde. */
-    private fun switchToPlatformProvider() {
-        if (platformFallback) return
-        platformFallback = true
-        Log.w(TAG, "GPS del sistema como respaldo (fused sin fixes)")
-        StatusActivity.addMessage(context.getString(R.string.status_platform_gps))
-        machine.onPositionUnavailable()
+    /**
+     * Revisión del GPS: la llama el pulso de cada 30 s y también la alarma de
+     * supervisión (el pulso se congela con la CPU dormida; la alarma no).
+     * Sin posiciones: mantiene la CPU despierta un tramo, pide una ubicación
+     * por red en paralelo y sube por la escalera de proveedores. Con
+     * posiciones en un escalón de respaldo, vuelve arriba cada tanto.
+     */
+    private fun revisar(now: Long) {
+        // La difusión del sistema al apagar la ubicación no siempre llega (se
+        // vio en reposo): se compara aquí y el panel lo sabe en este pulso.
+        val ubicacion = runCatching {
+            (context.getSystemService(Context.LOCATION_SERVICE) as LocationManager)
+                .isProviderEnabled(LocationManager.GPS_PROVIDER)
+        }.getOrNull()
+        if (ubicacion != null && ubicacion != ultimaUbicacion) {
+            if (ultimaUbicacion != null) {
+                Log.i(TAG, "ubicación del sistema: ${if (ubicacion) "encendida" else "apagada"}")
+                ServiceHeartbeat.reportNow()
+            }
+            ultimaUbicacion = ubicacion
+        }
+        machine.onTick(now)
+        applyCadence(requestFixOnFine = false)
         persistMovementState()
+        ajustarTibio()
+        when (watchdog.tick(now, moving = machine.state == MovementStateMachine.State.ACTIVE)) {
+            LocationWatchdog.Action.RE_REQUEST -> {
+                Log.w(TAG, "GPS sin fix: re-solicitando actualizaciones")
+                VigiliaGps.tomar(context)
+                runCatching {
+                    positionProvider.stopUpdates()
+                    positionProvider.startUpdates()
+                    positionProvider.requestFreshLocation()
+                }
+                rescatePorRed()
+            }
+            LocationWatchdog.Action.NEXT_PROVIDER -> {
+                VigiliaGps.tomar(context)
+                cambiarEscalon(EscaleraProveedores.siguiente(escalon, conGoogle))
+                rescatePorRed()
+            }
+            LocationWatchdog.Action.NONE -> {
+                if (watchdog.isStale(now)) VigiliaGps.tomar(context)
+                // En pleno recorrido no se vuelve a Google: un cambio a mitad de
+                // camino es otro hueco.
+                if (!enMovimiento() &&
+                    EscaleraProveedores.volverArriba(escalon, conGoogle, escalonDesdeMs, now, watchdog.isStale(now))
+                ) {
+                    cambiarEscalon(EscaleraProveedores.primero(conGoogle))
+                }
+            }
+        }
+    }
+
+    /** Revisión inmediata pedida por la alarma de supervisión. */
+    fun supervisar() {
+        handler.post {
+            runCatching {
+                uploadQueue?.kick(online())
+                if (journeyOpen()) revisar(System.currentTimeMillis())
+            }.onFailure { Log.w(TAG, "supervisión falló", it) }
+        }
+    }
+
+    private fun enMovimiento(): Boolean =
+        machine.state == MovementStateMachine.State.ACTIVE ||
+            machine.state == MovementStateMachine.State.RECOVERING
+
+    /**
+     * GPS en paralelo solo en marcha (ACTIVE) y con Google o red como
+     * proveedor. En RECOVERING no: puede durar horas bajo techo y el GPS
+     * buscando satélites gasta batería.
+     */
+    private fun ajustarTibio() {
+        val respaldo = (conGoogle && escalon == Escalon.GOOGLE) || escalon == Escalon.RED
+        if (updatesOn && respaldo && machine.state == MovementStateMachine.State.ACTIVE) {
+            if (!gpsTibio.encendido) ultimoFixBuenoMs = maxOf(ultimoFixBuenoMs, System.currentTimeMillis())
+            gpsTibio.encender()
+        } else {
+            gpsTibio.apagar()
+        }
+    }
+
+    /**
+     * Con cada posición del GPS en paralelo, si ya es estable: desde red se
+     * pasa al GPS enseguida (red tiene 20-100 m de error); desde Google, solo
+     * si lleva rato sin dar una posición buena.
+     */
+    private fun revisarTibio(location: Location) {
+        val now = System.currentTimeMillis()
+        if (machine.state != MovementStateMachine.State.ACTIVE || !gpsTibio.estable.listo(now)) return
+        // Google calla hace unos segundos y el GPS sí tiene posición: se usa ya.
+        // Antes se esperaba 20 s para cambiar de proveedor y ese rato quedaba
+        // sin puntos (Jeremy, 2.10.1: 26 a 117 s de silencio manejando).
+        if (escalon == Escalon.GOOGLE && now - ultimoFixPropioMs >= HUECO_GOOGLE_MS &&
+            location.hasAccuracy() && location.accuracy <= TIBIO_PRECISION_M
+        ) {
+            desdeTibio = true
+            try {
+                positionProvider.aceptarExterna(Location(location))
+            } finally {
+                desdeTibio = false
+            }
+        }
+        when (escalon) {
+            Escalon.GPS -> return
+            Escalon.GOOGLE -> if (now - ultimoFixBuenoMs < GOOGLE_SIN_FIX_BUENO_MS) return
+            Escalon.RED -> Unit
+        }
+        Log.w(TAG, "$escalon sin posición buena hace ${(now - ultimoFixBuenoMs) / 1000} s: pasa al GPS")
+        watchdog.noteFix(now)
+        cambiarEscalon(Escalon.GPS)
+    }
+
+    private fun cambiarEscalon(nuevo: Escalon) {
+        if (nuevo == escalon) return
+        Log.w(TAG, "proveedor: $escalon -> $nuevo")
+        StatusActivity.addMessage(context.getString(R.string.status_proveedor_fmt, nuevo.name))
+        escalon = nuevo
+        escalonDesdeMs = System.currentTimeMillis()
+        proveedorVigente = nuevo.name
         runCatching {
             positionProvider.stopUpdates()
-            positionProvider = AndroidPositionProvider(context, this)
+            positionProvider = when (nuevo) {
+                Escalon.GOOGLE -> PositionProviderFactory.create(context, this)
+                Escalon.GPS -> AndroidPositionProvider(context, this, LocationManager.GPS_PROVIDER)
+                Escalon.RED -> AndroidPositionProvider(context, this, LocationManager.NETWORK_PROVIDER)
+            }
             positionProvider.applyMotionState(fineCadence, gpsContinuous)
-            positionProvider.startUpdates()
-        }.onFailure { Log.w(TAG, "no se pudo activar el GPS del sistema", it) }
+            if (updatesOn) {
+                positionProvider.startUpdates()
+                positionProvider.requestFreshLocation()
+            }
+        }.onFailure { Log.w(TAG, "no se pudo cambiar de proveedor", it) }
+        ajustarTibio()
+    }
+
+    /** Ubicación por red en paralelo mientras el proveedor vigente calla. */
+    private fun rescatePorRed() {
+        if (escalon == Escalon.RED) return
+        RescateRed.pedir(context) { location ->
+            handler.post { runCatching { positionProvider.aceptarExterna(location) } }
+        }
     }
 
     /**
@@ -410,6 +553,7 @@ class TrackingController(private val context: Context) :
         persistMovementState()
         runCatching { positionProvider.requestFreshLocation() }
             .onFailure { Log.w(TAG, "fix fresco de recuperación falló", it) }
+        rescatePorRed()
         uploadQueue?.kick(online())
         return true
     }
@@ -420,6 +564,8 @@ class TrackingController(private val context: Context) :
         // bucle de reinicios. Cada pieza se defiende sola y esto es el seguro.
         runCatching { networkManager.stop() }.onFailure { Log.w(TAG, "al detener red", it) }
         runCatching { positionProvider.stopUpdates() }.onFailure { Log.w(TAG, "al detener proveedor", it) }
+        VigiliaGps.soltar()
+        runCatching { gpsTibio.apagar() }
         runCatching { stationaryFence.disarm() }
         MotionMonitor.setTurnListener(null)
         MotionMonitor.setSignificantMotionListener(null)
@@ -477,6 +623,7 @@ class TrackingController(private val context: Context) :
             now, position.speed, legM,
             position.latitude, position.longitude,
             MotionMonitor.isMoving(), significant,
+            accuracyM = position.accuracy,
         )
         if (machine.state != before) {
             Log.i(TAG, "movimiento: $before -> ${machine.state} " +
@@ -486,6 +633,12 @@ class TrackingController(private val context: Context) :
         updateStationaryFence()
         persistMovementState()
         watchdog.noteFix(now)
+        if (escalon != Escalon.GOOGLE || position.accuracy <= GOOGLE_PRECISION_UTIL_M) {
+            ultimoFixBuenoMs = now
+            if (!desdeTibio) ultimoFixPropioMs = now
+        }
+        ajustarTibio()
+        VigiliaGps.soltar()
         // Filtros: estando quieta se descarta el temblor del GPS; en una
         // esquina se guarda el punto aunque no toque.
         val outcome = captureGate.evaluate(
@@ -510,7 +663,13 @@ class TrackingController(private val context: Context) :
         }
         if (buffer) {
             // El evento lleva proveedor y estado para el lote e idempotencia.
-            write(position.copy(provider = positionProvider.providerName, movementState = machine.state.name))
+            write(
+                position.copy(
+                    provider = positionProvider.providerName,
+                    movementState = machine.state.name,
+                    activity = ActividadFisica.paraPunto(context),
+                ),
+            )
         } else {
             send(position)
         }
@@ -648,9 +807,12 @@ class TrackingController(private val context: Context) :
                 }
                 if (success && UploadThrottle.shouldKick(
                         nowMs = System.currentTimeMillis(),
-                        lastKickMs = lastWriteKickMs,
+                        // Cuenta cualquier lote: el pulso de cada minuto y la
+                        // alarma también suben, y el espacio es entre envíos.
+                        lastKickMs = maxOf(lastWriteKickMs, UploadQueue.ultimoLoteMs),
                         batteryPct = position.battery,
                         charging = position.charging,
+                        moving = machine.state == MovementStateMachine.State.ACTIVE,
                     )
                 ) {
                     lastWriteKickMs = System.currentTimeMillis()
@@ -700,8 +862,20 @@ class TrackingController(private val context: Context) :
         @Volatile
         var captureFrozen: Boolean = false
 
-        /** Revisión del vigilante de GPS (re-solicitud / respaldo AOSP). */
-        private const val WATCHDOG_PERIOD_MS = 60_000L
+        /** Revisión del vigilante de GPS (re-solicitud y escalera de proveedores). */
+        private const val WATCHDOG_PERIOD_MS = 30_000L
+
+        /** En movimiento, Google sin una posición de hasta 50 m por 20 s: se pasa al GPS. */
+        private const val GOOGLE_SIN_FIX_BUENO_MS = 20_000L
+        /** Sin posición buena de Google por esto, el GPS en paralelo llena el hueco. */
+        private const val HUECO_GOOGLE_MS = 3_000L
+        /** Precisión mínima de una posición del GPS en paralelo para guardarla. */
+        private const val TIBIO_PRECISION_M = 20f
+        private const val GOOGLE_PRECISION_UTIL_M = 50.0
+
+        /** Proveedor en uso, para el diagnóstico. */
+        @Volatile
+        var proveedorVigente: String = "?"
 
         /** Pulso del sensor de movimiento (una pista, no decide solo). */
         private const val MOTION_CHECK_PERIOD_MS = 10_000L

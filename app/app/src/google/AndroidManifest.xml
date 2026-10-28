@@ -16,6 +16,11 @@
             </intent-filter>
         </service>
 
+        <!-- Actividad física (a pie, en vehículo, quieta): ver ReconocimientoActividad. -->
+        <receiver
+            android:name="com.dmujeres.app.seguimiento.ReconocimientoActividadReceiver"
+            android:exported="false" />
+
         <!-- Cerca de quietud: Play Services avisa la salida (ver StationaryFence). -->
         <receiver
             android:name="com.dmujeres.app.seguimiento.StationaryExitReceiver"

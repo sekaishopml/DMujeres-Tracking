@@ -362,6 +362,7 @@ export class Almacen {
       let mejorPosicionId = null;
       let mejorRegistradoEn = null;
       let mejorPosicion = null;
+      const nuevas = [];
       for (const posicion of posiciones) {
         const seqEco = Number.isInteger(posicion.secuencia) ? posicion.secuencia
           : (Number.isInteger(posicion.seq) ? posicion.seq : null);
@@ -433,6 +434,7 @@ export class Almacen {
         }
         const posicionId = String(insertada.rows[0].id);
         resultados.push({ seq: seqEco, estado: 'accepted' });
+        nuevas.push(posicion.registradoEn);
         if (mejorRegistradoEn === null || posicion.registradoEn > mejorRegistradoEn) {
           mejorRegistradoEn = posicion.registradoEn;
           mejorPosicionId = posicionId;
@@ -490,6 +492,27 @@ export class Almacen {
             WHERE id = $1
               AND (ultima_conexion_en IS NULL OR $2 >= ultima_conexion_en)`,
           [dispositivoId, mejorRegistradoEn, mejorPosicionId],
+        );
+        await this.#avisar(conexion, 'p', dispositivoId);
+        // Sin señal, el fin de jornada puede llegar antes que sus últimos
+        // puntos y el servidor la cierra en el último punto que tenía. Cuando
+        // esos puntos llegan, la jornada se alarga hasta ellos sin pasar del
+        // fin que mandó la app o del inicio de la siguiente (Lizbeth 16/10:
+        // 42 min de ruta quedaban fuera del trazado).
+        await conexion.query(
+          `UPDATE operations.dmt_jornada j
+              SET fin_en = x.ultimo,
+                  duracion_s = GREATEST(0, EXTRACT(EPOCH FROM (x.ultimo - j.inicio_en))::bigint),
+                  actualizado_en = now()
+             FROM (SELECT j2.id, max(t) AS ultimo
+                     FROM operations.dmt_jornada j2, unnest($2::timestamptz[]) AS t
+                    WHERE j2.dispositivo_id = $1 AND j2.estado = 'cerrada'
+                      AND t > j2.fin_en
+                      AND t <= coalesce((j2.atributos->>'finApp')::timestamptz,
+                                        (j2.atributos->>'finTope')::timestamptz)
+                    GROUP BY j2.id) x
+            WHERE j.id = x.id`,
+          [dispositivoId, nuevas],
         );
       }
       await conexion.query('COMMIT');
@@ -569,13 +592,26 @@ export class Almacen {
           return String(existente.rows[0].id);
         }
       }
+      // Una jornada que quedó abierta (el fin nunca llegó) termina en su
+      // último punto, no en el inicio nuevo: si no, cubría toda la noche.
       await conexion.query(
-        `UPDATE operations.dmt_jornada
+        `UPDATE operations.dmt_jornada j
             SET estado = 'cerrada',
-                fin_en = GREATEST($2::timestamptz, inicio_en),
-                duracion_s = GREATEST(0, EXTRACT(EPOCH FROM ($2::timestamptz - inicio_en))::bigint),
+                fin_en = f.fin,
+                duracion_s = GREATEST(0, EXTRACT(EPOCH FROM (f.fin - j.inicio_en))::bigint),
+                atributos = j.atributos || jsonb_build_object('finTope', $2::timestamptz),
                 actualizado_en = now()
-          WHERE dispositivo_id = $1 AND estado = 'abierta'`,
+           FROM (SELECT j2.id,
+                        GREATEST(j2.inicio_en, coalesce(
+                          (SELECT max(coalesce(p.fijado_en, p.registrado_en))
+                             FROM tracking.dmt_posicion p
+                            WHERE p.dispositivo_id = j2.dispositivo_id
+                              AND p.registrado_en >= j2.inicio_en
+                              AND coalesce(p.fijado_en, p.registrado_en) BETWEEN j2.inicio_en AND $2::timestamptz),
+                          $2::timestamptz)) AS fin
+                   FROM operations.dmt_jornada j2
+                  WHERE j2.dispositivo_id = $1 AND j2.estado = 'abierta') f
+          WHERE j.id = f.id`,
         [dispositivoId, inicioEn],
       );
       const insertada = await conexion.query(
@@ -723,19 +759,54 @@ export class Almacen {
       // inicio de hoy) no debe cerrar la jornada nueva: con `soloJornada` solo
       // cierra la que lleva ese journeyId. Sin él, o si la jornada no tiene
       // journeyId, se cierra la abierta.
+      // Sin internet el teléfono guarda puntos y el fin; si pasan las horas del
+      // timeout, el servidor cierra la jornada en el último dato que vio y lo
+      // que llega después queda fuera. El fin real de esa misma jornada
+      // (mismo journeyId, la última del equipo) la corrige.
       const cerradas = await conexion.query(
-        `UPDATE operations.dmt_jornada
+        `UPDATE operations.dmt_jornada j
             SET estado = 'cerrada',
                 fin_en = $2,
                 duracion_s = GREATEST(0, EXTRACT(EPOCH FROM ($2 - inicio_en))::bigint),
                 bateria_fin_pct = $3,
-                atributos = CASE WHEN $5::bigint IS NULL THEN atributos
-                                 ELSE atributos || jsonb_build_object('pasos', $5::bigint) END,
+                atributos = (CASE WHEN $5::bigint IS NULL THEN atributos
+                                  ELSE atributos || jsonb_build_object('pasos', $5::bigint) END) - 'reason',
                 actualizado_en = now()
-          WHERE dispositivo_id = $1 AND estado = 'abierta'
-            AND ($4::text IS NULL OR atributos->>'journeyId' IS NULL OR atributos->>'journeyId' = $4::text)`,
+          WHERE dispositivo_id = $1
+            AND ($4::text IS NULL OR atributos->>'journeyId' IS NULL OR atributos->>'journeyId' = $4::text)
+            AND (estado = 'abierta'
+                 OR (estado = 'cerrada' AND atributos->>'reason' = 'timeout' AND fin_en < $2
+                     AND atributos->>'journeyId' = $4::text
+                     AND NOT EXISTS (SELECT 1 FROM operations.dmt_jornada o
+                                      WHERE o.dispositivo_id = j.dispositivo_id AND o.inicio_en > j.inicio_en)))
+          RETURNING j.id`,
         [dispositivoId, finEn, bateriaFin, soloJornada == null ? null : String(soloJornada), pasos],
       );
+      // La app corta la jornada sola a las 23:59. Si el teléfono no mandaba
+      // puntos desde hacía más de una hora (GPS apagado por la tarde), ese fin
+      // sumaba horas que no se trabajaron: se lleva al último punto y se
+      // guarda la hora que mandó la app. Un cierre a mano no se toca.
+      if (cerradas.rowCount > 0) {
+        await conexion.query(
+          `UPDATE operations.dmt_jornada j
+              SET fin_en = f.ultimo,
+                  duracion_s = GREATEST(0, EXTRACT(EPOCH FROM (f.ultimo - j.inicio_en))::bigint),
+                  atributos = j.atributos || jsonb_build_object('finApp', $2::timestamptz)
+             FROM (SELECT j2.id, max(coalesce(p.fijado_en, p.registrado_en)) AS ultimo
+                     FROM operations.dmt_jornada j2
+                     JOIN tracking.dmt_posicion p
+                       ON p.dispositivo_id = j2.dispositivo_id
+                      AND p.registrado_en >= j2.inicio_en - interval '1 day'
+                      AND coalesce(p.fijado_en, p.registrado_en) BETWEEN j2.inicio_en AND $2::timestamptz
+                    WHERE j2.id = ANY($1::bigint[])
+                    GROUP BY j2.id) f
+            WHERE j.id = f.id
+              AND to_char($2::timestamptz AT TIME ZONE '${ZONA_JORNADA}', 'HH24:MI') = '23:59'
+              AND f.ultimo < $2::timestamptz - interval '60 minutes'
+              AND f.ultimo > j.inicio_en`,
+          [cerradas.rows.map((fila) => fila.id), finEn],
+        );
+      }
       // Si el cierre se repite, ya no hay jornada abierta y no se duplica el evento.
       if (cerradas.rowCount > 0) {
         await this.#insertarEvento(conexion, {
@@ -908,12 +979,14 @@ export class Almacen {
    * Revisa las jornadas al arrancar y cada hora:
    *  1. Crea la jornada de los equipos que la iniciaron con el servidor caído.
    *     El journeyId de la app es la hora de inicio, así que no se inventa.
-   *  2. Cierra las jornadas abiertas que llevan más de `horasTimeout` sin
-   *     actividad (`horasTimeoutIos` en iPhone, que no avisa el cierre; ahí
-   *     se registra el cierre como evento).
+   *  2. Cierra las jornadas de iPhone que llevan más de `horasTimeoutIos` sin
+   *     actividad: esas las abre el servidor y la app no avisa el cierre.
+   *     En Android la jornada la abre y la cierra solo la persona: sin
+   *     internet el teléfono guarda todo y lo sube después, y un cierre por
+   *     silencio dejaba esos puntos fuera de la jornada.
    * Devuelve cuántas creó y cuántas cerró.
    */
-  async reconciliarJornadas({ horasTimeout = 12, horasTimeoutIos = 2 } = {}) {
+  async reconciliarJornadas({ horasTimeoutIos = 2 } = {}) {
     const creadas = await this.#pool.query(
       `INSERT INTO operations.dmt_jornada (dispositivo_id, usuario_id, inicio_en, estado, atributos)
        SELECT d.id,
@@ -958,13 +1031,13 @@ export class Almacen {
            JOIN tracking.dmt_dispositivo d ON d.id = j.dispositivo_id
            LEFT JOIN tracking.dmt_posicion p
                   ON p.dispositivo_id = j.dispositivo_id AND p.registrado_en >= j.inicio_en
-          WHERE j.estado = 'abierta'
+          WHERE j.estado = 'abierta' AND (d.atributos->>'plataforma') = 'ios'
           GROUP BY j.id, j.dispositivo_id, j.inicio_en, j.atributos, d.ultima_conexion_en, d.atributos
        )
        SELECT jornada_id, dispositivo_id, journey_id, ios, ultima
          FROM actividad
-        WHERE now() - ultima > make_interval(hours => CASE WHEN ios THEN $2::int ELSE $1::int END)`,
-      [horasTimeout, horasTimeoutIos],
+        WHERE now() - ultima > make_interval(hours => $1::int)`,
+      [horasTimeoutIos],
     );
     for (const fila of vencidas.rows) {
       await this.#pool.query(

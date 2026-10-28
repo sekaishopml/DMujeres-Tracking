@@ -22,6 +22,8 @@ export interface Dispositivo {
   jornadaActiva: boolean;
   /** Grupo de la persona asignada (null si no tiene grupo). */
   departamento: string | null;
+  /** Algo apagado o quitado en jornada (GPS, permiso, notificaciones); null si no hay. */
+  alertaActiva: string | null;
   bateriaPct: number | null;
   cargando: boolean | null;
   pendientes: number | null;

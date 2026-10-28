@@ -2,7 +2,9 @@ import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useVivo } from '@/lib/vivo';
 import { createPortal } from 'react-dom';
 import type { ReactNode } from 'react';
-import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import ErrorSeccion from './ErrorSeccion';
+import { precargarPagina } from '@/lib/paginas';
+import { Navigate, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { ChevronDown, ChevronLeft, LogOut, Menu, Moon, Search, Sun, X } from 'lucide-react';
 import { useSesion } from '@/lib/sesion';
@@ -13,10 +15,10 @@ import { useTema } from '@/lib/tema';
 import { Avatar } from '@/componentes/ui/Avatar';
 import { CLAVE_FLOTA, traerFlota } from '@/dominio/datos';
 import { claveEstado } from '@/dominio/estado';
-import { hace } from '@/dominio/formatoBase';
+import { fechaHora, hace } from '@/dominio/formatoBase';
 import { Logo } from './Logo';
 import { Notificaciones } from './Notificaciones';
-import { GRUPOS, paginaDeRuta } from './navegacion';
+import { GRUPOS, paginaDeRuta, primeraRutaVisible, puedeVerRuta } from './navegacion';
 import { aplicarAvisoPestana } from './avisoPestana';
 import {
   CLAVE_NOVEDADES_CRONOGRAMA,
@@ -75,11 +77,15 @@ export default function Marco() {
     return () => alNoAutorizado(null);
   }, [navegar]);
 
+  // Una vez al montar: `navegar` cambia en cada ruta y volvía a pedir la
+  // sesión con la pantalla de carga en cada cambio de sección.
+  const navegarRef = useRef(navegar);
+  navegarRef.current = navegar;
   useEffect(() => {
     cargar().then((u) => {
-      if (!u) navegar('/login', { replace: true });
+      if (!u) navegarRef.current('/login', { replace: true });
     });
-  }, [cargar, navegar]);
+  }, [cargar]);
 
   useEffect(() => setMenuMovil(false), [pathname]);
 
@@ -95,6 +101,12 @@ export default function Marco() {
   }
 
   if (cargando || !usuario) return <PantallaCarga texto="Comprobando sesión…" />;
+  // Una parte oculta para esta cuenta lleva al inicio (o a la primera que sí ve).
+  if (!puedeVerRuta(usuario.secciones ?? [], pathname)) {
+    const destino = primeraRutaVisible(usuario.secciones ?? []);
+    if (destino && destino !== pathname) return <Navigate to={destino} replace />;
+    return <PantallaCarga texto="Esta cuenta no tiene partes del panel asignadas. Pide acceso al administrador." />;
+  }
 
   const pagina = paginaDeRuta(pathname);
   const nombre = usuario.nombre || usuario.correo || 'Cuenta';
@@ -160,7 +172,7 @@ export default function Marco() {
 
           <nav className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-3 pt-1 pb-2 [scrollbar-width:none]">
             {GRUPOS.map((grupo) => {
-              const enlaces = grupo.enlaces.filter((e) => !e.soloAdmin || usuario.administrador);
+              const enlaces = grupo.enlaces.filter((e) => puedeVerRuta(usuario.secciones ?? [], e.ruta));
               if (enlaces.length === 0) return null;
               return (
                 <div key={grupo.titulo} className="mb-[clamp(10px,2.4vh,22px)]">
@@ -183,6 +195,8 @@ export default function Marco() {
                         key={ruta}
                         to={ruta}
                         end={exacto}
+                        onMouseEnter={() => precargarPagina(ruta)}
+                        onFocus={() => precargarPagina(ruta)}
                         title={plegado ? (aviso > 0 ? `${texto} · ${aviso} nuevas` : texto) : undefined}
                         aria-label={aviso > 0 ? `${texto}, ${aviso} actividades nuevas` : texto}
                         className={({ isActive }) =>
@@ -275,7 +289,9 @@ export default function Marco() {
                 </div>
               }
             >
-              <Outlet />
+              <ErrorSeccion>
+                <Outlet />
+              </ErrorSeccion>
             </Suspense>
           </div>
         </main>
@@ -453,7 +469,7 @@ function Versiones({ plegado }: { plegado: boolean }) {
         'mb-1.5 flex items-center gap-1.5 overflow-hidden px-4 text-[11px] whitespace-nowrap text-texto-3 transition-opacity duration-150',
         plegado && 'lg:opacity-0',
       )}
-      title={`Panel v${__VERSION_PANEL__}${app ? ` · App v${app}` : ''}`}
+      title={`Panel v${__VERSION_PANEL__} · actualizado ${fechaHora(__CONSTRUIDO_PANEL__)}${app ? ` · App v${app}` : ''}`}
     >
       <span className="rounded-md bg-fondo px-1.5 py-0.5 font-medium">Panel v{__VERSION_PANEL__}</span>
       {app && <span className="rounded-md bg-fondo px-1.5 py-0.5 font-medium">App v{app}</span>}

@@ -35,7 +35,6 @@ const CATEGORIAS_LUGAR = new Set([
 ]);
 
 const cache = new Map();
-let cola = Promise.resolve();
 let ultimaPeticion = 0;
 let pendientes = 0;
 let cambiosSinGuardar = false;
@@ -143,17 +142,38 @@ function esperar(ms, signal) {
 
 // Serializa el acceso al geocodificador: cada turno espera a que se cumpla el
 // segundo desde el inicio de la peticion anterior.
-async function esperarTurno(signal) {
-  const turno = cola.then(async () => {
-    const espera = INTERVALO_MINIMO_MS - (Date.now() - ultimaPeticion);
-    if (espera > 0) await esperar(espera, signal);
-    ultimaPeticion = Date.now();
+// Dos filas: lo que pide la persona pasa antes que lo que se precarga en
+// segundo plano. Con una sola fila, las 60 direcciones precargadas iban
+// delante y una dirección pedida tardaba hasta 43 s.
+const turnos = { usuario: [], fondo: [] };
+let bombeando = false;
+
+function esperarTurno(signal, fondo = false) {
+  return new Promise((resolver) => {
+    (fondo ? turnos.fondo : turnos.usuario).push({ resolver, signal });
+    void bombear();
   });
-  cola = turno.then(
-    () => {},
-    () => {},
-  );
-  return turno;
+}
+
+async function bombear() {
+  if (bombeando) return;
+  bombeando = true;
+  try {
+    while (turnos.usuario.length > 0 || turnos.fondo.length > 0) {
+      const siguiente = turnos.usuario.shift() ?? turnos.fondo.shift();
+      // Quien ya no espera (pestaña cerrada) no gasta el turno.
+      if (siguiente.signal?.aborted) {
+        siguiente.resolver();
+        continue;
+      }
+      const espera = INTERVALO_MINIMO_MS - (Date.now() - ultimaPeticion);
+      if (espera > 0) await esperar(espera);
+      ultimaPeticion = Date.now();
+      siguiente.resolver();
+    }
+  } finally {
+    bombeando = false;
+  }
 }
 
 async function consultarNominatim(lat, lon, zoom, signal) {
@@ -313,7 +333,7 @@ export async function resolverDireccion(lat, lon, opciones = {}) {
     if (cacheada !== undefined) return cacheada;
     const { signal } = opciones;
     if (signal?.aborted) return null;
-    await esperarTurno(signal);
+    await esperarTurno(signal, opciones.fondo === true);
     if (signal?.aborted) return null;
     const zoom = precisionM !== null && precisionM > PRECISION_SOLO_ZONA_M ? 16 : 18;
     const resultado = resolverDatos(await consultarNominatim(latitud, longitud, zoom, signal), latitud, longitud, precisionM);
@@ -342,7 +362,7 @@ export function resolucionEnCache(lat, lon, precisionM = null) {
 export function precalentar(lat, lon, precisionM = null) {
   if (resolucionEnCache(lat, lon, precisionM) || pendientes >= MAX_PENDIENTES_PRECALENTADO) return;
   pendientes += 1;
-  resolverDireccion(lat, lon, { precisionM }).finally(() => {
+  resolverDireccion(lat, lon, { precisionM, fondo: true }).finally(() => {
     pendientes -= 1;
   });
 }

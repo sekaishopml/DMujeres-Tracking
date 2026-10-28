@@ -1,6 +1,6 @@
 import type { Map as TipoMapa } from 'maplibre-gl';
 import type { ChartOptions } from 'chart.js';
-import type { Posicion } from '@contratos';
+import type { AvisoTelefono, CierreJornada, MotivoCierre, Posicion } from '@contratos';
 import { GUION } from '@/dominio/formatoBase';
 import type { Vertice } from './flechas';
 import {
@@ -12,6 +12,41 @@ import type { EstadoUnidad, Microparada, Parada } from '@/dominio/replay';
 
 export const SIN_PARADAS: Parada[] = [];
 export const SIN_LINEAS: Vertice[][] = [];
+export const SIN_AVISOS: AvisoTelefono[] = [];
+export const SIN_CIERRES: CierreJornada[] = [];
+
+// Cómo terminó la jornada, en el último punto de cada una y en la etiqueta
+// del fin: no es lo mismo cerrar la jornada que apagar el GPS o el teléfono.
+export const ETIQUETA_CIERRE: Record<MotivoCierre, string> = {
+  JORNADA_FINALIZADA: 'Finalizó jornada',
+  MEDIANOCHE: 'Corte de medianoche',
+  GPS_APAGADO: 'Apagó el GPS',
+  TELEFONO_APAGADO: 'Apagó el teléfono',
+  PERMISO_QUITADO: 'Quitó el permiso de ubicación',
+  REINICIO: 'Reinició el teléfono',
+  SIN_SENAL: 'Sin señal',
+};
+
+// Hora local de Guayaquil para el CSV (las fechas del API vienen en UTC).
+const FECHA_CSV = new Intl.DateTimeFormat('sv-SE', {
+  timeZone: 'America/Guayaquil',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+  hourCycle: 'h23',
+});
+export function horaLocalCsv(instante: string): string {
+  const fecha = new Date(instante);
+  const milisegundos = String(fecha.getMilliseconds()).padStart(3, '0');
+  return `${FECHA_CSV.format(fecha).replace(' ', 'T')}.${milisegundos}-05:00`;
+}
+
+export function etiquetaCierre(cierre: CierreJornada): string {
+  return cierre.ahorro ? 'Ahorro de batería (GPS apagado)' : ETIQUETA_CIERRE[cierre.motivo];
+}
 export const HORA_SEGUNDOS = new Intl.DateTimeFormat('es-EC', {
   timeZone: 'America/Guayaquil',
   hour: '2-digit',
@@ -38,6 +73,9 @@ export const INTERVALO_PINTADO_MS = 200;
 // Al elegir una parada el mapa vuela a zoom de ciudad (15-16) en unos 900 ms.
 // Si ya está más cerca, no se aleja. Con movimiento reducido, salta directo.
 export const ZOOM_PARADA_MIN = 15;
+// Debajo de este zoom el mapa se ve de ciudad: se ocultan duraciones, puntos
+// de estado y microparadas, y las burbujas agrupan más lejos.
+export const ZOOM_DETALLE = 15;
 export const ZOOM_PARADA_MAX = 16;
 export const DURACION_VUELO_PARADA_MS = 900;
 export const CURVA_VUELO_PARADA = 1.42;

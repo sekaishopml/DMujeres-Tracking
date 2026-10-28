@@ -121,3 +121,14 @@ export async function abrirVivo(ctx) {
 
 // Paneles con el canal abierto ahora (para el resumen de Sistema).
 export const panelesEnVivo = () => clientes.size;
+
+// Al apagar: se cierran los canales abiertos y se suelta la conexión de
+// escucha. Sin esto el servidor no terminaba de cerrar y cada reinicio
+// esperaba los 10 s del apagado forzado.
+export function cerrarVivo() {
+  for (const cliente of clientes) cliente.res.end();
+  clearInterval(temporizador);
+  temporizador = null;
+  if (escucha && escucha !== 'conectando') escucha.release();
+  escucha = null;
+}

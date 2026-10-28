@@ -19,6 +19,73 @@ uno tarda unos minutos. No publicar el APK nuevo en el canal de actualización
 hasta entonces: los teléfonos con la app vieja no lo recibirían como
 actualización.
 
+## Rutas sin cortes (revisión del 13/10/2026)
+
+Se revisó el día de las 12 personas con grupo. No se perdió ningún punto
+guardado: los problemas son teléfonos que congelan la app, personas que apagan
+el GPS o quitan permisos, avisos de "sin señal" que no lo eran y lecturas
+falsas del teléfono.
+
+### Lo que se vio
+
+| Persona | Qué pasó |
+|---|---|
+| Ana Troya | Sin cortes, 259 km. 36 rescates del servidor (el teléfono se dormía). Sus 157 km/h son reales. |
+| Martha Macias | Sin pérdida, 536 km. Dos cortes de 11 y 22 min estando estacionada. Batería fija en 34 % todo el día. |
+| Nadia Figueroa | Completa, 517 km. 19 avisos de "sin señal" por falta de cobertura; los puntos llegaron hasta 99 min tarde. |
+| Paola Paredes | Sin cortes. 56 rescates; 27 % de puntos imprecisos bajo techo. |
+| Norelys Perera | Sin cortes. 30 rescates. |
+| Sofía Espinoza, Melina Rojas | Ubicación en "solo mientras se usa la app". Melina bajó de 76 % a 8 % de batería en 4,6 h. |
+| Joselyn Cevallos | Corte de 78 min: el teléfono congeló la app aunque tenía todos los permisos. Velocidad falsa de 141 km/h estando quieta. |
+| Jefferson Alvarez | Apagó el GPS de 15:23 a 15:57 y desde las 16:18 hasta cerrar la jornada. |
+| Ariel Menéndez | Apagó el GPS mientras configuraba el teléfono. Velocidad falsa de 102 km/h. |
+| Joice Obando | Creada a las 11:35, nunca se conectó. |
+
+Estando quieta la app debe mandar un punto cada 2 min. En la práctica llegaron
+cada 4 a 6 min: el 63 % de los intervalos de Martha, el 78 % de los de Paola y
+todos los de Ariel pasaron de 3 min.
+
+### Servidor
+
+1. Si el teléfono no se movió, no usar la velocidad que reporta (quita los
+   102 y 141 km/h falsos).
+2. Un corte que empieza y termina en el mismo lugar se muestra como
+   "detenida, sin puntos" y no como "sin señal".
+3. Si después llegan los puntos atrasados que cubren un silencio, marcarlo
+   como "sin cobertura, ruta completa".
+4. El GPS apagado al final del día se dibuja como corte hasta el cierre de la
+   jornada (hoy la ruta simplemente termina).
+5. No repetir "Reactivó el GPS" cuando dos reportes llegan casi juntos.
+
+### Panel
+
+1. En Inicio, marcar a quien nunca se conectó y a quien tiene la ubicación en
+   "solo mientras se usa la app".
+2. Marcar las velocidades reales altas como exceso de velocidad.
+3. Medir el dibujo del mapa con rutas de 30 000 puntos en un equipo con
+   tarjeta gráfica.
+
+### App
+
+1. Mandar marca y modelo del teléfono en el diagnóstico.
+2. Notificación fija mientras el GPS esté apagado con la jornada abierta.
+3. No iniciar jornada sin "Permitir todo el tiempo", o insistir hasta tenerlo.
+4. Guía de ahorro de batería por marca en la pantalla de permisos (depende
+   del punto 1).
+5. Averiguar por qué el punto de quietud llega cada 4 a 6 min y no cada 2.
+6. Revisar la lectura de batería: la de Martha no cambió en todo el día.
+7. Aviso en el teléfono al perder el permiso de ubicación, no solo dentro de
+   la app.
+8. Consumo de batería en vehículo (GPS cada segundo): medirlo por modelo. No
+   se reduce la cantidad de puntos sin decisión expresa.
+
+### Con las personas, sin programar
+
+- Joice: instalar la app e iniciar sesión.
+- Sofía y Melina: ubicación en "Permitir todo el tiempo".
+- Jefferson: no apagar la ubicación durante la jornada.
+- Joselyn: inicio automático y batería sin restricciones en su teléfono.
+
 ## Otros pendientes
 
 - Prueba de carga con toda la flota mandando puntos a la vez y cálculo del
@@ -29,3 +96,35 @@ actualización.
   `infraestructura/nginx/dmj-tracking-tls.example`).
 - Instalar el plugin `docker compose` (versión 2) en el servidor; hoy solo
   está el `docker-compose` viejo, que no lee el archivo de la base.
+
+## Actualización semanal de la app (17/10/2026)
+
+Revisión de la semana del 12 al 16/10. Tres cambios en la app:
+
+1. **No perder puntos sin red.** La cola sin conexión tiene un tope de 5 000
+   puntos (`MAX_BUFFERED_POSITIONS` en `datos/DatabaseHelper.kt`); al pasarlo
+   borra los más viejos. En vehículo con 10 m se guarda casi un punto por
+   segundo, así que hora y media sin datos llena la cola. Nadia perdió unos
+   2 400 puntos esta semana. Subir el tope a 50 000 (unos 10 MB).
+2. **La distancia se aplica sin reiniciar.** `distanceMeters` y `angleDegrees`
+   se leen una sola vez al arrancar el seguimiento (`seguimiento/PositionProvider.kt`).
+   Hoy, después de cambiar la configuración de un equipo, hay que reiniciar la
+   app o el teléfono. Leerlos de nuevo cuando llega la configuración.
+3. **El diagnóstico muestra el intervalo real.** `cadence.movingMs` siempre
+   dice 10 000 (`sistema/ServiceHeartbeat.kt` pasa `null`), así que desde el
+   panel no se puede confirmar que la configuración llegó.
+
+Configuración aplicada el 16/10 (se nota en cada equipo cuando reinicia la app):
+25 m / 20 s en Nadia, Martha, Sonnia y Lizbeth; 25 m / 30 s en Base Cctv;
+20 m en Norelys, Sofía y Diego. Israel, Jimmy y Joselyn siguen en 20 m / 20 s.
+Revisar el lunes 19 si bajaron los puntos perdidos y los rebotes.
+
+4. **Rescate que escala solo.** Hoy el servidor (`servidor/recuperacion`) manda
+   un aviso invisible cuando un teléfono con jornada abierta deja de reportar,
+   como mucho uno por minuto. Semana del 12/10: 1 204 avisos y 527
+   confirmaciones; responden poco Nadia, Joselyn, Israel y David López (el
+   sistema frena la app) y nada Melina (sin datos). Si tras 3 avisos seguidos
+   no hay respuesta, mandar uno visible con sonido ("Abre la app de
+   seguimiento") para que la persona la abra. Todo automático, sin botón en el
+   panel. Necesita que la app muestre ese aviso y que el servidor lleve la
+   cuenta de avisos sin respuesta.

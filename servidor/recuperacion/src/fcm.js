@@ -133,8 +133,8 @@ export function crearEmisorFcm({ credencial, log, fetchImpl = fetch, ahora = () 
     });
   }
 
-  async function enviarProbe({ token, attemptId, deviceId, issuedAtMs }) {
-    const cuerpo = {
+  function enviarProbe({ token, attemptId, deviceId, issuedAtMs }) {
+    return enviar({
       message: {
         token,
         data: {
@@ -148,7 +148,22 @@ export function crearEmisorFcm({ credencial, log, fetchImpl = fetch, ahora = () 
         // llave de colapso deja solo el más reciente.
         android: { priority: 'HIGH', ttl: '1800s', collapse_key: 'tracking_recovery' },
       },
-    };
+    });
+  }
+
+  // Aviso de horario: el teléfono revisa su estado y avisa a la persona. Si
+  // llega con más de 30 min de atraso ya no sirve (su propia alarma lo cubrió).
+  function enviarAvisoHorario({ token, franja }) {
+    return enviar({
+      message: {
+        token,
+        data: { type: 'AVISO_HORARIO', franja },
+        android: { priority: 'HIGH', ttl: '1800s', collapse_key: 'aviso_horario' },
+      },
+    });
+  }
+
+  async function enviar(cuerpo) {
     try {
       let acceso = await obtenerAccessToken();
       let respuesta = await publicar(acceso, cuerpo);
@@ -181,5 +196,5 @@ export function crearEmisorFcm({ credencial, log, fetchImpl = fetch, ahora = () 
     }
   }
 
-  return { obtenerAccessToken, enviarProbe, projectId: credencial.projectId };
+  return { obtenerAccessToken, enviarProbe, enviarAvisoHorario, projectId: credencial.projectId };
 }

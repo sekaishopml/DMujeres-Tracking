@@ -8,12 +8,12 @@ import { globoDePunto, globoHoverDe } from './globos';
 import {
   horaCorta,
   duracionCorta,
-  indiceMasCercano,
   milisegundos,
 } from '@/dominio/replay';
 import type { Parada } from '@/dominio/replay';
 import {
   aislarDelMapa,
+  indiceCercano,
 } from './reproductorComun';
 import {
   useReproductor,
@@ -69,15 +69,13 @@ export function InsigniasParadas({ mapa, paradas }: { mapa: TipoMapa | null; par
       // Al pulsarla se abre la ficha completa y el globo sobra.
       elemento.addEventListener('mouseenter', () => {
         if (elemento.classList.contains('activa')) return;
-        const indice = indiceMasCercano(posiciones, parada.longitud, parada.latitud);
+        const indice = posiciones.length > 0 ? indiceCercano(posiciones, milisegundos(parada.inicio)) : null;
         const fix = indice == null ? null : posiciones[indice];
         hover.entrar(
-          globoDePunto(`${nombre} · Parada ${orden + 1}`, [
-            { etiqueta: 'Desde', valor: horaCorta(parada.inicio) },
-            { etiqueta: 'Hasta', valor: horaCorta(parada.fin) },
-            { etiqueta: 'Duración', valor: duracion(parada.duracionMin * 60) },
-            ...(parada.direccion ? [{ etiqueta: 'Dirección', valor: parada.direccion }] : []),
+          globoDePunto(`Parada ${orden + 1} · ${duracion(parada.duracionMin * 60)}`, [
+            { etiqueta: nombre, valor: `${horaCorta(parada.inicio)} – ${horaCorta(parada.fin)}` },
             ...(fix ? [{ etiqueta: 'Batería', valor: bateria(fix.bateriaPct) }] : []),
+            ...(parada.direccion ? [{ etiqueta: 'Dirección', valor: parada.direccion }] : []),
           ]),
           [parada.longitud, parada.latitud],
           18,
@@ -108,7 +106,8 @@ export function InsigniasParadas({ mapa, paradas }: { mapa: TipoMapa | null; par
 
   // Ficha desplegable de la parada elegida (desde, hasta, duración y
   // dirección), con apertura suave sobre la insignia. Queda abierta hasta un
-  // clic en otro lado del mapa o arrastrarlo (o al elegir otro punto o parada).
+  // clic en otro lado del mapa (o al elegir otro punto o parada); arrastrar el
+  // mapa no la cierra.
   const fichaParada = useRef<Popup | null>(null);
   useEffect(() => {
     const parada = paradaSeleccionada != null ? paradas[paradaSeleccionada] : undefined;
@@ -122,30 +121,25 @@ export function InsigniasParadas({ mapa, paradas }: { mapa: TipoMapa | null; par
     const titulo = document.createElement('p');
     titulo.className = 'ficha-parada-titulo';
     titulo.textContent = `Parada ${paradaSeleccionada + 1} · ${duracion(parada.duracionMin * 60)}`;
-    const fila = (etiqueta: string, valor: string) => {
-      const p = document.createElement('p');
-      const e = document.createElement('span');
-      e.textContent = etiqueta;
-      const v = document.createElement('strong');
-      v.textContent = valor;
-      p.append(e, v);
-      return { p, v };
-    };
-    const desde = fila('Desde', horaCorta(parada.inicio));
-    const hasta = fila('Hasta', horaCorta(parada.fin));
-    const direccion = fila('Dirección', parada.direccion || 'Buscando…');
-    direccion.p.className = 'ficha-parada-direccion';
-    const fixParada = indiceMasCercano(posiciones, parada.longitud, parada.latitud);
-    const bat = fila('Batería', fixParada == null ? GUION : bateria(posiciones[fixParada].bateriaPct));
-    contenido.append(titulo, desde.p, hasta.p, bat.p, direccion.p);
+    // Compacta: horas y batería en una línea, la dirección debajo.
+    const fixParada = posiciones.length > 0 ? indiceCercano(posiciones, milisegundos(parada.inicio)) : null;
+    const horas = document.createElement('p');
+    horas.className = 'ficha-parada-horas';
+    const bat = document.createElement('span');
+    bat.textContent = ` · Batería ${fixParada == null ? GUION : bateria(posiciones[fixParada].bateriaPct)}`;
+    horas.append(`${horaCorta(parada.inicio)} – ${horaCorta(parada.fin)}`, bat);
+    const direccion = document.createElement('p');
+    direccion.className = 'ficha-parada-direccion';
+    direccion.textContent = parada.direccion || 'Buscando dirección…';
+    contenido.append(titulo, horas, direccion);
     let vigente = true;
     if (!parada.direccion) {
       traerDireccion(parada.latitud, parada.longitud, parada.precisionM ?? null)
         .then((r) => {
-          if (vigente) direccion.v.textContent = r.direccion || GUION;
+          if (vigente) direccion.textContent = r.direccion || GUION;
         })
         .catch(() => {
-          if (vigente) direccion.v.textContent = GUION;
+          if (vigente) direccion.textContent = GUION;
         });
     }
     fichaParada.current?.remove();
@@ -154,7 +148,7 @@ export function InsigniasParadas({ mapa, paradas }: { mapa: TipoMapa | null; par
       offset: 18,
       closeButton: false,
       closeOnClick: false,
-      maxWidth: '260px',
+      maxWidth: '240px',
       className: 'replay-globo replay-ficha-parada',
     })
       .setLngLat([parada.longitud, parada.latitud])
@@ -165,11 +159,9 @@ export function InsigniasParadas({ mapa, paradas }: { mapa: TipoMapa | null; par
       if (evento.originalEvent) cerrarParada();
     };
     mapa.on('click', cerrar);
-    mapa.on('dragstart', cerrar);
     return () => {
       vigente = false;
       mapa.off('click', cerrar);
-      mapa.off('dragstart', cerrar);
     };
   }, [mapa, paradas, paradaSeleccionada, posiciones, cerrarParada]);
   useEffect(

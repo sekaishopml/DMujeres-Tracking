@@ -25,21 +25,29 @@ export function redondear(valor, decimales = 1) {
 // con la misma cuenta): no suma distancia.
 export const VELOCIDAD_IMPOSIBLE_KMH = 180;
 
+// Quieto, el GPS tiembla unos metros en cada punto y la suma de esos pasos
+// llegaba a 12 km en un día en el mismo sitio. Solo suma cuando el punto se
+// aleja del último contado más de MIN_PASO_M o de su propia precisión.
+export const MIN_PASO_M = 15;
+const MAX_PRECISION_PASO_M = 100;
+
 export function sumarDistanciasKm(posiciones, { omitirImposibles = false } = {}) {
   let total = 0;
+  let ancla = posiciones[0];
   for (let i = 1; i < posiciones.length; i += 1) {
-    const km = distanciaKm(
-      posiciones[i - 1].latitud,
-      posiciones[i - 1].longitud,
-      posiciones[i].latitud,
-      posiciones[i].longitud,
-    );
+    const actual = posiciones[i];
+    // Un punto de antena (precisión de cientos de metros) no es un lugar.
+    if (Number(actual.precisionM) > MAX_PRECISION_PASO_M) continue;
+    const km = distanciaKm(ancla.latitud, ancla.longitud, actual.latitud, actual.longitud);
+    if (km * 1000 <= Math.max(MIN_PASO_M, Number(actual.precisionM) || 0)) continue;
     if (omitirImposibles) {
-      const horas =
-        (new Date(posiciones[i].registradoEn).getTime() - new Date(posiciones[i - 1].registradoEn).getTime()) / 3600000;
+      // El tiempo se mide desde el punto anterior, no desde el ancla: tras
+      // horas quieto, un salto de 13 km parecía posible.
+      const horas = (new Date(actual.registradoEn).getTime() - new Date(posiciones[i - 1].registradoEn).getTime()) / 3600000;
       if (km > 0.05 && !(horas > 0 && km / horas <= VELOCIDAD_IMPOSIBLE_KMH)) continue;
     }
     total += km;
+    ancla = actual;
   }
   return total;
 }

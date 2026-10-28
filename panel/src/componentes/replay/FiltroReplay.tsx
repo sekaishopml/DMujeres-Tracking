@@ -21,6 +21,8 @@ interface Props {
   conTodas?: boolean;
   // Botones a la derecha del selector de equipo, en su misma fila.
   acciones?: ReactNode;
+  // Replay elige el día con su propio botón de calendario.
+  sinRango?: boolean;
 }
 
 // Selector compartido por Historial y Replay: ambos necesitan equipo + rango y
@@ -37,6 +39,7 @@ export default function FiltroReplay({
   compacto = false,
   conTodas = false,
   acciones,
+  sinRango = false,
 }: Props) {
   const atajos = [
     { etiqueta: 'Ayer', fecha: fechaAyerLocal() },
@@ -56,11 +59,13 @@ export default function FiltroReplay({
             {equipos.length === 0 && !conTodas && (
               <option value="">{cargandoEquipos ? 'Cargando equipos…' : 'Sin equipos visibles'}</option>
             )}
-            <OpcionesPersonas equipos={equipos} etiquetaDe={(equipo) => `${equipo.nombre} · ${equipo.identificadorUnico}`} />
+            <OpcionesPersonas equipos={equipos} etiquetaDe={(equipo) => equipo.nombre} />
           </select>
         </label>
       {acciones}
       </div>
+      {!sinRango && (
+      <>
       <label className="campo">
         <span>Desde</span>
         <input type="date" value={desde} onChange={(evento) => alCambiarDesde(evento.target.value)} />
@@ -88,6 +93,8 @@ export default function FiltroReplay({
           );
         })}
       </div>
+      </>
+      )}
     </div>
   );
 }

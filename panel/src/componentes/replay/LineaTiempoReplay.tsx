@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { MouseEvent as EventoRaton, ReactNode } from 'react';
 import { CategoryScale, Chart as ChartJS, Filler, LineElement, LinearScale, PointElement } from 'chart.js';
 import type { ChartData, ChartOptions } from 'chart.js';
@@ -19,6 +19,7 @@ import {
   serieBateria,
 } from '@/dominio/replay';
 import type { Microparada, Parada } from '@/dominio/replay';
+import { corteAlInicio, textoCorteAlInicio } from './novedades';
 import {
   ANCHO_EJE_BATERIA_PX,
   ANCHO_EJE_VELOCIDAD_PX,
@@ -26,6 +27,7 @@ import {
   indiceCercano,
   CLASE_ESTADO,
   ETIQUETA_ESTADO_PUNTO,
+  etiquetaCierre,
   OPCIONES_BATERIA,
 } from './reproductorComun';
 import {
@@ -42,6 +44,8 @@ ChartJS.register(CategoryScale, LinearScale, LineElement, PointElement, Filler);
 // Gráfico de la franja inferior: batería con un punto en la posición actual.
 // Ampliado suma la velocidad en su propio eje. Las paradas se marcan en la
 // línea de tiempo, no aquí.
+const MAX_PUNTOS_GRAFICA = 2000;
+
 function GraficoBateria({ ampliada }: { ampliada: boolean }) {
   const { posiciones, indice, pausar, mover } = useReproductor();
   const [bajoCursor, setBajoCursor] = useState<{ indice: number; x: number } | null>(null);
@@ -52,18 +56,27 @@ function GraficoBateria({ ampliada }: { ampliada: boolean }) {
   );
   const instantes = useMemo(() => posiciones.map((p) => milisegundos(p.registradoEn)), [posiciones]);
   const hayBateria = useMemo(() => serie.some((valor) => valor != null), [serie]);
+  // La gráfica mide unos 900 px: con 25 000 puntos se redibujaba entera cinco
+  // veces por segundo. Se pinta una muestra; `muestra[k]` es el punto real.
+  const muestra = useMemo(() => {
+    const paso = Math.ceil(posiciones.length / MAX_PUNTOS_GRAFICA);
+    const lista: number[] = [];
+    for (let i = 0; i < posiciones.length; i += paso) lista.push(i);
+    return lista;
+  }, [posiciones]);
   const tema = useTema((e) => e.tema);
 
   // Eje X en tiempo real: una parada de horas ocupa su ancho verdadero, igual
   // que en la pista de tiempo de abajo.
+  // El punto de la posición actual no va en los datos: cambiarlo reconstruía
+  // la gráfica entera en cada tic (ejes y etiquetas). Es un span encima,
+  // ubicado con las escalas de la gráfica (ver efecto de abajo).
   const datos = useMemo<ChartData<'line', { x: number; y: number | null }[]>>(() => {
     const linea = colorToken('marino-600');
     const relleno = tema === 'oscuro' ? 'rgba(147, 176, 214, .12)' : 'rgba(10, 37, 64, .1)';
-    const indicePunto = indiceBateriaConocida(serie, indice);
-    const punto = instantes[indicePunto];
     const conjuntos: ChartData<'line', { x: number; y: number | null }[]>['datasets'] = [
       {
-        data: serie.map((valor, i) => ({ x: instantes[i], y: valor })),
+        data: muestra.map((i) => ({ x: instantes[i], y: serie[i] })),
         borderColor: linea,
         backgroundColor: relleno,
         borderWidth: 1.5,
@@ -72,19 +85,10 @@ function GraficoBateria({ ampliada }: { ampliada: boolean }) {
         spanGaps: true,
         yAxisID: 'y',
       },
-      {
-        data: punto != null ? [{ x: punto, y: serie[indicePunto] }] : [],
-        borderColor: linea,
-        backgroundColor: linea,
-        pointRadius: 3.5,
-        pointHoverRadius: 3.5,
-        showLine: false,
-        yAxisID: 'y',
-      },
     ];
     if (ampliada) {
       conjuntos.push({
-        data: velocidades.map((valor, i) => ({ x: instantes[i], y: valor })),
+        data: muestra.map((i) => ({ x: instantes[i], y: velocidades[i] })),
         borderColor: colorToken('movimiento'),
         borderWidth: 1,
         pointRadius: 0,
@@ -94,25 +98,51 @@ function GraficoBateria({ ampliada }: { ampliada: boolean }) {
       });
     }
     return { datasets: conjuntos };
-  }, [serie, velocidades, instantes, indice, tema, ampliada]);
+  }, [serie, velocidades, instantes, muestra, tema, ampliada]);
 
+  const grafica = useRef<ChartJS<'line', { x: number; y: number | null }[]> | null>(null);
+  const marca = useRef<HTMLSpanElement | null>(null);
+  const colocarMarca = useRef(() => {});
+  colocarMarca.current = () => {
+    const chart = grafica.current;
+    const el = marca.current;
+    if (!chart || !el) return;
+    const k = indiceBateriaConocida(serie, indice);
+    const valor = serie[k];
+    if (instantes[k] == null || valor == null) {
+      el.style.display = 'none';
+      return;
+    }
+    el.style.display = '';
+    el.style.left = `${chart.scales.x.getPixelForValue(instantes[k])}px`;
+    el.style.top = `${chart.scales.y.getPixelForValue(valor)}px`;
+  };
+  // Después de que la gráfica se actualiza (efecto del hijo), así las escalas
+  // ya están medidas.
+  useEffect(() => colocarMarca.current(), [indice, datos, ampliada]);
+
+  // mover y pausar cambian en cada render del reproductor: leídos desde una
+  // referencia, las opciones (y la gráfica) no se rehacen en cada tic.
+  const acciones = useRef({ mover, pausar });
+  acciones.current = { mover, pausar };
   const opciones = useMemo<ChartOptions<'line'>>(() => {
     const ticks = { font: { size: 10 }, color: colorToken('texto-3') };
     return {
       ...OPCIONES_BATERIA,
       interaction: { mode: 'nearest', axis: 'x', intersect: false },
       parsing: false,
+      onResize: () => requestAnimationFrame(() => colocarMarca.current()),
       onClick: (_evento, elementos) => {
         const elemento = elementos.find((e) => e.datasetIndex === 0);
         if (!elemento) return;
-        pausar();
-        mover(elemento.index);
+        acciones.current.pausar();
+        acciones.current.mover(muestra[elemento.index]);
       },
       onHover: (evento, elementos) => {
         const destino = evento.native?.target as HTMLElement | null;
         const elemento = elementos.find((e) => e.datasetIndex === 0);
         if (destino) destino.style.cursor = elemento ? 'pointer' : '';
-        setBajoCursor(elemento ? { indice: elemento.index, x: elemento.element.x } : null);
+        setBajoCursor(elemento ? { indice: muestra[elemento.index], x: elemento.element.x } : null);
       },
       scales: {
         x: { type: 'linear', display: false, min: instantes[0], max: instantes[instantes.length - 1] },
@@ -146,13 +176,14 @@ function GraficoBateria({ ampliada }: { ampliada: boolean }) {
         },
       },
     };
-  }, [mover, pausar, ampliada, instantes]);
+  }, [ampliada, instantes, muestra, tema]);
   if (!hayBateria) return null;
   const bajo = bajoCursor ? posiciones[bajoCursor.indice] : null;
   const valorBajo = bajoCursor ? serie[bajoCursor.indice] : null;
   return (
     <div className="replay-bateria" onMouseLeave={() => setBajoCursor(null)}>
-      <Line data={datos} options={opciones} />
+      <Line ref={grafica} data={datos} options={opciones} />
+      <span ref={marca} className="bateria-punto" aria-hidden="true" />
       {bajo && valorBajo != null && bajoCursor && (
         <span className="bateria-etiqueta" style={{ left: bajoCursor.x }} role="status">
           <strong>{Math.round(valorBajo)}%</strong> · {horaCorta(bajo.registradoEn)}
@@ -320,6 +351,20 @@ function PistaTiempo({ ampliada }: { ampliada: boolean }) {
   const [bajo, setBajo] = useState<{ fraccion: number; instante: number; marca: MarcaPista } | null>(null);
   // Mientras se arrastra la barra, el reloj sigue la posición del cursor.
   const arrastrando = useRef(false);
+  // Los eventos de puntero llegan hasta ~120/s y cada deslizarA re-renderiza
+  // todo (incluido el gráfico). Se junta a uno por cuadro: el cursor se guarda
+  // y un rAF aplica solo el último, así el arrastre va fluido con muchos puntos.
+  const cuadro = useRef(0);
+  const ultimoInstante = useRef(0);
+  const deslizarEnCuadro = (instante: number) => {
+    ultimoInstante.current = instante;
+    if (cuadro.current) return;
+    cuadro.current = requestAnimationFrame(() => {
+      cuadro.current = 0;
+      deslizarA(ultimoInstante.current);
+    });
+  };
+  useEffect(() => () => cancelAnimationFrame(cuadro.current), []);
   // Instante de la barra bajo el cursor: el mismo lugar del cursor, en cada
   // movimiento, sin acumular diferencias.
   const instanteEnCursor = (evento: { clientX: number; currentTarget: EventTarget | null }) => {
@@ -329,7 +374,10 @@ function PistaTiempo({ ampliada }: { ampliada: boolean }) {
   };
   const primera = posiciones[0] ?? null;
   const ultima = posiciones[posiciones.length - 1] ?? null;
-  const inicio = primera ? milisegundos(primera.registradoEn) : 0;
+  // Sin ruta desde el inicio de la jornada: la pista empieza ahí y ese tramo
+  // se ve como corte (Israel 21/10: jornada 07:58, primer punto 12:02).
+  const alInicio = corteAlInicio(posiciones, huecos);
+  const inicio = alInicio ? milisegundos(alInicio.desde) : primera ? milisegundos(primera.registradoEn) : 0;
   const fin = ultima ? milisegundos(ultima.registradoEn) : 0;
   const total = Math.max(0, fin - inicio);
   const pct = (instante: number) => (total > 0 ? Math.min(Math.max(((instante - inicio) / total) * 100, 0), 100) : 0);
@@ -432,7 +480,7 @@ function PistaTiempo({ ampliada }: { ampliada: boolean }) {
 
   return (
     <div className="replay-pista">
-      {ampliada && <span className="pista-hora">{horaCorta(primera?.registradoEn)}</span>}
+      {ampliada && <span className="pista-hora">{horaCorta(alInicio ? alInicio.desde : primera?.registradoEn)}</span>}
       <div
         className={`pista-riel${ampliada && bajo && bajo.marca.tipo !== 'hora' ? ' sobre-marca' : ''}`}
         onMouseMove={alMover}
@@ -487,7 +535,7 @@ function PistaTiempo({ ampliada }: { ampliada: boolean }) {
             deslizarA(instanteEnCursor(evento));
           }}
           onPointerMove={(evento) => {
-            if (arrastrando.current) deslizarA(instanteEnCursor(evento));
+            if (arrastrando.current) deslizarEnCuadro(instanteEnCursor(evento));
           }}
           onPointerUp={() => {
             arrastrando.current = false;
@@ -521,7 +569,19 @@ function PistaTiempo({ ampliada }: { ampliada: boolean }) {
 // Lectura del instante en curso. Ampliada suma el estado y la parada en la
 // que cae, para leer el punto sin mirar el panel.
 function LecturaPunto({ ampliada }: { ampliada: boolean }) {
-  const { punto, estado, paradas, microparadas } = useReproductor();
+  const { punto, estado, paradas, microparadas, cierres, posiciones, huecos } = useReproductor();
+  const cierre = punto ? cierres.find((c) => c.en === punto.registradoEn) : undefined;
+  const alInicio = punto && punto === posiciones[0] ? corteAlInicio(posiciones, huecos) : null;
+  if (punto && alInicio) {
+    return (
+      <span className="replay-tiempos">
+        <strong>
+          {horaCorta(alInicio.desde)}–{horaCorta(punto.registradoEn)}
+        </strong>{' '}
+        · {textoCorteAlInicio(alInicio)}
+      </span>
+    );
+  }
   const instante = punto ? milisegundos(punto.registradoEn) : null;
   const enParada =
     ampliada && instante != null
@@ -535,7 +595,7 @@ function LecturaPunto({ ampliada }: { ampliada: boolean }) {
     <span className="replay-tiempos">
       <strong>{punto ? horaCorta(punto.registradoEn) : GUION}</strong> · {velocidad(punto?.velocidadKmh)} ·{' '}
       {bateria(punto?.bateriaPct)}
-      {ampliada && punto && <span className={`lectura-estado ${CLASE_ESTADO[estado]}`}>{ETIQUETA_ESTADO_PUNTO[estado]}</span>}
+      {ampliada && punto && <span className={`lectura-estado ${CLASE_ESTADO[estado]}`}>{cierre ? etiquetaCierre(cierre) : ETIQUETA_ESTADO_PUNTO[estado]}</span>}
       {enParada >= 0 && (
         <span className="lectura-parada">
           Parada {enParada + 1} · {duracion(paradas[enParada].duracionMin * 60)}

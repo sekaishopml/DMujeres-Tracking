@@ -50,19 +50,23 @@ export function bateria(pct?: number | null): string {
   return pct == null || !Number.isFinite(pct) ? GUION : `${Math.round(pct)}%`;
 }
 
+export function grados(c?: number | null): string {
+  return c == null || !Number.isFinite(c) ? GUION : `${c.toFixed(1)} °C`;
+}
+
 // Estados de los equipos: los mismos nombres que usa la app.
 export const ETIQUETA_ESTADO: Record<string, string> = {
   deshabilitado: 'Fuera de jornada',
   sinSenal: 'Sin señal',
-  senalDebil: 'Sin reporte reciente',
+  senalDebil: 'Señal débil',
   detenido: 'Detenido',
   enLinea: 'En línea',
 };
 // iPhone: no tiene jornada, su día va de que se activa la app a que se
 // desactiva.
 export const ETIQUETA_ESTADO_IPHONE: Record<string, string> = {
-  deshabilitado: 'App desactivada',
-  sinSenal: 'App desactivada',
+  deshabilitado: 'App sin cobertura',
+  sinSenal: 'App sin cobertura',
   senalDebil: 'Señal débil',
   detenido: 'Detenido',
   enLinea: 'App activa',
@@ -70,10 +74,13 @@ export const ETIQUETA_ESTADO_IPHONE: Record<string, string> = {
 
 // Colores de estado: los mismos tokens del sistema de diseño (estilos/index.css)
 // para que el chip, el marcador del mapa y los gráficos digan lo mismo.
+// Seguimiento e Inicio: solo verde (en línea), azul (detenido), gris (fuera de
+// jornada o señal débil) y rojo (algo apagado o quitado en jornada).
 export const COLOR_ESTADO: Record<string, string> = {
-  deshabilitado: '#64748b',
-  sinSenal: '#d97706',
-  senalDebil: '#d97706',
+  deshabilitado: '#94a3b8',
+  sinSenal: '#64748b',
+  senalDebil: '#64748b',
   detenido: '#2563eb',
   enLinea: '#16a34a',
+  alerta: '#c8102e',
 };

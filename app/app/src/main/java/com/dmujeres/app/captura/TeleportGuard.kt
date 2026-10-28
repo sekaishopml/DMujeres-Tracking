@@ -7,10 +7,14 @@ package com.dmujeres.app.captura
  * aceptado reciente (menos de 60 s). Sin referencia, o con una vieja, se
  * acepta: no hay con qué comparar.
  *
- * Dos reglas:
+ * Tres reglas:
  * - T1: la velocidad calculada supera los 200 km/h.
  * - T2: el GPS dice velocidad 0 pero la posición saltó rápido (por ejemplo,
  *   70 m en 13 s: no llega a 200 km/h, pero estando quieta es imposible).
+ * - T3: rebote. En menos de 30 s saltó más de 30 m a más del triple de la
+ *   velocidad que dice el GPS (+15 km/h). La vimos en el GPS recién encendido
+ *   (ZTE, 25/10: 263 m en 5 s a 52 km/h) y caminando junto a la oficina
+ *   (Jeremy, 27/10: 618 m en 17 s a 4 km/h; con 15 s se colaba).
  *
  * Si el salto entra en el margen de error de los dos puntos (la precisión
  * nueva más la anterior) no es un salto: es mala señal y se acepta (los
@@ -34,6 +38,11 @@ object TeleportGuard {
      * 70 m en 13 s (≈19,4 km/h con vel 0) cae aquí.
      */
     const val INCOHERENT_MIN_KMH = 15.0
+
+    /** T3: ventana, salto mínimo y margen del rebote (iguales al Replay). */
+    const val REBOTE_MAX_MS = 30_000L
+    const val REBOTE_MIN_M = 30.0
+    const val REBOTE_MARGEN_KMH = 15.0
 
     /** Último punto aceptado (pasó este filtro, se haya guardado o no). */
     data class Reference(
@@ -66,7 +75,10 @@ object TeleportGuard {
         val incoherent = !absurd &&
             candidate.speedKn < STILL_SPEED_KN &&
             impliedMps * 3.6 > INCOHERENT_MIN_KMH
-        if (!absurd && !incoherent) return Verdict.ACCEPT
+        val reportadaKmh = candidate.speedKn * 1.852
+        val rebote = !absurd && !incoherent && dtMs <= REBOTE_MAX_MS && distM > REBOTE_MIN_M &&
+            reportadaKmh > 0.0 && impliedMps * 3.6 > 3 * reportadaKmh + REBOTE_MARGEN_KMH
+        if (!absurd && !incoherent && !rebote) return Verdict.ACCEPT
         // La precisión lo justifica: el salto cabe en el error combinado.
         if (candidate.accuracyM > 0.0 && last.accuracyM > 0.0 &&
             distM <= candidate.accuracyM + last.accuracyM

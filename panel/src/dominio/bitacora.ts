@@ -6,9 +6,10 @@
 // Todo sale de lo registrado (jornadas, posiciones, huecos, paradas y
 // batería); nada se interpola. Si no se sabe la causa de un hueco se dice
 // "sin señal" y se muestra la última batería conocida.
-import type { Hueco, MuestraBateria, Posicion, ReporteParada } from '@contratos';
+import type { AvisoTelefono, Hueco, MuestraBateria, Posicion, ReporteParada } from '@contratos';
+import type { Actividad } from './cronograma';
 import type { Jornada } from './datos';
-import { resumenDia } from './dia';
+import { resumenDia } from './dia.ts';
 
 export type TipoEvento =
   | 'jornadaInicio'
@@ -20,7 +21,10 @@ export type TipoEvento =
   | 'retomo'
   | 'cargaInicio'
   | 'cargaFin'
-  | 'bateriaBaja';
+  | 'bateriaBaja'
+  | 'aviso'
+  | 'recuperacion'
+  | 'cronograma';
 
 export interface EventoBitacora {
   id: string;
@@ -43,6 +47,12 @@ export interface EntradasBitacora {
   huecos?: Hueco[];
   paradas?: ReporteParada[];
   muestrasBateria?: MuestraBateria[];
+  // Lo que la persona hizo en el teléfono: GPS, permisos, notificaciones, ahorro.
+  avisos?: AvisoTelefono[];
+  actividades?: Actividad[];
+  // Solo entran las actividades cargadas dentro de este rango.
+  desde?: string;
+  hasta?: string;
 }
 
 // Por debajo de este nivel, un hueco que empieza se atribuye a batería agotada.
@@ -55,6 +65,16 @@ const SUBIDA_CARGA_PCT = 5;
 const HUECO_LARGO_S = 15 * 60;
 
 const ms = (iso: string) => new Date(iso).getTime();
+
+// Aquí y no desde cronograma.ts: ese módulo carga el cliente de la API.
+const ETIQUETA_ACTIVIDAD: Record<string, string> = {
+  visita: 'Visita',
+  almuerzo: 'Almuerzo',
+  permiso_medico: 'Permiso médico',
+  vacaciones: 'Vacaciones',
+  permiso: 'Permiso',
+  novedad: 'Novedad',
+};
 
 // Con precisión mala el servidor devuelve "Cerca de …": la frase del evento se
 // adapta para no decir "Llegó a Cerca de …".
@@ -118,17 +138,24 @@ function bateriaDespues(entradas: EntradasBitacora, instante: number): number | 
 
 const lugarDe = (p?: Posicion) => (p ? { latitud: p.latitud, longitud: p.longitud } : undefined);
 
+// La app parte la jornada a las 23:59:59 y la siguiente arranca a las 00:00:
+// no es una persona que finaliza ni que inicia.
+const HORA_GUAYAQUIL = new Intl.DateTimeFormat('en-GB', { timeZone: 'America/Guayaquil', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+const esMedianoche = (instante: number) => HORA_GUAYAQUIL.format(new Date(instante)) >= '23:59';
+const esCortePrevio = (instante: number) => HORA_GUAYAQUIL.format(new Date(instante)) === '00:00';
+
 export function construirBitacora(entradas: EntradasBitacora): EventoBitacora[] {
   const eventos: EventoBitacora[] = [];
   const posiciones = [...(entradas.posiciones ?? [])].sort((a, b) => ms(a.registradoEn) - ms(b.registradoEn));
 
   for (const j of entradas.jornadas ?? []) {
     const inicio = ms(j.inicioEn);
+    const continua = !j.soloApp && esCortePrevio(inicio);
     eventos.push({
       id: `jornada-inicio-${j.inicioEn}`,
       tipo: 'jornadaInicio',
       instante: j.inicioEn,
-      titulo: j.soloApp ? 'App activada' : 'Inició jornada',
+      titulo: j.soloApp ? 'App activada' : continua ? 'Continúa la jornada' : 'Inició jornada',
       detalle: j.soloApp ? 'Primer punto del día.' : 'Activó el registro en la app.',
       lugar: lugarDe(posicionCercana(posiciones, inicio)),
       bateriaPct: bateriaDespues(entradas, inicio),
@@ -139,7 +166,7 @@ export function construirBitacora(entradas: EntradasBitacora): EventoBitacora[] 
         id: `jornada-fin-${j.finEn}`,
         tipo: 'jornadaFin',
         instante: j.finEn,
-        titulo: j.soloApp ? 'App desactivada' : 'Finalizó jornada',
+        titulo: j.soloApp ? 'App sin cobertura' : esMedianoche(fin) ? 'Corte de medianoche' : 'Finalizó jornada',
         detalle:
           j.duracionMin != null
             ? `${j.soloApp ? 'App activa' : 'Jornada de'} ${duracionTexto(j.duracionMin * 60)}.`
@@ -257,6 +284,38 @@ export function construirBitacora(entradas: EntradasBitacora): EventoBitacora[] 
       }
       if (m.bateriaPct > BATERIA_BAJA_PCT + 10) avisadaBaja = false;
     }
+  }
+
+  for (const a of entradas.avisos ?? []) {
+    const alerta = a.categoria === 'alerta';
+    eventos.push({
+      id: `aviso-${a.tipo}-${a.en}`,
+      tipo: alerta ? 'aviso' : 'recuperacion',
+      instante: a.en,
+      titulo: a.texto,
+      lugar: lugarDe(posicionCercana(posiciones, ms(a.en))),
+      bateriaPct: bateriaAntes(entradas, ms(a.en)),
+      atencion: alerta,
+    });
+  }
+
+  // Actividades del cronograma, a la hora en que se cargaron desde la app.
+  const [desde, hasta] = [entradas.desde ? ms(entradas.desde) : -Infinity, entradas.hasta ? ms(entradas.hasta) : Infinity];
+  for (const a of entradas.actividades ?? []) {
+    const cargada = ms(a.registro.en);
+    if (!(cargada >= desde && cargada <= hasta)) continue;
+    const horario = a.horaFin ? `${a.hora.slice(0, 5)} a ${a.horaFin.slice(0, 5)}` : a.hora.slice(0, 5);
+    eventos.push({
+      id: `cronograma-${a.id}`,
+      tipo: 'cronograma',
+      instante: a.registro.en,
+      titulo: `Subió al cronograma: ${ETIQUETA_ACTIVIDAD[a.tipo] ?? a.tipo}${a.lugar ? ` en ${a.lugar}` : ''}`,
+      detalle: `Para el ${a.fecha.split('-').reverse().join('/')}, ${horario}.${a.nota ? ` ${a.nota}` : ''}`,
+      lugar:
+        a.registro.latitud != null && a.registro.longitud != null
+          ? { latitud: a.registro.latitud, longitud: a.registro.longitud, direccion: a.registro.direccion }
+          : undefined,
+    });
   }
 
   return eventos.sort((a, b) => ms(a.instante) - ms(b.instante) || a.id.localeCompare(b.id));

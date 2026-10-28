@@ -56,7 +56,7 @@ const MIN_DESPLAZAMIENTO_VENTANA_M = 25;
 const VELOCIDAD_PARADA_KMH = 2;
 const DURACION_PARADA_CORTE_MS = 60 * 1000;
 const MAX_VENTANAS_DENSAS = 200;
-const TANDA_DENSAS = 4;
+const TANDA_DENSAS = 8;
 // Un hueco entre puntos se une si dura 150 s o menos y no hubo movimiento real
 // (menos de 50 m): paradas cortas y avance lento. Moverse entre calles sin
 // puntos corta el tramo.
@@ -88,6 +88,11 @@ const AJUSTE_PASO_MIN_M = 10;
 // Un punto suelto lejos del trazo no invalida la ventana: se mide el percentil
 // 90 contra el umbral y el máximo contra el doble del umbral.
 const AJUSTE_DESVIACION_MAX_FACTOR = 2;
+// Con GPS de pocos metros, la línea cruda ya va por la calle. Si el mapa de
+// calles pasa corrido de los puntos (Urdesa: 18 m), el ajuste dibuja la ruta
+// por dentro de las manzanas y salta a los puntos que no casan: se deja cruda.
+const AJUSTE_GPS_PRECISO_M = 5;
+const AJUSTE_DESVIACION_PRECISO_M = 12;
 // Tramos de pocos puntos pegados a otro mucho más largo, con un salto
 // imposible de por medio, son posiciones viejas o falsas del GPS.
 const MAX_PUNTOS_CORRIDA_FALSA = 3;
@@ -117,6 +122,37 @@ export function esVentanaAPie(ventana) {
     return (distanciaM(primero, ultimo) / segundos) * 3.6 < VELOCIDAD_A_PIE_KMH;
   } catch {
     return false;
+  }
+}
+
+// Una ventana lenta puede esconder un viaje en vehículo: la espera antes de
+// arrancar o después de llegar baja el promedio. Devuelve solo el viaje, con
+// un punto quieto de cada lado para que empalme, o null si no lo hay. El
+// temblor del GPS al llegar (puntos imprecisos con velocidad falsa) queda fuera.
+const VELOCIDAD_VEHICULO_KMH = 15;
+const MIN_PUNTOS_VEHICULO = 3;
+
+export function tramoEnVehiculo(ventana) {
+  try {
+    const velocidad = (p) => Number(p?.velocidadKmh);
+    const fiable = (p) => {
+      const precision = leerPrecisionM(p);
+      return precision == null || precision <= PRECISION_VECINA_FIABLE_M;
+    };
+    const rapidos = [];
+    ventana.forEach((p, i) => {
+      if (fiable(p) && velocidad(p) >= VELOCIDAD_VEHICULO_KMH) rapidos.push(i);
+    });
+    if (rapidos.length < MIN_PUNTOS_VEHICULO) return null;
+    const seMueve = (p) => fiable(p) && velocidad(p) > VELOCIDAD_PARADA_KMH;
+    let desde = rapidos[0];
+    while (desde > 0 && seMueve(ventana[desde - 1])) desde -= 1;
+    let hasta = rapidos[rapidos.length - 1];
+    while (hasta < ventana.length - 1 && seMueve(ventana[hasta + 1])) hasta += 1;
+    const tramo = ventana.slice(Math.max(0, desde - 1), hasta + 2);
+    return tramo.length >= MIN_PUNTOS_VENTANA_DENSA ? tramo : null;
+  } catch {
+    return null;
   }
 }
 
@@ -290,13 +326,70 @@ function quitarCorridasFalsas(ventana) {
     .flat();
 }
 
+// Entre edificios el GPS rebota 100 m a un lado con buena precisión y a la
+// velocidad que el teléfono sí reporta (el doppler no rebota). Si en 15 s o
+// menos el punto "avanzó" más de 3 veces esa velocidad, es el rebote. Pasados
+// 15 s no aplica: un descarte errado no arrastra a los que siguen.
+const REBOTE_MAX_S = 15;
+const REBOTE_MIN_M = 30;
+function reboteContraVelocidad(anterior, fix, implicitaKmh) {
+  const reportada = Number(fix?.velocidadKmh);
+  if (!Number.isFinite(reportada) || reportada <= 0) return false;
+  const segundos = (instanteMs(fix) - instanteMs(anterior)) / 1000;
+  return segundos <= REBOTE_MAX_S && distanciaM(anterior, fix) > REBOTE_MIN_M && implicitaKmh > 3 * reportada + 15;
+}
+
+// GPS recién encendido (ZTE 25/10 18:46-18:49): varias pistas paralelas a
+// cientos de metros, cada una con buena precisión. El filtro de abajo puede
+// quedarse con la pista equivocada y el ajuste la lleva a calles que nunca se
+// recorrieron. Con 3 o más saltos en la ventana no se ajusta: se dibuja como
+// vino. Un rebote entre edificios da 1 o 2 y sí se ajusta.
+//
+// Salto: no cuadra con la velocidad que reporta el GPS y se desvía más de 45°
+// de la dirección en que venía. Hay teléfonos que reportan 2-15 km/h yendo
+// en carro (Sonnia 20/10); ese avance va hacia adelante y no cuenta.
+const MAX_SALTOS_PARA_AJUSTE = 2;
+const SALTO_DESVIO_MIN_COS = Math.cos(Math.PI / 4);
+const SALTO_RUMBO_MIN_M = 10;
+export function saltosEnVentana(ventana) {
+  let saltos = 0;
+  for (let i = 1; i < ventana.length; i += 1) {
+    const a = ventana[i - 1];
+    const b = ventana[i];
+    const velocidad = velocidadImplicitaKmh(a, b);
+    if (!Number.isFinite(velocidad) || !reboteContraVelocidad(a, b, velocidad)) continue;
+    // Dirección previa: desde el último punto a 10 m o más antes de `a`.
+    let previo = null;
+    for (let k = i - 2; k >= 0; k -= 1) {
+      if (distanciaM(ventana[k], a) >= SALTO_RUMBO_MIN_M) {
+        previo = ventana[k];
+        break;
+      }
+    }
+    if (!previo) continue;
+    const coseno = cosenoEntre(previo, a, b);
+    if (Number.isFinite(coseno) && coseno < SALTO_DESVIO_MIN_COS) saltos += 1;
+  }
+  return saltos;
+}
+
+// Coseno del ángulo entre los tramos p→a y a→b (plano local, sirve en metros).
+function cosenoEntre(p, a, b) {
+  const escala = Math.cos((a.latitud * Math.PI) / 180);
+  const x1 = (a.longitud - p.longitud) * escala;
+  const y1 = a.latitud - p.latitud;
+  const x2 = (b.longitud - a.longitud) * escala;
+  const y2 = b.latitud - a.latitud;
+  return (x1 * x2 + y1 * y2) / (Math.hypot(x1, y1) * Math.hypot(x2, y2));
+}
+
 // Devuelve una lista nueva sin los saltos imposibles, para /match:
 //  - más de 120 km/h desde el anterior válido;
 //  - pico aislado de precisión peor que 30 m con los dos vecinos por debajo
 //    de 15 m.
 // La velocidad se compara con el último punto conservado, para no descartar
 // el punto bueno que vuelve después del salto.
-function filtrarOutliersTeleport(ventana) {
+export function filtrarOutliersTeleport(ventana) {
   try {
     if (!Array.isArray(ventana) || ventana.length === 0) return [];
     // Paso 0: corridas cortas separadas por un salto imposible de otra mayor.
@@ -318,7 +411,7 @@ function filtrarOutliersTeleport(ventana) {
         if (
           typeof velocidad === 'number' &&
           Number.isFinite(velocidad) &&
-          velocidad > VELOCIDAD_MAX_TELEPORT_KMH
+          (velocidad > VELOCIDAD_MAX_TELEPORT_KMH || reboteContraVelocidad(anteriorValido, fix, velocidad))
         ) {
           continue;
         }
@@ -492,6 +585,7 @@ export function partirVentanasDensas(posiciones) {
       if (!(Number.isFinite(desde) && Number.isFinite(hasta) && hasta > desde)) continue;
       const maxDesplazamiento = desplazamientoMaximoM(ventana);
       if (!(maxDesplazamiento >= MIN_DESPLAZAMIENTO_VENTANA_M)) continue;
+      if (saltosEnVentana(ventana) > MAX_SALTOS_PARA_AJUSTE) continue;
       let limpia = ventana;
       try {
         limpia = filtrarOutliersTeleport(ventana);
@@ -524,6 +618,9 @@ function leerCache(clave) {
     cache.delete(clave);
     return undefined;
   }
+  // Al leerla pasa al final: la caché descarta lo menos usado, no lo más viejo.
+  cache.delete(clave);
+  cache.set(clave, entrada);
   return entrada;
 }
 
@@ -601,6 +698,16 @@ export function estimadoPlausible(anterior, actual, trazado, distanciaRutaM) {
     const ruta = Number.isFinite(distanciaRutaM) ? distanciaRutaM : longitudTrazadoM(trazado);
     if (!(ruta > 0)) return false;
     if (ruta > Math.max(MAX_ESTIMADO_RAZON * recta, recta + MAX_ESTIMADO_HOLGURA_M)) return false;
+    // La ruta por calles arranca en la vía más cercana: si queda lejos de los
+    // puntos (un rebote del GPS), el tramo dibujado no une nada.
+    if (Array.isArray(trazado) && trazado.length >= 2) {
+      const [lon0, lat0] = trazado[0];
+      const [lon1, lat1] = trazado[trazado.length - 1];
+      if (
+        distanciaM(anterior, { latitud: lat0, longitud: lon0 }) > MAX_ESTIMADO_HOLGURA_M ||
+        distanciaM(actual, { latitud: lat1, longitud: lon1 }) > MAX_ESTIMADO_HOLGURA_M
+      ) return false;
+    }
     return (ruta / segundos) * 3.6 <= MAX_ESTIMADO_VELOCIDAD_KMH;
   } catch {
     return false;
@@ -715,6 +822,7 @@ export function validarAjusteMatch(puntos, trazado) {
     if (!(enRango(longCruda) || enRango(longReferencia))) motivo = 'a';
     else if (desviacionP90M > umbralDesviacionM || desviacionMaxM > AJUSTE_DESVIACION_MAX_FACTOR * umbralDesviacionM) motivo = 'b';
     else if (fraccionRuido > AJUSTE_RUIDO_MAX_FRACCION) motivo = 'c';
+    else if (mediana !== null && mediana <= AJUSTE_GPS_PRECISO_M && desviacionP90M > AJUSTE_DESVIACION_PRECISO_M) motivo = 'd';
     return {
       valida: motivo === null,
       motivo,
@@ -842,11 +950,12 @@ export async function reconstruirTramos(todas, signal) {
     const clavesCandidatas = new Set(
       candidatos.map(({ anterior, actual }) => `${anterior.registradoEn}|${actual.registradoEn}`),
     );
-    ventanas = ventanas.filter(
-      (ventana) =>
-        !clavesCandidatas.has(`${ventana[0].registradoEn}|${ventana[ventana.length - 1].registradoEn}`)
-        && !esVentanaAPie(ventana),
-    );
+    ventanas = ventanas
+      .map((ventana) => (esVentanaAPie(ventana) ? tramoEnVehiculo(ventana) : ventana))
+      .filter(
+        (ventana) =>
+          ventana && !clavesCandidatas.has(`${ventana[0].registradoEn}|${ventana[ventana.length - 1].registradoEn}`),
+      );
     for (let i = 0; i < ventanas.length; i += TANDA_DENSAS) {
       if (Date.now() - inicio > PRESUPUESTO_MS) break;
       const tanda = ventanas.slice(i, i + TANDA_DENSAS);

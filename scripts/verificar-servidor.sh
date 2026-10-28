@@ -36,10 +36,16 @@ echo "Panel y API"
 [ "$(curl -s --max-time 5 http://127.0.0.1:8992/health)" = ok ] && ok "ruteo por calles" || falla "ruteo por calles"
 
 echo "App"
-[ "$(http -H "X-Api-Key: $CLAVE_MOVIL" -H 'X-Device-Id: macias' https://tracking.sekaidevec.com/api/mobile/v1/config)" = 200 ] \
-  && ok "canal de la app por https" || falla "canal de la app por https"
-[ "$(http -H "X-Api-Key: $CLAVE_MOVIL" -H 'X-Device-Id: macias' http://127.0.0.1:999/api/mobile/v1/config)" = 200 ] \
-  && ok "canal de la app vieja (999)" || falla "canal de la app vieja (999)"
+# Se prueba con un equipo que exista: los equipos cambian con las altas y bajas.
+EQUIPO="$(docker exec dmt-db psql -U dmt -d dmujeres -tAc 'SELECT identificador FROM tracking.dmt_dispositivo WHERE habilitado ORDER BY id LIMIT 1' 2>/dev/null | tr -d '[:space:]')"
+if [ -n "$EQUIPO" ]; then
+  [ "$(http -H "X-Api-Key: $CLAVE_MOVIL" -H "X-Device-Id: $EQUIPO" https://tracking.sekaidevec.com/api/mobile/v1/config)" = 200 ] \
+    && ok "canal de la app por https" || falla "canal de la app por https"
+  [ "$(http -H "X-Api-Key: $CLAVE_MOVIL" -H "X-Device-Id: $EQUIPO" http://127.0.0.1:999/api/mobile/v1/config)" = 200 ] \
+    && ok "canal de la app vieja (999)" || falla "canal de la app vieja (999)"
+else
+  echo "  —      canal de la app: no hay equipos habilitados para probarlo"
+fi
 VERSION="$(python3 -c "import json;print(json.load(open('$RAIZ/ota/latest.json'))['version'])" 2>/dev/null)"
 [ "$(http "https://tracking.sekaidevec.com/DMujeres-Tracking-$VERSION.apk")" = 200 ] \
   && ok "APK de la versión $VERSION" || falla "no se descarga el APK de la versión $VERSION"

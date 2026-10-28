@@ -27,6 +27,21 @@ enum class TipoActividad(val codigo: String, val etiqueta: String) {
     }
 }
 
+/** Color de cada tipo y su fondo suave: los mismos en el cronograma y en el formulario. */
+fun TipoActividad.color(): Int = when (this) {
+    TipoActividad.VISITA, TipoActividad.PERMISO -> R.color.navy_700
+    TipoActividad.ALMUERZO -> R.color.warn
+    TipoActividad.VACACIONES -> R.color.ok
+    TipoActividad.PERMISO_MEDICO, TipoActividad.NOVEDAD -> R.color.primary
+}
+
+fun TipoActividad.fondo(): Int = when (this) {
+    TipoActividad.VISITA, TipoActividad.PERMISO -> R.color.navy_soft
+    TipoActividad.ALMUERZO -> R.color.warn_soft
+    TipoActividad.VACACIONES -> R.color.ok_soft
+    TipoActividad.PERMISO_MEDICO, TipoActividad.NOVEDAD -> R.color.magenta_soft
+}
+
 data class Actividad(
     val clientId: String,
     val fecha: String,
@@ -164,7 +179,7 @@ object Actividades {
     }
 
     /** Último fix de la captura si es reciente (≤ 5 min). */
-    private fun ubicacionReciente(context: Context): Triple<Double, Double, Float>? {
+    fun ubicacionReciente(context: Context): Triple<Double, Double, Float>? {
         val prefs = PreferenceManager.getDefaultSharedPreferences(context)
         val at = prefs.getLong(PositionProvider.KEY_LAST_FIX_AT, 0L)
         if (at <= 0L || System.currentTimeMillis() - at > 5 * 60_000L) return null
@@ -217,6 +232,13 @@ object Actividades {
             .groupingBy { it.lowercase() }.eachCount().entries
             .sortedByDescending { it.value }
             .mapNotNull { e -> todas(context).firstOrNull { it.lugar?.trim()?.lowercase() == e.key }?.lugar?.trim() }
+
+    /** Notas más usadas en un tipo de actividad (hasta cuatro), para no volver a escribirlas. */
+    fun notasFrecuentes(context: Context, tipo: TipoActividad): List<String> =
+        todas(context).filter { it.tipo == tipo && !it.eliminada }
+            .mapNotNull { it.nota?.trim()?.takeIf { n -> n.isNotEmpty() && n.length <= 60 } }
+            .groupingBy { it }.eachCount().entries
+            .sortedByDescending { it.value }.take(4).map { it.key }
 
     private val sincronizando = AtomicBoolean(false)
     private val alTerminarSubida = CopyOnWriteArrayList<() -> Unit>()

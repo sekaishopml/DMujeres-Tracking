@@ -1,6 +1,7 @@
 import type { LucideIcon } from 'lucide-react';
 import {
   BatteryMedium,
+  Building2,
   ClipboardList,
   History,
   LayoutDashboard,
@@ -8,7 +9,6 @@ import {
   Route,
   Server,
   Settings2,
-  Store,
   Users,
   UsersRound,
 } from 'lucide-react';
@@ -41,7 +41,7 @@ export const GRUPOS: { titulo: string; enlaces: Enlace[] }[] = [
     enlaces: [
       { ruta: '/usuarios', descripcion: 'Cuentas de acceso, roles y equipos asignados.', texto: 'Usuarios', icono: Users, soloAdmin: true },
       { ruta: '/grupos', descripcion: 'Grupos de trabajo y sus integrantes.', texto: 'Grupos', icono: UsersRound, soloAdmin: true },
-      { ruta: '/clientes', descripcion: 'Clientes que visitan, para registrar actividades y compararlas con el recorrido.', texto: 'Clientes', icono: Store, soloAdmin: true },
+      { ruta: '/geocercas', descripcion: 'Zonas dibujadas en el mapa (casa, cliente, oficina) con su historial, y los clientes de la app.', texto: 'Geocercas', icono: Building2, soloAdmin: true },
       { ruta: '/configuracion', descripcion: 'Ajustes de la plataforma y de la app en los teléfonos.', texto: 'Configuración', icono: Settings2, soloAdmin: true },
       { ruta: '/sistema', descripcion: 'Estado de los servicios y de cada equipo.', texto: 'Sistema', icono: Server, soloAdmin: true },
     ],
@@ -59,4 +59,35 @@ export function paginaDeRuta(ruta: string): { texto: string; grupo: string; desc
     }
   }
   return { texto: '', grupo: '', descripcion: '' };
+}
+
+// Sección de cuenta que da acceso a cada página (la misma lista del servidor).
+const SECCION_DE_RUTA: [string, string][] = [
+  ['/en-vivo', 'seguimiento'],
+  ['/unidad/', 'seguimiento'],
+  ['/replay', 'replay'],
+  ['/reportes', 'reportes'],
+  ['/bateria', 'bateria'],
+  ['/historial', 'historial'],
+  ['/usuarios', 'usuarios'],
+  ['/grupos', 'grupos'],
+  ['/geocercas', 'geocercas'],
+  ['/clientes', 'geocercas'],
+  ['/configuracion', 'configuracion'],
+  ['/sistema', 'sistema'],
+];
+
+export function puedeVerRuta(secciones: string[], ruta: string): boolean {
+  if (ruta === '/') return secciones.includes('inicio');
+  const par = SECCION_DE_RUTA.find(([base]) => ruta === base || ruta.startsWith(base.endsWith('/') ? base : `${base}/`));
+  return par ? secciones.includes(par[1]) : true;
+}
+
+// Primera página que la cuenta puede abrir (a donde se la lleva si entra a una oculta).
+export function primeraRutaVisible(secciones: string[]): string | null {
+  for (const grupo of GRUPOS) {
+    const enlace = grupo.enlaces.find((e) => puedeVerRuta(secciones, e.ruta));
+    if (enlace) return enlace.ruta;
+  }
+  return null;
 }

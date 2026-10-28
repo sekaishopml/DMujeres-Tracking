@@ -6,6 +6,7 @@
 import { cargarConfiguracion } from './config.js';
 import { crearAlmacen } from './db.js';
 import { cargarCredencial, crearEmisorFcm } from './fcm.js';
+import { crearAvisosDeHorario } from './avisos.js';
 import { ejecutarCiclo } from './monitor.js';
 import { crearLog } from './log.js';
 
@@ -46,6 +47,7 @@ async function principal() {
     }
   }
 
+  const avisarHorario = crearAvisosDeHorario();
   let detenido = false;
   const detener = (senal) => {
     if (!detenido) {
@@ -61,6 +63,11 @@ async function principal() {
       await ejecutarCiclo({ almacen, emisor, configuracion, log });
     } catch (error) {
       log.error(`ciclo fallido: ${error.message}`);
+    }
+    try {
+      await avisarHorario({ almacen, emisor, log });
+    } catch (error) {
+      log.error(`aviso de horario fallido: ${error.message}`);
     }
     const fin = Date.now() + politica.intervaloMs;
     while (!detenido && Date.now() < fin) {

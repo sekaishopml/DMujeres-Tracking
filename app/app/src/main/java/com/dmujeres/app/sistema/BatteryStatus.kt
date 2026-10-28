@@ -23,6 +23,8 @@ import android.os.BatteryManager
 data class BatteryStatus(
     val level: Double = 0.0,
     val charging: Boolean = false,
+    /** °C de la batería; null si el teléfono no la informa. */
+    val temperatureC: Double? = null,
 )
 
 /** Lee el estado de batería del sticky broadcast (sin receptor propio). */
@@ -36,6 +38,9 @@ fun readBatteryStatus(context: Context): BatteryStatus {
             level = level * 100.0 / scale,
             charging = status == BatteryManager.BATTERY_STATUS_CHARGING ||
                 status == BatteryManager.BATTERY_STATUS_FULL,
+            // Viene en décimas de grado; 0 o menos es "no la informa".
+            temperatureC = batteryIntent.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, 0)
+                .takeIf { it > 0 }?.let { it / 10.0 },
         )
     }
     return BatteryStatus()

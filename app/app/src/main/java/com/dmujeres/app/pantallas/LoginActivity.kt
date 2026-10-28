@@ -30,8 +30,7 @@ import kotlinx.coroutines.runBlocking
  *   equipo (envío de la cola y fin de jornada) y después se entra con el
  *   nuevo. Lo capturado con el equipo anterior sigue en la cola con su
  *   `device_id`.
- * - No es obligatorio: sin sesión la app funciona con la clave compartida.
- *   Se llega aquí desde el asistente, desde el aviso de sesión vencida o al
+ * - Se llega aquí desde el asistente, desde el aviso de sesión vencida o al
  *   cerrar sesión en depuración.
  */
 class LoginActivity : AppCompatActivity() {
@@ -63,6 +62,14 @@ class LoginActivity : AppCompatActivity() {
         }
 
         enterButton.setOnClickListener { doLogin() }
+
+        // Sin sesión, Atrás no vuelve al inicio: allí se podría abrir una
+        // jornada cuyos puntos el servidor rechaza.
+        onBackPressedDispatcher.addCallback(this, object : androidx.activity.OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                if (SessionStore.hasSession(this@LoginActivity)) finish() else moveTaskToBack(true)
+            }
+        })
     }
 
     /**

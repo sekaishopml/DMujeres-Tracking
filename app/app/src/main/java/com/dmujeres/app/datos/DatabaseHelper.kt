@@ -32,7 +32,7 @@ import com.dmujeres.app.seguimiento.STATUS_DEAD
 import com.dmujeres.app.seguimiento.STATUS_PENDING
 import java.sql.Date
 
-private const val MAX_BUFFERED_POSITIONS = 5000L
+private const val MAX_BUFFERED_POSITIONS = 100_000L
 
 private const val TAG = "DatabaseHelper"
 
@@ -131,9 +131,16 @@ class DatabaseHelper(private val appContext: Context?) :
     private fun ensureEsquemaV7(db: SQLiteDatabase) {
         ensureEsquemaV6(db)
         val columnas = columnasDe(db, "position")
-        if (columnas.isEmpty() || columnas.contains("device_id")) return
-        runCatching { db.execSQL("ALTER TABLE position ADD COLUMN device_id TEXT") }
-            .onFailure { Log.e(TAG, "no se pudo agregar device_id", it) }
+        if (columnas.isEmpty()) return
+        if (!columnas.contains("device_id")) {
+            runCatching { db.execSQL("ALTER TABLE position ADD COLUMN device_id TEXT") }
+                .onFailure { Log.e(TAG, "no se pudo agregar device_id", it) }
+        }
+        // Actividad y pasos de cada punto: solo agrega, las filas viejas quedan vacías.
+        if (!columnas.contains("actividad")) {
+            runCatching { db.execSQL("ALTER TABLE position ADD COLUMN actividad TEXT") }
+                .onFailure { Log.e(TAG, "no se pudo agregar actividad", it) }
+        }
     }
 
     init {
@@ -164,6 +171,7 @@ class DatabaseHelper(private val appContext: Context?) :
         values.put("journey_id", identified.journeyId)
         values.put("provider", identified.provider)
         values.put("movement_state", identified.movementState)
+        values.put("actividad", identified.activity)
         values.put("status", identified.status)
         values.put("attempts", identified.attempts)
         // El equipo se fija al guardar (no al subir), así la subida es correcta
@@ -184,18 +192,22 @@ class DatabaseHelper(private val appContext: Context?) :
 
     /**
      * Tope de la cola sin conexión: si se pasa de [MAX_BUFFERED_POSITIONS] se
-     * descartan los más viejos para no crecer sin límite. 5.000 puntos son
-     * unas 3 jornadas de 10 h (1 por minuto quieta, 4 por minuto en marcha) y
-     * cerca de 1,2 MB.
+     * descartan los más viejos para no crecer sin límite. En movimiento se
+     * guarda un punto por segundo: 100.000 puntos son más de un día entero en
+     * marcha sin señal (cerca de 24 MB). Con 5.000 se perdía ruta tras ~80
+     * min sin conexión (Nadia, 13-15/10: 2.415 puntos).
      *
      * Lo descartado se cuenta en `meta(buffer_overflow)` y se reporta en el
      * diagnóstico, para que el panel pueda explicar el hueco.
      */
+    /** Las pruebas lo bajan para no insertar 100.000 filas. */
+    internal var topeBufer = MAX_BUFFERED_POSITIONS
+
     private fun enforceBufferLimit(db: SQLiteDatabase) {
         runCatching {
             val count = DatabaseUtils.queryNumEntries(db, "position")
-            if (count <= MAX_BUFFERED_POSITIONS) return
-            val excess = count - MAX_BUFFERED_POSITIONS
+            if (count <= topeBufer) return
+            val excess = count - topeBufer
             db.execSQL(
                 "DELETE FROM position WHERE id IN (SELECT id FROM position ORDER BY id ASC LIMIT ?)",
                 arrayOf(excess),
@@ -300,6 +312,7 @@ class DatabaseHelper(private val appContext: Context?) :
             journeyId = text("journey_id"),
             provider = text("provider"),
             movementState = text("movement_state"),
+            activity = text("actividad"),
             status = text("status").ifBlank { STATUS_PENDING },
             attempts = int("attempts"),
             captureDeviceId = text("device_id"),
@@ -512,7 +525,8 @@ class DatabaseHelper(private val appContext: Context?) :
                 "movement_state TEXT," +
                 "status TEXT," +
                 "attempts INTEGER," +
-                "device_id TEXT)"
+                "device_id TEXT," +
+                "actividad TEXT)"
 
         private const val CREATE_META =
             "CREATE TABLE IF NOT EXISTS meta (clave TEXT PRIMARY KEY, valor TEXT)"

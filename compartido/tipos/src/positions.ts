@@ -14,6 +14,10 @@ export interface Posicion {
   recibidoEn: string;
   valida: boolean;
   simulada?: boolean;
+  /** WALKING, IN_VEHICLE, STILL... según el reconocimiento de actividad del teléfono. */
+  actividad?: string | null;
+  /** Pasos acumulados de la jornada al capturar el punto. */
+  pasos?: number | null;
 }
 
 export interface PosicionesVivas {

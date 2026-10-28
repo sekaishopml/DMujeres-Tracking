@@ -23,7 +23,10 @@
         <item name="android:saveEnabled">false</item>
         <item name="android:inputType">time</item>
         <item name="android:maxLength">5</item>
-        <item name="android:selectAllOnFocus">true</item>
+        <item name="android:selectAllOnFocus">false</item>
+        <item name="android:textIsSelectable">false</item>
+        <item name="android:cursorVisible">false</item>
+        <item name="android:longClickable">false</item>
         <item name="android:textColor">@color/text_primary</item>
         <item name="android:textSize">20sp</item>
         <item name="android:textStyle">bold</item>

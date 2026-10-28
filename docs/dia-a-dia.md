@@ -41,6 +41,21 @@ Para soltar una versión solo a algunos teléfonos se usa `ota/rollout.json`:
 `percent` es el porcentaje de la flota que la recibe y `allow` una lista de
 equipos que la reciben siempre.
 
+Para probar una versión en un solo teléfono, sin tocar `latest.json`, se deja
+`ota/por-equipo/<identificador>.json` con `version`, `versionCode`, `url`,
+`notes` y `sha256`. El servidor lo lee en cada consulta. Ojo con el nombre
+del APK: el servidor web solo entrega archivos que se llamen
+`DMujeres-Tracking-` seguido de números y puntos y `.apk` (por ejemplo
+`DMujeres-Tracking-2.10.1.346.apk`). Con otro nombre entrega una página en
+vez del APK y la actualización falla por sha256. Para comprobarlo:
+`curl -s https://tracking.sekaidevec.com/<archivo> | sha256sum`. Al publicar a
+la flota, el versionCode tiene que ser mayor que el de las pruebas y se
+borran los json por equipo.
+
+Para saber si un teléfono se actualizó: la versión instalada llega en cada
+diagnóstico (`telemetry.dmt_salud_dispositivo`, `atributos->report->app->versionCode`),
+y las descargas del APK quedan en `/var/log/nginx/access.log`.
+
 ## Cambios en el panel
 
 ```bash

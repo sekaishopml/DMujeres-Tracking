@@ -92,6 +92,9 @@ interface Props {
   selectorPegado?: boolean;
   // Seguimiento no muestra la escala (barra de 1, 5 o 10 km) al hacer zoom.
   escala?: boolean;
+  // Mapas chicos (expediente): selector pequeño abajo a la izquierda, para
+  // que no tape el mapa ni el zoom.
+  selectorAbajo?: boolean;
 }
 
 // memo: las páginas con mapa se redibujan en cada sondeo (cada 5 o 10 s) y
@@ -106,6 +109,7 @@ export default memo(function MapaRaster({
   zoomAbajoDerecha = false,
   selectorPegado = false,
   escala = true,
+  selectorAbajo = false,
 }: Props) {
   const contenedor = useRef<HTMLDivElement>(null);
   const instancia = useRef<MapaMaplibre | null>(null);
@@ -258,9 +262,11 @@ export default memo(function MapaRaster({
         aria-label="Capa del mapa"
         className={cn(
           'absolute z-[5] flex border-borde bg-superficie/95 p-0.5 shadow-flotante backdrop-blur [isolation:isolate]',
-          selectorPegado
-            ? 'top-0 right-0 rounded-bl-control border-b border-l'
-            : cn('top-3 right-3 rounded-control border'),
+          selectorAbajo
+            ? 'bottom-2 left-2 rounded-control border'
+            : selectorPegado
+              ? 'top-0 right-0 rounded-bl-control border-b border-l'
+              : cn('top-3 right-3 rounded-control border'),
         )}
       >
         {pildora && (
@@ -281,7 +287,8 @@ export default memo(function MapaRaster({
             onClick={() => cambiarCapa(capa.id)}
             aria-pressed={capa.id === capaActiva}
             className={cn(
-              'relative h-7 cursor-pointer rounded-[6px] px-2.5 text-[12px] font-medium whitespace-nowrap transition-colors duration-300',
+              'relative cursor-pointer rounded-[6px] font-medium whitespace-nowrap transition-colors duration-300',
+              selectorAbajo ? 'h-6 px-2 text-[11px]' : 'h-7 px-2.5 text-[12px]',
               capa.id === capaActiva ? 'text-white' : 'text-texto-2 hover:text-marino-900',
               !pildora && capa.id === capaActiva && 'bg-tinta-2',
             )}

@@ -69,16 +69,46 @@ export interface ReplayCalidad {
   posibleOrigenMultiple: boolean;
 }
 
+/** Algo que la persona hizo en el teléfono durante el recorrido (GPS, permisos, notificaciones). */
+export interface AvisoTelefono {
+  tipo: string;
+  texto: string;
+  categoria: 'alerta' | 'recuperacion';
+  en: string;
+}
+
 export interface Replay {
   dispositivo: Dispositivo;
   desde: string;
   hasta: string;
   posiciones: Posicion[];
   huecos: Hueco[];
+  avisos?: AvisoTelefono[];
   reconstruidos: TramoReconstruido[];
   resumen: ReplayResumen;
   calidad?: ReplayCalidad;
+  /** Cómo terminó cada jornada del recorrido (último punto de cada una). */
+  cierres?: CierreJornada[];
   generadoEn: string;
+}
+
+export type MotivoCierre =
+  | 'JORNADA_FINALIZADA'
+  | 'MEDIANOCHE'
+  | 'GPS_APAGADO'
+  | 'TELEFONO_APAGADO'
+  | 'PERMISO_QUITADO'
+  | 'REINICIO'
+  | 'SIN_SENAL';
+
+export interface CierreJornada {
+  /** registradoEn del último punto de la jornada. */
+  en: string;
+  motivo: MotivoCierre;
+  /** Hora del hecho (fin de jornada, GPS apagado, etc.). */
+  hora: string;
+  /** El GPS se apagó porque el ahorro de batería del sistema estaba activo. */
+  ahorro?: boolean;
 }
 
 export interface ReplayDisponible {

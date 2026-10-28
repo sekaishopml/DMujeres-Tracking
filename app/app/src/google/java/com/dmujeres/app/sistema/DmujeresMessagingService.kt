@@ -25,6 +25,12 @@ class DmujeresMessagingService : FirebaseMessagingService() {
 
     override fun onMessageReceived(message: RemoteMessage) {
         val type = message.data["type"] ?: return
+        // A las horas de aviso el servidor pide revisar el estado; si su
+        // mensaje no llega, la alarma del teléfono hace lo mismo.
+        if (type == "AVISO_HORARIO") {
+            com.dmujeres.app.avisos.AvisosDelDia.atender(this, message.data["franja"])
+            return
+        }
         if (type != "TRACKING_RECOVERY_PROBE") {
             Log.i(TAG, "Push ignorado: $type")
             return
@@ -44,10 +50,17 @@ class DmujeresMessagingService : FirebaseMessagingService() {
         // orden de la operación y queda registrada.
         PreferenceManager.getDefaultSharedPreferences(this)
             .edit().putBoolean(Prefs.STATUS, true).apply()
-        ContextCompat.startForegroundService(
-            this,
-            Intent(this, TrackingService::class.java).setAction(TrackingService.ACTION_RECOVER),
-        )
+        // Si Android bajó el mensaje a prioridad normal no deja arrancar el
+        // servicio desde segundo plano; la alarma de supervisión lo levanta.
+        runCatching {
+            ContextCompat.startForegroundService(
+                this,
+                Intent(this, TrackingService::class.java).setAction(TrackingService.ACTION_RECOVER),
+            )
+        }.onFailure {
+            Log.w(TAG, "Recuperación FCM sin arranque (prioridad=${message.priority}/${message.originalPriority})", it)
+            return
+        }
         DmujeresApi.recoveryAck(this, attemptId, "RECOVERY_STARTED")
         Log.i(TAG, "Recuperación FCM atendida (attempt=$attemptId)")
     }

@@ -29,17 +29,23 @@ export const SELECT_DISPOSITIVO = `
            -- con el diagnóstico que manda cada 10 min aunque esté quieto.
            --   más de 60 min sin responder (o nunca): SIN_SENAL
            --   más de 15 min (30 si estaba quieto, que reporta menos): SENAL_DEBIL
+           --   responde con la ubicación apagada: SIN_SENAL
+           --   responde pero su último punto tiene más de 30 min: SENAL_DEBIL
            --   responde y su último punto (de menos de 3 min) tiene
            --   velocidad: EN_LINEA; si no, DETENIDO
            WHEN ct.contacto IS NULL OR ct.contacto < now() - interval '60 minutes' THEN 'SIN_SENAL'
-           WHEN ct.contacto < now() - CASE WHEN pa.atributos->>'motion' = 'STATIONARY'
+           WHEN ct.contacto < now() - CASE WHEN pa.atributos->>'movementState' = 'STATIONARY'
                                            THEN interval '30 minutes' ELSE interval '15 minutes' END THEN 'SENAL_DEBIL'
+           -- Responde pero no da posición: con la ubicación apagada no se
+           -- sabe dónde está, y sin puntos hace 30 min tampoco si está quieto.
+           WHEN d.atributos->>'mobile.gps' = 'off' THEN 'SIN_SENAL'
+           WHEN pa.registrado_en IS NULL OR pa.registrado_en < now() - interval '30 minutes' THEN 'SENAL_DEBIL'
            WHEN pa.registrado_en > now() - interval '3 minutes' AND pa.velocidad_kmh >= 1.852 THEN 'EN_LINEA'
            ELSE 'DETENIDO'
          END AS estado,
          ct.contacto AS ultimo_contacto,
          d.ultima_conexion_en,
-         pa.atributos->>'motion' AS movimiento,
+         pa.atributos->>'movementState' AS movimiento,
          d.atributos->>'mobile.appVersion' AS version_app,
          d.atributos->>'mobile.pending' AS pendientes,
          ja.activa AS jornada_activa,
@@ -98,11 +104,25 @@ export const SELECT_DISPOSITIVO = `
   ) bat ON TRUE
 `;
 
+// $1 = id de la cuenta (null = administradora, ve todo). Una cuenta ve sus
+// propios equipos, los de las personas que se le asignaron una por una y los de
+// quienes están en los grupos que se le asignaron (también los que entren
+// después). Sin nada asignado no ve ninguno.
 export const PREDICADO_PERMISO = `(
   $1::bigint IS NULL OR EXISTS (
     SELECT 1 FROM operations.dmt_asignacion a
-    WHERE a.dispositivo_id = d.id AND a.usuario_id = $1 AND a.activa
+    WHERE a.dispositivo_id = d.id AND a.activa
       AND a.desde_en <= now() AND (a.hasta_en IS NULL OR a.hasta_en > now())
+      AND (
+        a.usuario_id = $1
+        OR EXISTS (SELECT 1 FROM iam.dmt_panel_persona pp
+                   WHERE pp.cuenta_id = $1 AND pp.persona_id = a.usuario_id)
+        OR EXISTS (SELECT 1 FROM iam.dmt_panel_grupo pg
+                   JOIN iam.dmt_usuario_grupo ug ON ug.grupo_id = pg.grupo_id
+                   WHERE pg.cuenta_id = $1 AND ug.usuario_id = a.usuario_id)
+      )
+  ) OR EXISTS (
+    SELECT 1 FROM iam.dmt_panel_grupo pg WHERE pg.cuenta_id = $1 AND pg.grupo_id = d.grupo_id
   )
 )`;
 

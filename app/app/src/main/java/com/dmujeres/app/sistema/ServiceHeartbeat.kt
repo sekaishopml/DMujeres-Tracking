@@ -17,7 +17,9 @@ import com.dmujeres.app.red.DmujeresApi
 import com.dmujeres.app.seguimiento.AdaptiveCadence
 import com.dmujeres.app.seguimiento.PositionProvider
 import com.dmujeres.app.seguimiento.Pasos
+import com.dmujeres.app.seguimiento.TrackingController
 import com.dmujeres.app.seguimiento.TrackingService
+import com.dmujeres.app.envio.UploadQueue
 import org.json.JSONObject
 
 /**
@@ -32,6 +34,7 @@ object ServiceHeartbeat {
 
     private const val TAG = "ServiceHeartbeat"
     private const val INTERVAL_MS = 10 * 60_000L
+    private const val TEMPERATURA_MS = 5 * 60_000L
 
     private val handler = Handler(Looper.getMainLooper())
 
@@ -48,12 +51,41 @@ object ServiceHeartbeat {
         }
     }
 
+    // Temperatura de la batería cada 5 min. Se lee del aviso de batería que
+    // Android ya tiene guardado (no enciende nada) y viaja con el diagnóstico.
+    private val tickTemperatura = object : Runnable {
+        override fun run() {
+            if (!running) return
+            medirTemperaturaSiToca()
+            handler.postDelayed(this, TEMPERATURA_MS)
+        }
+    }
+
+    private val temperaturas = ArrayList<Pair<Long, Double>>()
+
+    @Volatile
+    private var ultimaTemperaturaMs = 0L
+
+    private fun medirTemperaturaSiToca() {
+        val context = appContext ?: return
+        val ahora = System.currentTimeMillis()
+        // Medio minuto de margen: el pulso y la alarma no caen exactos.
+        if (ahora - ultimaTemperaturaMs < TEMPERATURA_MS - 30_000L) return
+        val grados = readBatteryStatus(context).temperatureC ?: return
+        ultimaTemperaturaMs = ahora
+        synchronized(temperaturas) {
+            temperaturas.add(ahora to grados)
+            if (temperaturas.size > 12) temperaturas.removeAt(0)
+        }
+    }
+
     fun start(context: Context) {
         if (running) return
         running = true
         appContext = context.applicationContext
         report()
         handler.postDelayed(tick, INTERVAL_MS)
+        handler.postDelayed(tickTemperatura, TEMPERATURA_MS)
         Log.i(TAG, "latido de diagnóstico iniciado")
     }
 
@@ -65,6 +97,28 @@ object ServiceHeartbeat {
         if (running) report()
     }
 
+    @Volatile
+    private var ultimoReporteMs = 0L
+
+    /**
+     * Desde la alarma de supervisión: el pulso de 10 min corre en un Handler
+     * que se congela con la CPU dormida (se veía un reporte cada ~33 min).
+     */
+    fun reportIfDue() {
+        if (running) medirTemperaturaSiToca()
+        if (running && System.currentTimeMillis() - ultimoReporteMs >= INTERVAL_MS) report()
+    }
+
+    // Último estado de las notificaciones que se informó al servidor.
+    @Volatile
+    private var notificacionesAvisadas: Boolean? = null
+
+    /** Si las notificaciones cambiaron desde el último reporte, se informa ya. */
+    fun avisarSiCambianNotificaciones(context: Context) {
+        val previo = notificacionesAvisadas ?: return
+        if (previo != AjustesPermisos.notificaciones(context)) reportNow()
+    }
+
     fun stop() {
         running = false
         handler.removeCallbacksAndMessages(null)
@@ -73,6 +127,9 @@ object ServiceHeartbeat {
 
     private fun report() {
         val context = appContext ?: return
+        ultimoReporteMs = System.currentTimeMillis()
+        medirTemperaturaSiToca()
+        val lecturas = synchronized(temperaturas) { temperaturas.toList().also { temperaturas.clear() } }
         Thread {
             runCatching {
                 val prefs = PreferenceManager.getDefaultSharedPreferences(context)
@@ -106,10 +163,10 @@ object ServiceHeartbeat {
                     ContextCompat.checkSelfPermission(
                         context, android.Manifest.permission.ACCESS_BACKGROUND_LOCATION,
                     ) == android.content.pm.PackageManager.PERMISSION_GRANTED
-                val permNotifications = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
-                    ContextCompat.checkSelfPermission(
-                        context, android.Manifest.permission.POST_NOTIFICATIONS,
-                    ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                // El permiso y el interruptor de Ajustes: apagadas, la persona
+                // deja de ver los avisos de la app.
+                val permNotifications = AjustesPermisos.notificaciones(context)
+                notificacionesAvisadas = permNotifications
                 DmujeresApi.postDiagnostics(
                     context,
                     JSONObject().put(
@@ -125,7 +182,8 @@ object ServiceHeartbeat {
                                 "gps",
                                 JSONObject()
                                     .put("enabled", locationEnabled)
-                                    .put("provider", "fused")
+                                    .put("provider", TrackingController.proveedorVigente)
+                                    .put("vigilia", VigiliaGps.activa())
                                     .put("fixAgeSec", fixAgeSec)
                                     .put("mock", prefs.getBoolean(Prefs.LAST_MOCK, false)),
                             )
@@ -143,6 +201,11 @@ object ServiceHeartbeat {
                                     .put("battery", battery.level.toInt().coerceIn(0, 100))
                                     .put("charging", battery.charging)
                                     .put("exempt", exempt)
+                                    .put("tempC", battery.temperatureC)
+                                    .put(
+                                        "tempLecturas",
+                                        org.json.JSONArray(lecturas.map { org.json.JSONArray().put(it.first).put(it.second) }),
+                                    )
                                     .put("saver", EstadoTelefono.ahorroDeBateria(context)),
                             )
                             // Qué tiene el teléfono: conexión, memoria libre,
@@ -196,7 +259,19 @@ object ServiceHeartbeat {
                             .put("movementState", movementState)
                             .put("caminando", walking)
                             .put("mode", movementMode)
-                            .put("serverUrl", prefs.getString(Prefs.URL, "")),
+                            .put("serverUrl", prefs.getString(Prefs.URL, ""))
+                            // Por qué se detiene la captura: pantalla, reposo,
+                            // ahorro, cubeta de espera, alarmas exactas, tiempo
+                            // encendido (reinicio real del teléfono o no) y la
+                            // última salida de la app según el sistema.
+                            .put("sistema", EstadoTelefono.sistema(context))
+                            .put(
+                                "envio",
+                                JSONObject()
+                                    .put("fallosSeguidos", UploadQueue.fallosSeguidos)
+                                    .put("ultimoOkMs", UploadQueue.ultimoEnvioOkMs)
+                                    .put("ultimoError", UploadQueue.ultimoError),
+                            ),
                     ),
                 )
             }

@@ -72,7 +72,7 @@ export async function validarSesion(pool, token) {
   if (!token) return null;
   const { rows } = await pool.query(
     `SELECT s.id AS sesion_id, s.expira_en,
-            u.id, u.id_publico, u.nombre, u.correo, u.administrador, u.solo_lectura, u.habilitado,
+            u.id, u.id_publico, u.nombre, u.correo, u.administrador, u.solo_lectura, u.habilitado, u.atributos,
             ${SUBCONSULTA_DISPOSITIVOS}
      FROM iam.dmt_sesion s
      JOIN iam.dmt_usuario u ON u.id = s.usuario_id

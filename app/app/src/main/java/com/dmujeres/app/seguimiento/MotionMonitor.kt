@@ -72,6 +72,15 @@ object MotionMonitor : SensorEventListener {
         significantMotionListener = listener
     }
 
+    /**
+     * El reconocimiento de actividad dice "en vehículo" o "a pie": cuenta como
+     * arranque igual que el sensor. Quieta, la app guarda un punto cada 2 min
+     * y la salida se notaba tarde.
+     */
+    fun avisarMovimiento() {
+        significantMotionListener?.onSignificantMotion()
+    }
+
     /** true/false si se sabe; null si no hay datos suficientes. */
     fun isMoving(): Boolean? = when (state) {
         State.MOVING -> true

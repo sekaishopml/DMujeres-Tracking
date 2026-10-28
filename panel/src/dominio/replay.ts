@@ -1,6 +1,6 @@
-import type { Feature, FeatureCollection, LineString, Point } from 'geojson';
+import type { FeatureCollection, LineString, Point } from 'geojson';
 import type { Hueco, MetodoReconstruccion, Posicion, TramoReconstruido } from '@contratos';
-import { GUION } from './formatoBase';
+import { GUION } from './formatoBase.ts';
 
 export type { MetodoReconstruccion, TramoReconstruido } from '@contratos';
 
@@ -111,6 +111,8 @@ export interface Parada {
   latitudRepresentativa?: number;
   longitudRepresentativa?: number;
   precisionM?: number | null;
+  // Minutos sin datos (sin señal, GPS apagado) dentro de la parada o pegados a sus bordes.
+  cortesMin?: number;
 }
 
 // Estado operativo del fix actual, para el marcador del reproductor.
@@ -132,15 +134,25 @@ export const RADIO_PARADA_M = 60;
 // sin el punto siguiente ya es sin señal.
 export const ANTIGUEDAD_SIN_SENAL_MS = 5 * 60 * 1000;
 
+// Una ruta de un día en carretera trae 25 000 puntos y el trazo consulta la
+// hora de cada uno muchas veces: interpretar la fecha cada vez dejaba el
+// replay sin responder. Se guarda el resultado por texto.
+const HORAS = new Map<string, number>();
 export function milisegundos(iso: string): number {
-  return new Date(iso).getTime();
+  let t = HORAS.get(iso);
+  if (t === undefined) {
+    if (HORAS.size > 200_000) HORAS.clear();
+    t = new Date(iso).getTime();
+    HORAS.set(iso, t);
+  }
+  return t;
 }
 
 // Hora en 24 h para la lectura del reproductor y las etiquetas del mapa:
 // util/formato.hora añade "a. m./p. m." y alarga la franja compacta y los
 // rótulos. horaCorta se queda solo con la hora y fechaHoraCorta (abajo) con el
 // día, para la ficha del punto.
-const HORA_CORTA = new Intl.DateTimeFormat('es-EC', { timeZone: 'America/Guayaquil', hour: '2-digit', minute: '2-digit', hour12: false });
+const HORA_CORTA = new Intl.DateTimeFormat('es-EC', { timeZone: 'America/Guayaquil', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
 
 export function horaCorta(valor?: string | null): string {
   return valor ? HORA_CORTA.format(new Date(valor)) : GUION;
@@ -154,7 +166,7 @@ const FECHA_HORA_CORTA = new Intl.DateTimeFormat('es-EC', { timeZone: 'America/G
   year: '2-digit',
   hour: '2-digit',
   minute: '2-digit',
-  hour12: false,
+  hourCycle: 'h23',
 });
 
 export function fechaHoraCorta(valor?: string | null): string {
@@ -402,6 +414,20 @@ function esSaltoSinObservar(anterior: Posicion, actual: Posicion): boolean {
 }
 
 export const RECTA_SIN_OBSERVAR_M = 30;
+// Avance entre el punto anterior al par y el siguiente: por debajo, un par
+// corto es temblor y no recorrido.
+export const AVANCE_REAL_MIN_M = 18;
+export const AVANCE_VENTANA_S = 15;
+// Error desde el que una lectura es de antena, y cuánto pueden separarse las
+// lecturas buenas (o a qué velocidad, en m/s) para seguir en el mismo lugar.
+export const PRECISION_ANTENA_M = 100;
+export const MISMO_LUGAR_ANTENA_M = 30;
+export const QUIETO_ANTENA_MS = 0.5;
+// Dos puntos seguidos a cadencia normal sí son recorrido visto: en vehículo
+// quedan a más de 30 m y, sin dibujarlos, la ruta salía a pedazos sueltos.
+// Solo con puntos precisos: el temblor bajo techo también salta así.
+export const RECTA_SEGUIDA_SEGUNDOS = 15;
+export const RECTA_SEGUIDA_PRECISION_M = 15;
 
 export function segmentosDeRecorrido(
   posiciones: Posicion[],
@@ -413,10 +439,6 @@ export function segmentosDeRecorrido(
     huecos
       .filter((hueco) => !paresReconstruidos.has(`${hueco.desde}|${hueco.hasta}`))
       .map((hueco) => `${hueco.desde}|${hueco.hasta}`),
-  );
-  // Entre dos jornadas no hay recorrido: ese tramo no se dibuja.
-  const fueraDeJornada = new Set(
-    huecos.filter((hueco) => hueco.motivo === 'FUERA_DE_JORNADA').map((hueco) => `${hueco.desde}|${hueco.hasta}`),
   );
   const segmentos: SegmentoRecorrido[] = [];
   // Las rectas del medio de un tramo ajustado a la vía no se dibujan. El modo
@@ -448,13 +470,21 @@ export function segmentosDeRecorrido(
       });
     }
   }
+  // Índice de la última lectura buena (no de antena) hasta cada punto, y de la
+  // primera desde cada punto; -1 si no hay.
+  const buena = (p: Posicion) => (p.precisionM ?? 0) < PRECISION_ANTENA_M;
+  const buenaAntes: number[] = [];
+  const buenaDespues: number[] = new Array(posiciones.length).fill(-1);
+  for (let k = 0; k < posiciones.length; k += 1) buenaAntes.push(buena(posiciones[k]) ? k : (buenaAntes[k - 1] ?? -1));
+  for (let k = posiciones.length - 1; k >= 0; k -= 1) buenaDespues[k] = buena(posiciones[k]) ? k : (buenaDespues[k + 1] ?? -1);
   for (let i = 1; i < posiciones.length; i += 1) {
     const anterior = posiciones[i - 1];
     const actual = posiciones[i];
     // El tramo reconstruido ya dibuja este par: la recta quedaría encima del
     // trazado con otro estilo y se vería doble.
-    if (paresReconstruidos.has(`${anterior.registradoEn}|${actual.registradoEn}`)) continue;
-    if (fueraDeJornada.has(`${anterior.registradoEn}|${actual.registradoEn}`)) continue;
+    // Uno estimado no se dibuja (no hubo puntos): el par sigue y sale como
+    // raya de corte, para que el salto no quede en blanco.
+    if (paresReconstruidos.get(`${anterior.registradoEn}|${actual.registradoEn}`)?.metodo === 'MATCHED') continue;
     // Tramo MATCHED: su trazado es la única línea de esa parte. Las rectas que
     // entran y salen sí se dibujan y empalman con su inicio y su fin.
     if (
@@ -468,10 +498,51 @@ export function segmentosDeRecorrido(
       [actual.longitud, actual.latitud],
     ];
     const modo = modoDePar(quietos, velocidades, i);
-    const rectaSinObservar = modo !== 'quieto' && distanciaKm(anterior, actual) * 1000 > RECTA_SIN_OBSERVAR_M;
-    // Lo no observado no se dibuja: ni recta sólida (cortaría manzanas) ni
-    // punteada (parecería un lugar visitado). La falta de señal se marca aparte.
+    const metrosPar = distanciaKm(anterior, actual) * 1000;
+    const segundosPar = (milisegundos(actual.registradoEn) - milisegundos(anterior.registradoEn)) / 1000;
+    // Una lectura por antena (100 m o más de error) no dice dónde está la
+    // persona: si las lecturas buenas de antes y de después están en el mismo
+    // lugar, la línea hasta ella es un viaje inventado (de noche en casa salía
+    // una estrella). Los puntos se quedan; solo no se unen.
+    const errorPar = Math.max(anterior.precisionM ?? 0, actual.precisionM ?? 0);
+    if (errorPar >= PRECISION_ANTENA_M) {
+      const antes = buenaAntes[i - 1];
+      const despues = buenaDespues[i];
+      // Sin lectura buena de un lado no hay con qué comparar: solo se oculta
+      // el salto que cabe en el error.
+      if (antes < 0 || despues < 0) {
+        if (metrosPar <= errorPar * 1.5) continue;
+      } else {
+        const metrosBuenas = distanciaKm(posiciones[antes], posiciones[despues]) * 1000;
+        const segundosBuenas = (milisegundos(posiciones[despues].registradoEn) - milisegundos(posiciones[antes].registradoEn)) / 1000;
+        // Mismo lugar: casi no se movió, o se movió a menos de paso lento.
+        if (metrosBuenas <= MISMO_LUGAR_ANTENA_M || metrosBuenas < segundosBuenas * QUIETO_ANTENA_MS) continue;
+      }
+    }
+    const preciso = (p: Posicion) => p.precisionM == null || p.precisionM <= RECTA_SEGUIDA_PRECISION_M;
+    const seguidos =
+      segundosPar <= RECTA_SEGUIDA_SEGUNDOS && metrosPar <= SALTO_SIN_OBSERVAR_M && preciso(anterior) && preciso(actual);
+    // Menos de 12 m entre dos lecturas es temblor del GPS: una línea tan corta
+    // no dice hacia dónde se fue. Pero caminando con un punto cada 8 s cada par
+    // mide unos 10 m: si con los vecinos sí avanza, es recorrido y se dibuja.
+    // Los vecinos se buscan por tiempo (AVANCE_VENTANA_S a cada lado) y no por
+    // índice: a un punto por segundo, tres puntos son 3 s y una caminata lenta
+    // nunca sumaba AVANCE_REAL_MIN_M.
+    let previo = i - 1;
+    while (previo > 0 && milisegundos(anterior.registradoEn) - milisegundos(posiciones[previo].registradoEn) < AVANCE_VENTANA_S * 1000) previo -= 1;
+    let proximo = i;
+    while (proximo < posiciones.length - 1 && milisegundos(posiciones[proximo].registradoEn) - milisegundos(actual.registradoEn) < AVANCE_VENTANA_S * 1000) proximo += 1;
+    const avance = distanciaKm(posiciones[previo], posiciones[proximo]) * 1000;
+    if (metrosPar < RUMBO_FIABLE_MIN_M && avance < AVANCE_REAL_MIN_M) continue;
+    const rectaSinObservar = modo !== 'quieto' && metrosPar > RECTA_SIN_OBSERVAR_M && !seguidos;
+    // Lo no observado va como raya de corte, no como recta sólida: une los
+    // dos puntos para que la ruta no quede en pedazos, sin afirmar el camino.
     if (paresHueco.has(`${anterior.registradoEn}|${actual.registradoEn}`) || rectaSinObservar || esSaltoSinObservar(anterior, actual)) {
+      // Un salto imposible es GPS errático, no un corte: unirlo dibujaría un
+      // viaje que no existió.
+      if (metrosPar > 50 && !(segundosPar > 0 && (metrosPar / segundosPar) * 3.6 <= VELOCIDAD_IMPOSIBLE_KMH)) continue;
+      if (metrosPar < 1) continue;
+      segmentos.push({ tipo: 'hueco', coordenadas, instante: milisegundos(anterior.registradoEn) });
       continue;
     }
     segmentos.push({
@@ -499,23 +570,6 @@ export function segmentosDeRecorrido(
 // avanza).
 export const DISTANCIA_FLECHAS_M = 150;
 export const RUMBO_FIABLE_MIN_M = 12;
-
-// Nube de puntos estando quieta: un punto por cada lectura detenida, para
-// mostrar el temblor del GPS como un halo y no como líneas.
-export function puntosQuietos(posiciones: Posicion[]): FeatureCollection<Point> {
-  const quietos = indicesQuietos(posiciones);
-  const features: Feature<Point>[] = [];
-  for (const indice of quietos) {
-    const posicion = posiciones[indice];
-    if (!posicion || !Number.isFinite(posicion.latitud) || !Number.isFinite(posicion.longitud)) continue;
-    features.push({
-      type: 'Feature',
-      properties: { indice },
-      geometry: { type: 'Point', coordinates: [posicion.longitud, posicion.latitud] },
-    });
-  }
-  return { type: 'FeatureCollection', features };
-}
 
 export function aColeccionHalos(halos: HaloParada[]): FeatureCollection<Point> {
   return {

@@ -4,6 +4,7 @@ import { readFile, stat } from 'node:fs/promises';
 import { extname, join, normalize, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createGzip, gzipSync } from 'node:zlib';
+import { enviarApkRemu, leerDescarga } from './descarga.js';
 
 const AQUI = fileURLToPath(new URL('.', import.meta.url));
 // DMJ_WEB_DIST permite servir otra carpeta compilada.
@@ -73,6 +74,13 @@ async function servirEstatico(req, res) {
   } catch {
     // si no, sigue con index.html
   }
+  // Un trozo que ya no existe (versión anterior) responde 404: con el index
+  // en su lugar el navegador fallaba al leerlo como código y el panel quedaba
+  // en blanco; con 404 la pestaña se recarga sola a la versión nueva.
+  if (ruta.startsWith('/assets/')) {
+    res.writeHead(404, { 'Cache-Control': 'no-store' }).end('No existe');
+    return;
+  }
   const indice = await readFile(join(DIST, 'index.html'));
   res.writeHead(200, { 'Content-Type': TIPOS['.html'], 'Cache-Control': 'no-cache' });
   res.end(indice);
@@ -113,8 +121,22 @@ function proxyApi(req, res) {
 }
 
 createServer((req, res) => {
-  if ((req.url ?? '').startsWith('/api/')) {
+  const ruta = (req.url ?? '').split('?')[0];
+  if (ruta.startsWith('/api/')) {
     proxyApi(req, res);
+  } else if (/^\/descargar-app-remu\/?$/.test(ruta) && (req.method === 'GET' || req.method === 'HEAD')) {
+    enviarApkRemu(req, res).catch((error) => {
+      console.error('[web] error en la descarga de REMU', error);
+      if (!res.headersSent) res.writeHead(503, { 'Cache-Control': 'no-store' });
+      res.end();
+    });
+  } else if (/^\/descargar-app\/?$/.test(ruta) && (req.method === 'GET' || req.method === 'HEAD')) {
+    leerDescarga()
+      .then(({ estado, cabeceras, cuerpo }) => res.writeHead(estado, cabeceras).end(cuerpo))
+      .catch((error) => {
+        console.error('[web] error en la descarga de la app', error);
+        res.writeHead(503, { 'Cache-Control': 'no-store' }).end('La app no está disponible por ahora.');
+      });
   } else {
     servirEstatico(req, res).catch((error) => {
       console.error('[web] error sirviendo estático', error);

@@ -34,6 +34,27 @@ object AjustesPermisos {
         Build.VERSION.SDK_INT < Build.VERSION_CODES.Q ||
             concedido(context, Manifest.permission.ACTIVITY_RECOGNITION)
 
+    /** Batería de la app en "Restringida" (Android 9+): no arranca en segundo plano. */
+    fun segundoPlanoRestringido(context: Context): Boolean =
+        Build.VERSION.SDK_INT >= Build.VERSION_CODES.P && runCatching {
+            (context.getSystemService(Context.ACTIVITY_SERVICE) as android.app.ActivityManager).isBackgroundRestricted
+        }.getOrDefault(false)
+
+    /** Notificaciones de la app encendidas: el permiso y el interruptor de Ajustes. */
+    fun notificaciones(context: Context): Boolean =
+        androidx.core.app.NotificationManagerCompat.from(context).areNotificationsEnabled()
+
+    /** Lleva a las notificaciones de esta app en Ajustes. */
+    fun abrirNotificaciones(context: Context) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val directa = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            if (runCatching { context.startActivity(directa) }.isSuccess) return
+        }
+        abrirFichaDeLaApp(context)
+    }
+
     /**
      * Lleva a Permisos > Ubicación de esta app, donde se elige "Permitir todo
      * el tiempo". Primero la página directa; si el teléfono no la ofrece, la
