@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { velocidadMostrada } from '@/dominio/depuracion';
 import type { MouseEvent as EventoRaton, ReactNode } from 'react';
 import { CategoryScale, Chart as ChartJS, Filler, LineElement, LinearScale, PointElement } from 'chart.js';
 import type { ChartData, ChartOptions } from 'chart.js';
@@ -51,7 +52,7 @@ function GraficoBateria({ ampliada }: { ampliada: boolean }) {
   const [bajoCursor, setBajoCursor] = useState<{ indice: number; x: number } | null>(null);
   const serie = useMemo(() => serieBateria(posiciones), [posiciones]);
   const velocidades = useMemo(
-    () => posiciones.map((p) => (p.velocidadKmh != null && Number.isFinite(p.velocidadKmh) ? p.velocidadKmh : null)),
+    () => posiciones.map((p) => { const v = velocidadMostrada(p); return v != null && Number.isFinite(v) ? v : null; }),
     [posiciones],
   );
   const instantes = useMemo(() => posiciones.map((p) => milisegundos(p.registradoEn)), [posiciones]);
@@ -187,7 +188,7 @@ function GraficoBateria({ ampliada }: { ampliada: boolean }) {
       {bajo && valorBajo != null && bajoCursor && (
         <span className="bateria-etiqueta" style={{ left: bajoCursor.x }} role="status">
           <strong>{Math.round(valorBajo)}%</strong> · {horaCorta(bajo.registradoEn)}
-          {ampliada && bajo.velocidadKmh != null && ` · ${velocidad(bajo.velocidadKmh)}`}
+          {ampliada && velocidadMostrada(bajo) != null && ` · ${velocidad(velocidadMostrada(bajo))}`}
         </span>
       )}
     </div>
@@ -472,7 +473,7 @@ function PistaTiempo({ ampliada }: { ampliada: boolean }) {
     return (
       <>
         <strong>{horaCorta(new Date(instante).toISOString())}</strong>
-        {fix && ` · ${velocidad(fix.velocidadKmh)} · ${bateria(fix.bateriaPct)}`}
+        {fix && ` · ${velocidad(velocidadMostrada(fix))} · ${bateria(fix.bateriaPct)}`}
         {detalle && <span className="globo-linea">{detalle}</span>}
       </>
     );
@@ -593,7 +594,7 @@ function LecturaPunto({ ampliada }: { ampliada: boolean }) {
       : null;
   return (
     <span className="replay-tiempos">
-      <strong>{punto ? horaCorta(punto.registradoEn) : GUION}</strong> · {velocidad(punto?.velocidadKmh)} ·{' '}
+      <strong>{punto ? horaCorta(punto.registradoEn) : GUION}</strong> · {velocidad(punto ? velocidadMostrada(punto) : null)} ·{' '}
       {bateria(punto?.bateriaPct)}
       {ampliada && punto && <span className={`lectura-estado ${CLASE_ESTADO[estado]}`}>{cierre ? etiquetaCierre(cierre) : ETIQUETA_ESTADO_PUNTO[estado]}</span>}
       {enParada >= 0 && (

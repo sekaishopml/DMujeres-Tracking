@@ -127,3 +127,15 @@ test('una racha de puntos por red al perder el GPS manejando se quita', async ()
   const lista = [fix(0, 0, { velocidadKmh: 45 }), fix(1, 12, { velocidadKmh: 45 }), ...red, fix(400, 2100, { velocidadKmh: 30 }), fix(401, 2110, { velocidadKmh: 30 })];
   assert.equal(depurarPosiciones(lista).conservadas.length, 4);
 });
+
+// Jeremy 27/10 17:27: un punto a 180 km/h entre otros a 25-58 km/h.
+test('la velocidad máxima es la sostenida, no un pico del GPS', async () => {
+  const { velocidadMaximaSostenidaKmh } = await import('../src/recorrido/geo.js');
+  // Avanza 11 m por segundo (40 km/h) y un punto salta 50 m (180 km/h).
+  const lista = Array.from({ length: 10 }, (_, k) => fix(k, k * 11, { velocidadKmh: 40, precisionM: 8 }));
+  lista[5] = fix(5, 5 * 11 + 39, { velocidadKmh: 180, precisionM: 8 });
+  const v = velocidadMaximaSostenidaKmh(lista);
+  assert.ok(v > 35 && v <= 41, String(v));
+  // Sin tres puntos precisos seguidos no hay dato.
+  assert.equal(velocidadMaximaSostenidaKmh(lista.map((p) => ({ ...p, precisionM: 100 }))), 0);
+});

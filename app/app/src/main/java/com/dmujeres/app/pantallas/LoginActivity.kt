@@ -7,7 +7,6 @@ import android.view.View
 import android.widget.Button
 import android.widget.EditText
 import android.widget.TextView
-import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.dmujeres.app.BuildConfig
 import com.dmujeres.app.R
@@ -117,7 +116,9 @@ class LoginActivity : AppCompatActivity() {
                 if (report.remaining > 0) {
                     runOnUiThread {
                         val aviso = getString(R.string.login_switch_pending_fmt, report.remaining)
-                        Toast.makeText(this, aviso, Toast.LENGTH_LONG).show()
+                        // En la misma pantalla, sin ventanas emergentes.
+                        errorView.text = aviso
+                        errorView.visibility = View.VISIBLE
                         StatusActivity.addMessage(aviso)
                     }
                 }

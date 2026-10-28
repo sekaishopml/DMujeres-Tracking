@@ -75,8 +75,10 @@ Además, según los sensores del teléfono:
 - Cada parada se une con su línea de llegada y de salida (`conectarParadas`).
 - `coser`: la ruta nunca queda partida. Unos metros se cierran con la misma
   línea; más, con la raya naranja de corte.
-- Colores: línea sólida = GPS visto; punteado = estimado; naranja con rayas =
-  corte (no se vio).
+- Colores: línea sólida = GPS visto; punteado = GPS visto pero dudoso
+  (salto imposible, salida sin pasos ni actividad) o unión corta a pie desde
+  una parada; naranja con rayas = corte (no se vio). Un corte nunca se
+  rellena por calles.
 
 ## Mouse y selección (`componentes/replay/ReproductorReplay.tsx`)
 
@@ -108,9 +110,11 @@ regla se publica sin esa comparación.
 
 ## Qué falta mejorar
 
-- Velocidad máxima y distancia del resumen con picos del GPS.
-- La ficha muestra 0 km/h dentro de una estancia (la depuración la pone en 0).
-- Llegó/Salió de geocercas: usar el primer y último punto preciso dentro.
 - Centros de parada corridos 80 a 150 m en estancias largas.
-- Mientras no se decida si se muestran tramos estimados, los cortes quedan
-  como raya naranja recta.
+
+Resuelto el 27/10:
+- La ficha, el globo y la línea de tiempo muestran la velocidad que reportó
+  el teléfono (`velocidadMostrada`); el 0 de las estancias es solo interno.
+- Llegó/Salió de geocercas usan el rato de la parada con lecturas de 50 m o
+  mejor dentro o a 60 m del borde (`componentes/geocercas/logica.ts`).
+- Velocidad máxima sostenida en el servidor (ver [El servidor](servidor.md)).

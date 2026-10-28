@@ -1,14 +1,11 @@
-// Reconstrucción por calles de los tramos que quedan "a saltos" en la
-// Repetición de ruta. El servicio local de ruteo (GraphHopper con el mapa de
-// Ecuador) devuelve el camino por las vías entre dos puntos. Se usa en:
-//  - huecos de más de 10 min sin señal (hasta 4 h);
-//  - tramos sueltos (de 45 s a 10 min entre puntos) que cortan esquinas;
-//  - ventanas con muchos puntos, que se ajustan a la vía con /match para que
-//    el temblor del GPS no se dibuje punto a punto.
+// Ajuste a calles de la Repetición de ruta. El servicio local de ruteo
+// (GraphHopper con el mapa de Ecuador) alinea a la vía los tramos que tienen
+// puntos reales (/match): ventanas con muchos puntos, para que el temblor del
+// GPS no se dibuje punto a punto, y tramos con puntos intermedios.
 // MATCHED: hubo puntos suficientes y el ajuste pasó la validación.
-// ESTIMATED: se pidió /route de A a B sin puntos intermedios.
-// Si el ruteo no responde no hay tramo: nunca se inventa. Los puntos
-// guardados no cambian.
+// Un hueco sin puntos no se rellena por calles: cada novedad del recorrido se
+// audita y un camino que nadie vio no se dibuja (queda como corte). Si el
+// ruteo no responde no hay tramo. Los puntos guardados no cambian.
 // Caché en memoria (aciertos 7 días, fallos 1 min, hasta 2000). Ninguna
 // función lanza error.
 
@@ -18,30 +15,10 @@ const TTL_ACIERTO_MS = 7 * 24 * 60 * 60 * 1000;
 const TTL_FALLO_MS = 60 * 1000;
 const MAX_ENTRADAS = 2000;
 
-// Solo se reconstruyen tramos con desplazamiento real: menos de 150 m es el
-// vehículo parado con jitter y el ruteo devolvería vueltas absurdas.
-export const MIN_DISTANCIA_RUTEO_M = 150;
 // Desde 45 s entre fixes el trazo recto ya corta esquinas; la cadencia fina
 // (10 s) se ajusta por ventanas densas en vez de tramo a tramo.
 export const MIN_SEPARACION_RUTEO_SEGUNDOS = 45;
-// Tope para candidatos a reconstrucción (el /match con intermedios puede
-// cubrir huecos largos si hay observaciones que lo sostengan).
-export const MAX_TRAMO_RUTEO_SEGUNDOS = 4 * 60 * 60;
-// Cuándo se acepta un tramo ESTIMATED (de A a B sin puntos en el medio): solo
-// si la calle es la única explicación razonable del salto:
-//  - el hueco dura 5 min o menos (con más tiempo pudo parar, desviarse o
-//    volver);
-//  - el camino por calles mide como máximo max(1.35 x recta, recta + 60 m);
-//    un rodeo mayor sería una ruta inventada;
-//  - la velocidad que exige ese camino es de 130 km/h o menos.
-// Si no se cumple, el panel muestra el salto como "sin observación".
-export const MAX_ESTIMADO_SEGUNDOS = 5 * 60;
-export const MAX_ESTIMADO_RAZON = 1.35;
-export const MAX_ESTIMADO_HOLGURA_M = 60;
-export const MAX_ESTIMADO_VELOCIDAD_KMH = 130;
 // Topes por carga del Replay: más allá, los tramos sobrantes quedan rectos.
-const MAX_TRAMOS_ESTIMADOS = 200;
-const TANDA = 8;
 const PRESUPUESTO_MS = 3000;
 // Ventanas para ajustar a la vía: hasta 100 puntos o 5 min cada una (cada
 // ventana responde en menos de 100 ms). Lo que pasa dentro de una parada no
@@ -157,11 +134,6 @@ export function tramoEnVehiculo(ventana) {
 }
 
 const cache = new Map();
-
-function claveRuta(a, b) {
-  const punto = (p) => `${p.latitud.toFixed(5)},${p.longitud.toFixed(5)}`;
-  return `R:${punto(a)}>${punto(b)}`;
-}
 
 function claveMatch(puntos) {
   return `M:${puntos.map((p) => `${p.longitud.toFixed(5)},${p.latitud.toFixed(5)}`).join('|')}`;
@@ -474,7 +446,7 @@ function desplazamientoMaximoM(ventana) {
 // Un hueco entre puntos se une si dura 150 s o menos y se avanzó menos de
 // 50 m: las paradas cortas y el avance lento quedan en la misma ventana.
 // Moverse entre calles sin puntos (50 m o más) o parar más de 150 s corta, y
-// ese hueco se trata como ESTIMATED.
+// ese hueco queda como corte.
 function puenteHuecoCorto(posiciones, prevIdx, curIdx) {
   try {
     const prevMs = instanteMs(posiciones[prevIdx]);
@@ -646,72 +618,6 @@ function peticionConLimite(signal) {
       signal?.removeEventListener('abort', abortar);
     },
   };
-}
-
-// Camino [lon,lat] por /route entre dos puntos y la versión del mapa, o null
-// si el ruteo no responde o no hay camino.
-async function trazarPorRuta(desde, hasta, signal) {
-  const clave = claveRuta(desde, hasta);
-  const enCache = leerCache(clave);
-  if (enCache !== undefined) return enCache.trazado ? enCache : null;
-  const { signal: senal, liberar } = peticionConLimite(signal);
-  try {
-    const respuesta = await fetch(`${URL_RUTEO}/route`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        from: [desde.longitud, desde.latitud],
-        to: [hasta.longitud, hasta.latitud],
-      }),
-      signal: senal,
-    });
-    if (!respuesta.ok) {
-      guardarCache(clave, { trazado: null, mapaVersion: null, metodo: 'ESTIMATED' });
-      return null;
-    }
-    const datos = await respuesta.json();
-    const trazado =
-      Array.isArray(datos.points) && datos.points.length >= 2 ? datos.points : null;
-    const resultado = {
-      trazado,
-      mapaVersion: typeof datos.mapaVersion === 'string' ? datos.mapaVersion : null,
-      metodo: 'ESTIMATED',
-      distanciaM: Number.isFinite(datos.distance) ? datos.distance : null,
-    };
-    guardarCache(clave, resultado);
-    return trazado ? resultado : null;
-  } catch {
-    guardarCache(clave, { trazado: null, mapaVersion: null, metodo: 'ESTIMATED' });
-    return null;
-  } finally {
-    liberar();
-  }
-}
-
-// Reglas del ESTIMATED (ver MAX_ESTIMADO_*): hueco corto, sin rodeos y con
-// una velocidad posible. Se exporta para las pruebas.
-export function estimadoPlausible(anterior, actual, trazado, distanciaRutaM) {
-  try {
-    const segundos = (instanteMs(actual) - instanteMs(anterior)) / 1000;
-    if (!(segundos > 0 && segundos <= MAX_ESTIMADO_SEGUNDOS)) return false;
-    const recta = distanciaM(anterior, actual);
-    const ruta = Number.isFinite(distanciaRutaM) ? distanciaRutaM : longitudTrazadoM(trazado);
-    if (!(ruta > 0)) return false;
-    if (ruta > Math.max(MAX_ESTIMADO_RAZON * recta, recta + MAX_ESTIMADO_HOLGURA_M)) return false;
-    // La ruta por calles arranca en la vía más cercana: si queda lejos de los
-    // puntos (un rebote del GPS), el tramo dibujado no une nada.
-    if (Array.isArray(trazado) && trazado.length >= 2) {
-      const [lon0, lat0] = trazado[0];
-      const [lon1, lat1] = trazado[trazado.length - 1];
-      if (
-        distanciaM(anterior, { latitud: lat0, longitud: lon0 }) > MAX_ESTIMADO_HOLGURA_M ||
-        distanciaM(actual, { latitud: lat1, longitud: lon1 }) > MAX_ESTIMADO_HOLGURA_M
-      ) return false;
-    }
-    return (ruta / segundos) * 3.6 <= MAX_ESTIMADO_VELOCIDAD_KMH;
-  } catch {
-    return false;
-  }
 }
 
 // Precisión mediana (m) de una ventana: viaja como `accuracy` al /match para
@@ -886,57 +792,8 @@ export async function reconstruirTramos(todas, signal) {
   // colas y picos que la persona nunca recorrió.
   const posiciones = todas.filter(esPrecisoParaTrazo);
   if (posiciones.length === 0) return [];
-  const candidatos = [];
-  for (let i = 1; i < posiciones.length && candidatos.length < MAX_TRAMOS_ESTIMADOS; i += 1) {
-    const anterior = posiciones[i - 1];
-    const actual = posiciones[i];
-    const segundos = (new Date(actual.registradoEn).getTime() - new Date(anterior.registradoEn).getTime()) / 1000;
-    if (!(segundos >= MIN_SEPARACION_RUTEO_SEGUNDOS && segundos <= MAX_TRAMO_RUTEO_SEGUNDOS)) continue;
-    if (distanciaM(anterior, actual) < MIN_DISTANCIA_RUTEO_M) continue;
-    // Puntos con hora estrictamente dentro del tramo; con una lista seguida
-    // suelen ser cero, por eso el método queda en ESTIMATED.
-    const desdeMs = new Date(anterior.registradoEn).getTime();
-    const hastaMs = new Date(actual.registradoEn).getTime();
-    const intermedios = posiciones.filter((p) => {
-      const instante = new Date(p.registradoEn).getTime();
-      return instante > desdeMs && instante < hastaMs;
-    });
-    candidatos.push({ anterior, actual, intermedios });
-  }
   const inicio = Date.now();
   const reconstruidos = [];
-  for (let i = 0; i < candidatos.length; i += TANDA) {
-    if (Date.now() - inicio > PRESUPUESTO_MS) break;
-    const tanda = candidatos.slice(i, i + TANDA);
-    const resultados = await Promise.all(tanda.map(async ({ anterior, actual, intermedios }) => {
-      if (intermedios.length >= 2) {
-        const puntos = [anterior, ...intermedios, actual];
-        const porMatch = await trazarPorMatch(puntos, signal);
-        if (porMatch && validarAjusteMatch(puntos, porMatch.trazado).valida) {
-          return { anterior, actual, ...porMatch };
-        }
-        if (porMatch) return null;
-      }
-      // Sin puntos intermedios: un hueco largo ni se consulta.
-      if ((instanteMs(actual) - instanteMs(anterior)) / 1000 > MAX_ESTIMADO_SEGUNDOS) return null;
-      const porRuta = await trazarPorRuta(anterior, actual, signal);
-      if (porRuta && estimadoPlausible(anterior, actual, porRuta.trazado, porRuta.distanciaM)) {
-        return { anterior, actual, ...porRuta };
-      }
-      return null;
-    }));
-    for (const resultado of resultados) {
-      if (resultado?.trazado) {
-        reconstruidos.push({
-          desde: resultado.anterior.registradoEn,
-          hasta: resultado.actual.registradoEn,
-          metodo: resultado.metodo,
-          mapaVersion: resultado.mapaVersion,
-          trazado: resultado.trazado,
-        });
-      }
-    }
-  }
   // Ajuste a la vía de los tramos con muchos puntos, ventana por ventana. Si
   // el ruteo no responde o el ajuste no pasa la revisión, la ventana queda
   // como vino.
@@ -947,15 +804,9 @@ export async function reconstruirTramos(todas, signal) {
     } catch {
       ventanas = [];
     }
-    const clavesCandidatas = new Set(
-      candidatos.map(({ anterior, actual }) => `${anterior.registradoEn}|${actual.registradoEn}`),
-    );
     ventanas = ventanas
       .map((ventana) => (esVentanaAPie(ventana) ? tramoEnVehiculo(ventana) : ventana))
-      .filter(
-        (ventana) =>
-          ventana && !clavesCandidatas.has(`${ventana[0].registradoEn}|${ventana[ventana.length - 1].registradoEn}`),
-      );
+      .filter(Boolean);
     for (let i = 0; i < ventanas.length; i += TANDA_DENSAS) {
       if (Date.now() - inicio > PRESUPUESTO_MS) break;
       const tanda = ventanas.slice(i, i + TANDA_DENSAS);
@@ -985,7 +836,7 @@ export async function reconstruirTramos(todas, signal) {
     }
   } catch {
     // Las ventanas densas son oportunistas: ante cualquier fallo se conserva
-    // lo ya reconstruido por huecos y el resto queda crudo.
+    // lo ya ajustado y el resto queda crudo.
   }
   try {
     reconstruidos.sort((a, b) => new Date(a.desde).getTime() - new Date(b.desde).getTime());

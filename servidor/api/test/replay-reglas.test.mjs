@@ -2,33 +2,12 @@
 // puntos que lo respalden. Ejecutar: node24 --test test/
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { estimadoPlausible } from '../src/recorrido/ruteo.js';
 import { depurarPosiciones } from '../src/recorrido/depuracion.js';
 import { sumarDistanciasKm } from '../src/recorrido/geo.js';
 
 const fix = (lat, lon, iso) => ({ latitud: lat, longitud: lon, registradoEn: iso });
 // ~111 m por milésima de grado de latitud en Guayaquil.
 const A = fix(-2.2000, -79.9000, '2026-09-28T13:00:00.000Z');
-
-test('ESTIMATED: salto corto y camino casi recto se acepta', () => {
-  const B = fix(-2.2030, -79.9000, '2026-09-28T13:01:00.000Z'); // ~333 m en 60 s
-  assert.equal(estimadoPlausible(A, B, null, 360), true);
-});
-
-test('ESTIMATED: rodeo x4,5 (sentido único) se rechaza', () => {
-  const B = fix(-2.20154, -79.9000, '2026-09-28T13:01:06.000Z'); // ~171 m
-  assert.equal(estimadoPlausible(A, B, null, 769), false);
-});
-
-test('ESTIMATED: hueco de 18 min no se inventa aunque la ruta sea recta', () => {
-  const B = fix(-2.2528, -79.9000, '2026-09-28T13:18:14.000Z'); // ~5,9 km
-  assert.equal(estimadoPlausible(A, B, null, 6000), false);
-});
-
-test('ESTIMATED: velocidad imposible por el camino se rechaza', () => {
-  const B = fix(-2.2100, -79.9000, '2026-09-28T13:00:10.000Z'); // ~1,1 km en 10 s
-  assert.equal(estimadoPlausible(A, B, null, 1150), false);
-});
 
 test('depuración: aparta el fix del emulador (Googleplex)', () => {
   const r = depurarPosiciones([
@@ -126,10 +105,3 @@ test('depuración: la salida de una parada con 24 a 100 m de error sale entera',
   assert.deepEqual(r.conservadas.map((p) => p.precisionM), [14, 15]);
 });
 
-test('ESTIMATED: una ruta por calles que arranca lejos del punto no se dibuja', () => {
-  const B = fix(-2.2030, -79.9000, '2026-09-28T13:01:00.000Z');
-  const cerca = [[-79.9, -2.2001], [-79.9, -2.2029]];
-  const lejos = [[-79.9, -2.1980], [-79.9, -2.2029]]; // empieza ~220 m antes
-  assert.equal(estimadoPlausible(A, B, cerca, 340), true);
-  assert.equal(estimadoPlausible(A, B, lejos, 340), false);
-});

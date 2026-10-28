@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { velocidadMostrada } from '@/dominio/depuracion';
 import type { ReactNode } from 'react';
 import { Marker, Popup } from 'maplibre-gl';
 import type { GeoJSONSource, Map as TipoMapa, MapMouseEvent } from 'maplibre-gl';
@@ -811,7 +812,7 @@ export default function ReproductorReplay({ mapa, posiciones, huecos, avisos = S
         const modo = propiedades.modo as keyof typeof ETIQUETA_MODO_REAL | undefined;
         if (fix) {
           contenido = globoDePunto(
-            [horaConSegundos(fix.registradoEn), fix.velocidadKmh == null ? null : velocidad(fix.velocidadKmh)].filter(Boolean).join(' · '),
+            [horaConSegundos(fix.registradoEn), velocidadMostrada(fix) == null ? null : velocidad(velocidadMostrada(fix))].filter(Boolean).join(' · '),
             [
               ...(modo && ETIQUETA_MODO_REAL[modo] ? [{ etiqueta: 'Desplazamiento', valor: ETIQUETA_MODO_REAL[modo] }] : []),
               ...(fix.simulada ? [{ etiqueta: 'GPS', valor: 'Ubicación simulada' }] : []),
@@ -1196,7 +1197,7 @@ export function PanelPuntoSeleccionado() {
         <dt>Dirección</dt>
         <dd>{cargando ? <span className="esqueleto" aria-label="Cargando dirección" /> : direccion ?? GUION}</dd>
         <dt>Velocidad</dt>
-        <dd>{velocidad(punto.velocidadKmh)}</dd>
+        <dd>{velocidad(velocidadMostrada(punto))}</dd>
         <dt>Batería</dt>
         <dd>{bateria(punto.bateriaPct)}</dd>
         <dt>Estado</dt>

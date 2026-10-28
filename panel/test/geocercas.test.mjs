@@ -119,3 +119,22 @@ test('la llegada a la geocerca es la de la parada si se detuvo antes de que el G
   assert.deepEqual(solo[0].visitas, [{ llegada: parada.inicio, salida: parada.fin, duracionMin: 37 }]);
   assert.equal(geocercasSoloPorParadas([v], [parada], [mall]).length, 0);
 });
+
+// Miriam 23/10, Quicentro Norte: la parada empezaba 5 h antes de la primera
+// lectura cerca del centro comercial.
+test('Llegó y Salió de la geocerca necesitan lecturas cerca de ella', async () => {
+  const { geocercasSoloPorParadas } = await import('../src/componentes/geocercas/logica.ts');
+  const mall = { id: 3, nombre: 'MALL', tipo: 'cc', activo: true, puntos: [[-79.9, -2.2], [-79.899, -2.2], [-79.899, -2.199], [-79.9, -2.199]], centro: { lon: -79.8995, lat: -2.1995 } };
+  const parada = { inicio: '2026-10-23T18:57:00Z', fin: '2026-10-24T02:10:00Z', latitud: -2.1995, longitud: -79.8995 };
+  const lectura = (hora, lon, lat) => ({ registradoEn: hora, latitud: lat, longitud: lon, precisionM: 8 });
+  const lecturas = [
+    lectura('2026-10-23T19:00:00Z', -79.905, -2.1995), // 550 m al oeste: no cuenta
+    lectura('2026-10-24T00:02:00Z', -79.9003, -2.1995), // 30 m del borde: cuenta
+    lectura('2026-10-24T01:30:00Z', -79.8995, -2.1995),
+    lectura('2026-10-24T02:05:00Z', -79.896, -2.1995), // 330 m al este: no cuenta
+  ];
+  const [v] = geocercasSoloPorParadas([], [parada], [mall], lecturas);
+  assert.deepEqual(v.visitas, [{ llegada: '2026-10-24T00:02:00Z', salida: '2026-10-24T01:30:00Z', duracionMin: 88 }]);
+  // Sin lecturas se queda con la parada, como antes.
+  assert.equal(geocercasSoloPorParadas([], [parada], [mall])[0].visitas[0].llegada, parada.inicio);
+});

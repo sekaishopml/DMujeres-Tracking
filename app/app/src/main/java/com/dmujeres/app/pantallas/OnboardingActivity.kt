@@ -16,7 +16,6 @@ import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
-import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.preference.PreferenceManager
@@ -344,7 +343,10 @@ class OnboardingActivity : AppCompatActivity() {
             row.findViewById<android.widget.ImageView>(R.id.row_icon).setBackgroundResource(R.drawable.ds_icon_ok)
         } else {
             button.setText(actionLabelRes)
-            button.setOnClickListener { action() }
+            button.setOnClickListener {
+                filaPulsada = row.findViewById(R.id.row_status)
+                action()
+            }
         }
         rows.addView(row)
     }
@@ -435,9 +437,12 @@ class OnboardingActivity : AppCompatActivity() {
         }
     }
 
+    /** Texto de la fila del permiso que se tocó: ahí se avisa, sin ventanas emergentes. */
+    private var filaPulsada: TextView? = null
+
     private fun openAutostart() {
         if (!runCatching { OemAutostart.open(this) }.getOrDefault(false)) {
-            Toast.makeText(this, R.string.perm_autostart_manual, Toast.LENGTH_LONG).show()
+            filaPulsada?.setText(R.string.perm_autostart_manual)
         }
     }
 

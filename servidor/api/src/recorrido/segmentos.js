@@ -1,7 +1,7 @@
 // Divide los recorridos en viajes y paradas a partir de tracking.dmt_posicion,
 // con las mismas reglas para Reportes y para la Repetición de ruta.
 
-import { VELOCIDAD_IMPOSIBLE_KMH } from './geo.js';
+import { VELOCIDAD_IMPOSIBLE_KMH, VELOCIDAD_PRECISION_M, VELOCIDAD_VENTANA_S } from './geo.js';
 import { PREDICADO_PERMISO } from '../equipos/flota.js';
 
 export const UMBRAL_MOVIMIENTO_KMH = 5;
@@ -76,7 +76,11 @@ export function sqlSegmentos() {
     pts AS (
       SELECT c.id, c.id_publico, c.dispositivo_id, c.registrado_en, c.latitud, c.longitud, c.direccion, c.precision_m,
              greatest(coalesce(c.velocidad_kmh, 0), coalesce(v.implicita, 0)) AS velocidad,
-             (greatest(coalesce(c.velocidad_kmh, 0), coalesce(v.implicita, 0)) > ${UMBRAL_MOVIMIENTO_KMH}) AS en_movimiento
+             (greatest(coalesce(c.velocidad_kmh, 0), coalesce(v.implicita, 0)) > ${UMBRAL_MOVIMIENTO_KMH}) AS en_movimiento,
+             -- Para la velocidad máxima: lo menor entre lo reportado y lo que avanzó (geo.js).
+             CASE WHEN c.precision_m <= ${VELOCIDAD_PRECISION_M} AND d.metros IS NOT NULL
+                  THEN least(coalesce(c.velocidad_kmh, 1e9), d.metros / extract(epoch FROM (c.registrado_en - c.t_previo)) * 3.6)
+             END AS vel_real
       FROM crudos_pts c
       CROSS JOIN LATERAL (
         SELECT CASE
@@ -98,6 +102,11 @@ export function sqlSegmentos() {
     ),
     saltos AS (
       SELECT pts.*,
+             -- Velocidad sostenida: la menor de 3 puntos seguidos en 60 s o menos.
+             CASE WHEN lag(vel_real) OVER w IS NOT NULL AND vel_real IS NOT NULL AND lead(vel_real) OVER w IS NOT NULL
+                   AND lead(registrado_en) OVER w - lag(registrado_en) OVER w <= interval '${VELOCIDAD_VENTANA_S} seconds'
+                  THEN least(lag(vel_real) OVER w, vel_real, lead(vel_real) OVER w)
+             END AS vel_sostenida,
              CASE WHEN lag(registrado_en) OVER w IS NULL
                     OR registrado_en - lag(registrado_en) OVER w > interval '${MAX_SALTO_SEGUNDOS} seconds'
                   THEN 1 ELSE 0 END AS salto
@@ -235,7 +244,7 @@ export function sqlSegmentos() {
              coalesce(
                percentile_cont(0.5) WITHIN GROUP (ORDER BY g.precision_m) FILTER (WHERE g.precision_m <= ${PRECISION_BUENA_FIX_M}),
                min(g.precision_m)) AS precision_rep,
-             max(g.velocidad) AS velocidad_maxima,
+             max(g.vel_sostenida) AS velocidad_maxima,
              coalesce(d.km, 0) AS km
       FROM grupos2 g
       LEFT JOIN distancias2 d

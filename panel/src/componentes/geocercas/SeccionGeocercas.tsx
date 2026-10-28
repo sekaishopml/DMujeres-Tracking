@@ -29,6 +29,7 @@ export default function SeccionGeocercas({
   activo,
   paradas,
   geocercas,
+  lecturas,
 }: {
   dispositivoId: string;
   desde: string;
@@ -36,6 +37,8 @@ export default function SeccionGeocercas({
   activo: boolean;
   paradas: readonly Parada[];
   geocercas: readonly Geocerca[];
+  // GPS tal como llegó: Llegó/Salió se ajustan a las lecturas cerca de la geocerca.
+  lecturas?: readonly { registradoEn: string; latitud: number; longitud: number; precisionM?: number | null }[];
 }) {
   const [abiertas, setAbiertas] = useState(true);
   const consulta = useVisitasGeocercas(dispositivoId, desde, hasta, activo);
@@ -43,8 +46,8 @@ export default function SeccionGeocercas({
   if (consulta.error) return <p className="replay-nota">Geocercas: {mensajeError(consulta.error)}</p>;
   const vistas = consulta.data?.datos ?? [];
   const datos = [
-    ...vistas.map((v) => visitasSegunParadas(v, paradas, geocercas)),
-    ...geocercasSoloPorParadas(vistas, paradas, geocercas),
+    ...vistas.map((v) => visitasSegunParadas(v, paradas, geocercas, lecturas)),
+    ...geocercasSoloPorParadas(vistas, paradas, geocercas, lecturas),
   ];
   // El domicilio primero.
   const lista = [...datos].sort((a, b) => Number(b.tipo === 'casa') - Number(a.tipo === 'casa'));

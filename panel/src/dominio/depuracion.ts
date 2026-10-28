@@ -31,6 +31,16 @@ const VELOCIDAD_BORDE_KMH = 5;
 const RADIO_NUCLEO_M = 30;
 const MIN_FIXES_BORDE = 3;
 
+// La depuración pone en 0 la velocidad de los puntos de una estancia (los
+// cálculos de quietud la usan), pero lo que se muestra es lo que reportó el
+// teléfono: un 0 inventado no se muestra como dato.
+type ConReportada = Posicion & { velocidadReportadaKmh?: number | null };
+
+export function velocidadMostrada(p: Posicion): number | null | undefined {
+  const reportada = (p as ConReportada).velocidadReportadaKmh;
+  return reportada !== undefined ? reportada : p.velocidadKmh;
+}
+
 export interface Estancia {
   inicio: string;
   fin: string;
@@ -208,7 +218,7 @@ export function depurarRecorrido(originales: Posicion[]): { posiciones: Posicion
   const estancias: Estancia[] = fundirEstancias(posiciones, grupos).map(([desde, hasta]) => {
     const { latitud, longitud } = centro(posiciones.slice(desde, hasta + 1));
     for (let k = desde; k <= hasta; k += 1) {
-      salida[k] = { ...salida[k], latitud, longitud, velocidadKmh: 0 };
+      salida[k] = { ...salida[k], latitud, longitud, velocidadKmh: 0, velocidadReportadaKmh: velocidadMostrada(salida[k]) } as ConReportada;
     }
     return { inicio: salida[desde].registradoEn, fin: salida[hasta].registradoEn, latitud, longitud, desde, hasta };
   });

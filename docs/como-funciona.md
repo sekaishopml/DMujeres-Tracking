@@ -155,8 +155,8 @@ El panel web es una aplicación React que habla solo con la API
 - Seguimiento: el mapa con cada persona moviéndose en vivo, agrupadas por
   departamento (el grupo al que pertenece la persona en Grupos).
 - Repetición de ruta: el recorrido de una jornada, con paradas y viajes. Los
-  tramos en que el teléfono no mandó puntos se dibujan por las calles con el
-  servicio de ruteo y se marcan como estimados, nunca como GPS. Al pasar el
+  tramos con puntos se ajustan a las calles; donde el teléfono no mandó
+  puntos queda una raya naranja de corte, sin rellenar. Al pasar el
   cursor por la línea sale la hora, la velocidad y la batería del punto más
   cercano; sobre una línea punteada, cuánto duró el corte y cuánto se movió. Al reproducir, lo que falta
   se atenúa y las paradas pasan rápido. Atajos: Espacio reproduce o pausa, ← y

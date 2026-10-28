@@ -53,31 +53,19 @@ no hubo señal solo se puede decir "no se vio" o estimar.
 
 ## ¿Rellenar por calles es inventar?
 
-Es una estimación, no una observación. Se acepta solo con estas condiciones,
-que el servidor ya aplica:
-
-- hueco de 5 min o menos;
-- el camino por calles no más largo que 1,35 veces la recta (o +60 m);
-- velocidad posible (130 km/h o menos);
-- se dibuja punteado y con la palabra "estimado", nunca como línea sólida;
-- no cuenta como prueba de dónde estuvo la persona.
-
-Si se prefiere no mostrar nada estimado, se deja todo como corte naranja.
-Hoy de 1323 huecos cortos manejando solo 195 se rellenan; del resto, 17 %
-podría rellenarse (el servidor se queda sin tiempo), 40 % se descarta por
-rodeo y 40 % porque los extremos del hueco son imprecisos.
+Sí: es una estimación, no una observación. Decisión del 28/10: **no se
+rellena**. Cada novedad del recorrido se audita, así que un hueco sin puntos
+queda como corte naranja recto (lo que no se vio). El ajuste a calles solo se
+hace donde hay puntos reales que lo respaldan (MATCHED). Antes se rellenaban
+unos 195 huecos cortos con un camino probable punteado; ya no.
 
 ## Qué falta, en orden de impacto
 
-1. App: pasar a capturar seguido en cuanto Google diga "en vehículo" o
-   "a pie". Hoy la actividad solo se anota en el punto; la salida se nota
-   tarde (278 km).
-2. App: la 2.10.1 deja más silencios en el Infinix de Jeremy (50 % y 36 % el
-   26 y 27/10, contra 0 a 26 % con la 2.9.5). Revisar el cambio entre Google
-   y el GPS directo (exige 10 lecturas buenas seguidas) antes de publicarla a
-   la flota. 22 de 27 teléfonos siguen en 2.9.5.
-3. Teléfonos que el sistema congela: ajustes de batería por marca (ver
+1. App 2.10.3 (en prueba en los 10 equipos sin grupo desde el 27/10): pasa a
+   capturar seguido en cuanto Google dice "en vehículo" o "a pie"; usa el GPS
+   del teléfono si Google calla 3 s; en marcha no baja a ubicación por red
+   (era lo que empeoró a Jeremy con la 2.10.1). Medir sus cortes antes de
+   pasarla a la flota (22 de 27 teléfonos siguen en 2.9.5).
+2. Teléfonos que el sistema congela: ajustes de batería por marca (ver
    permisos-por-marca.md) y acelerómetro propio de la app para los que no
    tienen Google.
-4. Servidor: más tiempo para rellenar por calles los huecos que sí tienen un
-   camino posible.

@@ -1,9 +1,10 @@
 # Ruteo
 
-Cuando el teléfono pasa un rato sin mandar puntos (sin señal, por ejemplo),
-en el recorrido queda un salto en línea recta. Este servicio calcula por qué
-calles es más probable que haya ido, y el panel dibuja ese tramo como
-estimado, nunca como GPS registrado.
+Ajusta a las calles los tramos del recorrido que tienen puntos reales
+(`/match`), para que el temblor del GPS no se dibuje punto a punto. Los
+huecos sin puntos no se rellenan: quedan como corte, porque el recorrido se
+audita y un camino que nadie vio no se dibuja. `/route` sigue disponible pero
+la API no lo usa.
 
 Usa GraphHopper con el mapa de Ecuador ya importado en
 `/opt/graphhopper/graph-cache-8`, y el jar en `/opt/route-service`. Esos
@@ -28,9 +29,8 @@ POST /route {"from":[lon,lat],"to":[lon,lat]}
 
 ## Cuándo se usa
 
-- Solo para tramos con 45 s o más y 150 m o más entre un punto y el
-  siguiente. Por debajo de eso la persona estaba quieta y el ruteo daría
-  vueltas que no existen.
-- Hasta 4 h por tramo y 200 tramos por recorrido, con 3 s como máximo en
-  total. Lo que no entra se dibuja como siempre.
+- `/match` sobre ventanas de puntos reales (hasta 100 puntos o 5 min cada
+  una). El ajuste se descarta si se aparta de los puntos.
+- 3 s como máximo por recorrido; lo que no entra se dibuja con los puntos
+  tal como llegaron.
 - Los resultados se guardan en memoria 7 días.

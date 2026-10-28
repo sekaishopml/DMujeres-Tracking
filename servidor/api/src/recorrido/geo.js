@@ -85,15 +85,40 @@ function ultimoValor(posiciones, campo) {
   return null;
 }
 
+// Velocidad máxima sostenida: la mayor que se mantuvo en 3 puntos seguidos
+// (en 60 s o menos), contando en cada punto lo menor entre la velocidad que
+// reporta el GPS y lo que avanzó desde el anterior. Un pico de uno o dos
+// puntos (179 km/h caminando) no cuenta. Igual que en segmentos.js.
+export const VELOCIDAD_PRECISION_M = 30;
+export const VELOCIDAD_VENTANA_S = 60;
+
+export function velocidadMaximaSostenidaKmh(posiciones) {
+  const ms = (p) => new Date(p.registradoEn).getTime();
+  const real = (k) => {
+    const a = posiciones[k - 1];
+    const b = posiciones[k];
+    if (!a || !(Number(b.precisionM) <= VELOCIDAD_PRECISION_M)) return null;
+    const segundos = (ms(b) - ms(a)) / 1000;
+    if (!(segundos > 0)) return null;
+    const avance = (distanciaKm(a.latitud, a.longitud, b.latitud, b.longitud) / segundos) * 3600;
+    return Number.isFinite(b.velocidadKmh) ? Math.min(b.velocidadKmh, avance) : avance;
+  };
+  let maxima = 0;
+  for (let i = 2; i + 1 < posiciones.length; i += 1) {
+    if ((ms(posiciones[i + 1]) - ms(posiciones[i - 1])) / 1000 > VELOCIDAD_VENTANA_S) continue;
+    const tres = [real(i - 1), real(i), real(i + 1)];
+    if (tres.some((v) => v === null)) continue;
+    maxima = Math.max(maxima, Math.min(...tres));
+  }
+  return maxima;
+}
+
 export function resumirRecorrido(posiciones, totalHuecos) {
   const primera = posiciones[0];
   const ultima = posiciones[posiciones.length - 1];
   const distanciaKm = sumarDistanciasKm(posiciones, { omitirImposibles: true });
   const duracionMin = (new Date(ultima.registradoEn).getTime() - new Date(primera.registradoEn).getTime()) / 60000;
-  const velocidadMaxima = posiciones.reduce(
-    (maximo, posicion) => (posicion.velocidadKmh !== null && posicion.velocidadKmh > maximo ? posicion.velocidadKmh : maximo),
-    0,
-  );
+  const velocidadMaxima = velocidadMaximaSostenidaKmh(posiciones);
   return {
     inicio: primera.registradoEn,
     fin: ultima.registradoEn,

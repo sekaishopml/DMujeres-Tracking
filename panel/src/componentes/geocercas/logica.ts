@@ -139,14 +139,51 @@ export function resumenVisitas(v: VisitasGeocerca): { llegadas: string[]; salida
 //    más temprana de las dos y la salida la más tardía.
 //  - Una parada en la geocerca sin visita del servidor es una visita.
 type ParadaUbicada = { inicio: string; fin: string; latitud: number; longitud: number };
+type Lectura = { registradoEn: string; latitud: number; longitud: number; precisionM?: number | null };
+
+// Llegó/Salió dicen que estuvo en la geocerca: solo cuenta el rato de la
+// parada con lecturas de 50 m o mejor dentro de ella o a 60 m de su borde (el
+// GPS cae en la vereda al entrar). La parada de Quicentro Norte de Miriam
+// (23/10) empezaba a las 13:57 y la primera lectura cerca fue a las 19:02.
+const EVIDENCIA_PRECISION_M = 50;
+const EVIDENCIA_BORDE_M = 60;
+
+function distanciaAlBordeM(lon: number, lat: number, puntos: readonly Punto[]): number {
+  if (puntoEnPoligono(lon, lat, puntos)) return 0;
+  const escala = 111_320 * Math.cos((lat * Math.PI) / 180);
+  let minimo = Infinity;
+  for (let i = 0, j = puntos.length - 1; i < puntos.length; j = i++) {
+    const [ax, ay] = [(puntos[j][0] - lon) * escala, (puntos[j][1] - lat) * 111_320];
+    const [bx, by] = [(puntos[i][0] - lon) * escala, (puntos[i][1] - lat) * 111_320];
+    const largo2 = (bx - ax) ** 2 + (by - ay) ** 2;
+    const f = largo2 > 0 ? Math.min(Math.max(-(ax * (bx - ax) + ay * (by - ay)) / largo2, 0), 1) : 0;
+    minimo = Math.min(minimo, Math.hypot(ax + (bx - ax) * f, ay + (by - ay) * f));
+  }
+  return minimo;
+}
+
+function conEvidencia<P extends ParadaUbicada>(p: P, g: Geocerca, lecturas: readonly Lectura[] | undefined): P {
+  if (!lecturas) return p;
+  const [a, b] = [ms(p.inicio), ms(p.fin)];
+  const cerca = lecturas.filter((q) => {
+    const t = milisegundos(q.registradoEn);
+    return t >= a && t <= b && (q.precisionM ?? 0) <= EVIDENCIA_PRECISION_M && distanciaAlBordeM(q.longitud, q.latitud, g.puntos) <= EVIDENCIA_BORDE_M;
+  });
+  if (cerca.length === 0) return p;
+  return { ...p, inicio: cerca[0].registradoEn, fin: cerca[cerca.length - 1].registradoEn };
+}
 const minutos = (a: string | null, b: string | null) => (a && b ? Math.round((ms(b) - ms(a)) / 6000) / 10 : null);
 
 export function visitasSegunParadas(
   v: VisitasGeocerca,
   paradas: readonly ParadaUbicada[],
   geocercas: readonly Geocerca[],
+  lecturas?: readonly Lectura[],
 ): VisitasGeocerca {
-  const propias = paradas.filter((p) => geocercaDeParada(p, geocercas)?.id === v.geocercaId);
+  const g = geocercas.find((x) => x.id === v.geocercaId);
+  const propias = paradas
+    .filter((p) => geocercaDeParada(p, geocercas)?.id === v.geocercaId)
+    .map((p) => (g ? conEvidencia(p, g, lecturas) : p));
   if (propias.length === 0) return v;
   const enParada = (a: string, b: string) => propias.some((p) => ms(p.inicio) <= ms(a) && ms(b) <= ms(p.fin));
   let visitas: VisitasGeocerca['visitas'] = [];
@@ -184,13 +221,14 @@ export function geocercasSoloPorParadas(
   vistas: readonly VisitasGeocerca[],
   paradas: readonly ParadaUbicada[],
   geocercas: readonly Geocerca[],
+  lecturas?: readonly Lectura[],
 ): VisitasGeocerca[] {
   const ids = new Set(vistas.map((v) => v.geocercaId));
   const nuevas = new Map<number, VisitasGeocerca>();
   for (const p of paradas) {
     const g = geocercaDeParada(p, geocercas);
     if (!g || ids.has(g.id) || nuevas.has(g.id)) continue;
-    nuevas.set(g.id, visitasSegunParadas({ geocercaId: g.id, nombre: g.nombre, tipo: g.tipo, llegadas: [], salidas: [], visitas: [] }, paradas, geocercas));
+    nuevas.set(g.id, visitasSegunParadas({ geocercaId: g.id, nombre: g.nombre, tipo: g.tipo, llegadas: [], salidas: [], visitas: [] }, paradas, geocercas, lecturas));
   }
   return [...nuevas.values()];
 }
@@ -207,7 +245,8 @@ export function resumenDomicilio(v: VisitasGeocerca): {
   // Sin una salida vista (el teléfono no dio datos al salir) cuenta toda
   // llegada vista; con una, solo las posteriores a ella.
   const conLlegada = v.visitas.filter((x) => x.llegada != null);
-  const regresos = salio == null ? conLlegada : conLlegada.filter((x) => (x.llegada ?? '') > salio);
+  // Por hora y no por texto: unas llegan con "Z" y otras con "+00:00".
+  const regresos = salio == null ? conLlegada : conLlegada.filter((x) => x.llegada != null && ms(x.llegada) > ms(salio));
   return { salio, llego: regresos.length > 0 ? regresos[regresos.length - 1].llegada : null, regresos };
 }
 

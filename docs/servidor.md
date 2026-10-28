@@ -100,10 +100,10 @@ Todas bajo `/api/v1`, con la cookie de sesión salvo `health`, `ready`,
      el largo sale fuera de 0,75–1,25 veces el original, si los puntos quedan
      lejos del trazo, si casi todo es impreciso, o si con GPS de 5 m o mejor
      el trazo se aparta más de 12 m (percentil 90).
-   - Huecos sin puntos de 5 min o menos: `/route` (ESTIMATED), solo si el
-     camino por calles no pasa de 1,35 veces la recta (+60 m) y la velocidad
-     es posible. El panel lo dibuja punteado: es una estimación.
-   - Presupuesto: 3 s y 200 tramos por recorrido; el resto queda recto.
+   - Un hueco sin puntos **no se rellena por calles** (decisión del 28/10):
+     cada novedad del recorrido se audita y un camino que nadie vio no se
+     dibuja. Queda como corte naranja.
+   - Presupuesto: 3 s por recorrido; el resto queda recto.
 6. **Resumen** (`geo.js`, `resumirRecorrido`): distancia, duración,
    velocidades, batería, pasos.
 
@@ -151,7 +151,7 @@ escriben van contra la copia `dmj_vis`.
 |---|---|
 | Qué puntos se descartan antes de dibujar | `api/src/recorrido/depuracion.js` (y en el panel `panel/src/dominio/depuracion.ts`) |
 | Cuándo un salto es corte y su causa | `api/src/recorrido/geo.js`, `causas.js` |
-| Ajuste a calles y tramos estimados | `api/src/recorrido/ruteo.js`; el motor en `servidor/ruteo` |
+| Ajuste a calles | `api/src/recorrido/ruteo.js`; el motor en `servidor/ruteo` |
 | Paradas de los reportes | `api/src/recorrido/paradas.js`, `segmentos.js` |
 | Paradas y dibujo de Repetición de ruta | `panel/src/dominio/paradasUnidas.ts`, `panel/src/componentes/replay/trazo.ts` |
 | Ajustes que la app recibe del servidor | `api/src/equipos/esquema.js` + `tracking/src/movil.js` |
@@ -160,13 +160,17 @@ escriben van contra la copia `dmj_vis`.
 
 ## Qué falta mejorar
 
-- La velocidad máxima del resumen toma picos del GPS (179 km/h): calcularla
-  solo con puntos precisos y coherentes.
 - El ajuste a calles mezcla puntos crudos cuando no casan (`servidor/ruteo`,
   Java) y deja ganchos con GPS impreciso.
-- Rellenar más huecos cortos por calles: 17 % de los que quedan rectos tenía
-  camino posible pero se acabó el presupuesto de 3 s. Pendiente de decidir si
-  se muestran estimaciones (ver [Calidad de la ruta](calidad-de-ruta.md)).
-- Una partición `dmt_posicion_2037_10` la creó un teléfono con la fecha mal
-  puesta: conviene rechazar puntos con fecha muy en el futuro.
-- Llegó/Salió de geocercas no coincide con la parada en muchos casos.
+- El mismo recorrido puede salir distinto según cuándo se pida: el ajuste a
+  calles tiene un tope de 3 s por recorrido y las direcciones se calculan la
+  primera vez. Para auditorías conviene que un día cerrado se vea siempre
+  igual (guardar el resultado de los días cerrados).
+- La partición `dmt_posicion_2037_10` está vacía (la creó un punto con la
+  fecha mal puesta, que el receptor ya rechaza); se puede borrar.
+
+Resuelto el 27/10: la velocidad máxima ya no toma picos del GPS. Es la
+sostenida (`velocidadMaximaSostenidaKmh` en `geo.js` y `vel_sostenida` en
+`segmentos.js`): la mayor que se mantuvo en 3 puntos seguidos de 30 m o
+mejor, contando en cada punto lo menor entre lo reportado y lo que avanzó.
+En la flota bajó de 98 a 0 los días con más de 130 km/h.

@@ -1089,7 +1089,7 @@ export default function Replay() {
           total={paradasServidor != null ? paradasConsulta.data?.total : undefined}
         />
         <ReporteDelDia dispositivoId={seleccionado} dia={desde} />
-        <SeccionGeocercas dispositivoId={seleccionado} desde={inicioDeDia(desde)} hasta={finDeDia(hasta)} activo={rangoValido} paradas={paradas} geocercas={geocercas} />
+        <SeccionGeocercas dispositivoId={seleccionado} desde={inicioDeDia(desde)} hasta={finDeDia(hasta)} activo={rangoValido} paradas={paradas} geocercas={geocercas} lecturas={puntosRecibidos} />
       </>
     );
   }
