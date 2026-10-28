@@ -3,14 +3,14 @@
 
 import http from 'node:http';
 import { pathToFileURL } from 'node:url';
-import { cargarEntorno } from './entorno.js';
-import { crearLog } from './log.js';
-import { ConsultaAbortada, crearPool } from './db.js';
-import { noAutenticado, noEncontrado, responderError } from './errores.js';
+import { cargarEntorno } from './base/entorno.js';
+import { crearLog } from './base/log.js';
+import { ConsultaAbortada, crearPool } from './base/db.js';
+import { noAutenticado, noEncontrado, responderError } from './base/errores.js';
 import { buscarRuta, prepararRutas } from './rutas.js';
-import { exigirAccesoDeRuta } from './permisos.js';
-import { tokenDeSesion, validarSesion } from './sesiones.js';
-import { cerrarVivo } from './vivo.js';
+import { exigirAccesoDeRuta } from './acceso/permisos.js';
+import { tokenDeSesion, validarSesion } from './acceso/sesiones.js';
+import { cerrarVivo } from './equipos/vivo.js';
 
 export function crearServidor({ configuracion, pool, log }) {
   const rutas = prepararRutas();

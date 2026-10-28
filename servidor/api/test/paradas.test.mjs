@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { MIN_PARADA_S, detectarParadas } from '../src/paradas.js';
+import { MIN_PARADA_S, detectarParadas } from '../src/recorrido/paradas.js';
 
 const p = (hora, latitud, longitud, precisionM = 15) => ({
   registradoEn: `2026-09-30T${hora}Z`,

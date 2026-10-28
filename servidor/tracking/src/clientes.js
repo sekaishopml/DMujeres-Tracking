@@ -4,7 +4,7 @@
 //  - GET  /api/mobile/v1/paradas?fecha=      dónde estuvo detenido ese día, para
 //    registrar cada parada como actividad (la hora sale del GPS, no se escribe).
 
-import { detectarParadas } from '../../api/src/paradas.js';
+import { detectarParadas } from '../../api/src/recorrido/paradas.js';
 import {
   autorizacionMovil,
   buscarOFallar,

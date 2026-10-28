@@ -10,7 +10,7 @@
   "scripts": {
     "start": "node24 src/servidor.js",
     "smoke": "node24 smoke.mjs",
-    "check": "for archivo in src/*.js smoke.mjs; do node24 --check \"$archivo\" || exit 1; done && echo \"check-ok\"",
+    "check": "for archivo in src/*.js src/*/*.js smoke.mjs; do node24 --check \"$archivo\" || exit 1; done && echo \"check-ok\"",
     "test": "node24 --test test/*.test.mjs"
   },
   "dependencies": {

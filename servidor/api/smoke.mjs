@@ -17,10 +17,10 @@ import { spawn } from 'node:child_process';
 import { pbkdf2Sync, randomBytes } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
-import { cargarEntorno } from './src/entorno.js';
-import { crearPool } from './src/db.js';
-import { verificarClave } from './src/auth.js';
-import { motivoRechazoEliminacion } from './src/usuarios.js';
+import { cargarEntorno } from './src/base/entorno.js';
+import { crearPool } from './src/base/db.js';
+import { verificarClave } from './src/acceso/auth.js';
+import { motivoRechazoEliminacion } from './src/acceso/usuarios.js';
 
 const DIRECTORIO = path.dirname(fileURLToPath(import.meta.url));
 const PUERTO = Number(process.env.DMJ_SMOKE_PORT ?? 18081);

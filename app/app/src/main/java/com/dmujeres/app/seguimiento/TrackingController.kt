@@ -406,7 +406,7 @@ class TrackingController(private val context: Context) :
             }
             LocationWatchdog.Action.NEXT_PROVIDER -> {
                 VigiliaGps.tomar(context)
-                cambiarEscalon(EscaleraProveedores.siguiente(escalon, conGoogle))
+                cambiarEscalon(EscaleraProveedores.siguiente(escalon, conGoogle, enMarcha()))
                 rescatePorRed()
             }
             LocationWatchdog.Action.NONE -> {
@@ -416,6 +416,9 @@ class TrackingController(private val context: Context) :
                 if (!enMovimiento() &&
                     EscaleraProveedores.volverArriba(escalon, conGoogle, escalonDesdeMs, now, watchdog.isStale(now))
                 ) {
+                    cambiarEscalon(EscaleraProveedores.primero(conGoogle))
+                } else if (enMarcha() && escalon == Escalon.RED) {
+                    // Salió con la red de bajo techo: en la calle vuelve a Google.
                     cambiarEscalon(EscaleraProveedores.primero(conGoogle))
                 }
             }
@@ -431,6 +434,8 @@ class TrackingController(private val context: Context) :
             }.onFailure { Log.w(TAG, "supervisión falló", it) }
         }
     }
+
+    private fun enMarcha(): Boolean = machine.state == MovementStateMachine.State.ACTIVE
 
     private fun enMovimiento(): Boolean =
         machine.state == MovementStateMachine.State.ACTIVE ||
@@ -507,7 +512,8 @@ class TrackingController(private val context: Context) :
 
     /** Ubicación por red en paralelo mientras el proveedor vigente calla. */
     private fun rescatePorRed() {
-        if (escalon == Escalon.RED) return
+        // En marcha tampoco: sus puntos imprecisos se mezclaban con el GPS.
+        if (escalon == Escalon.RED || enMarcha()) return
         RescateRed.pedir(context) { location ->
             handler.post { runCatching { positionProvider.aceptarExterna(location) } }
         }

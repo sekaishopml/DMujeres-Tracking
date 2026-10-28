@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { gunzipSync } from 'node:zlib';
-import { respuestaJson } from '../src/http.js';
+import { respuestaJson } from '../src/base/http.js';
 
 function simular(cuerpo, aceptar) {
   const res = { req: { headers: aceptar ? { 'accept-encoding': aceptar } : {} }, cabeceras: null, datos: null };

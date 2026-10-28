@@ -19,6 +19,13 @@ class EscaleraProveedoresTest {
     }
 
     @Test
+    fun `en marcha no baja a red`() {
+        assertEquals(Escalon.GPS, EscaleraProveedores.siguiente(Escalon.GOOGLE, true, enMarcha = true))
+        assertEquals(Escalon.GOOGLE, EscaleraProveedores.siguiente(Escalon.GPS, true, enMarcha = true))
+        assertEquals(Escalon.GPS, EscaleraProveedores.siguiente(Escalon.GPS, false, enMarcha = true))
+    }
+
+    @Test
     fun `sin Google alterna GPS y red`() {
         assertEquals(Escalon.GPS, EscaleraProveedores.primero(conGoogle = false))
         assertEquals(Escalon.RED, EscaleraProveedores.siguiente(Escalon.GPS, false))

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { paradaDeActividad, respaldoDe } from '../src/cronograma.js';
+import { paradaDeActividad, respaldoDe } from '../src/reportes/cronograma.js';
 
 const h = (hhmm) => new Date(`2026-10-01T${hhmm}:00-05:00`);
 const parada = (desde, hasta, latitud = 1) => ({ inicio: h(desde), fin: h(hasta), latitud, longitud: 1 });

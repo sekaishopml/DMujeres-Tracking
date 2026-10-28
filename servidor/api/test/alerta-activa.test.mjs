@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { alertaActivaDe } from '../src/dto.js';
+import { alertaActivaDe } from '../src/base/dto.js';
 
 test('una alerta del teléfono se ve solo mientras hay jornada', () => {
   const enJornada = { jornada_activa: true, atributos: { 'alerta.permisos': false } };

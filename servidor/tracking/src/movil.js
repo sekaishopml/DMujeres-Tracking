@@ -76,7 +76,7 @@ function claveValida(cabecera, claves) {
 // Las demás rutas aceptan la clave compartida X-Api-Key o este token.
 
 // Valores que recibe la app cuando ni el equipo ni la persona tienen otro.
-// Deben coincidir con CONFIG_POR_DEFECTO de servidor/api/src/esquema.js.
+// Deben coincidir con CONFIG_POR_DEFECTO de servidor/api/src/equipos/esquema.js.
 const CONFIG_MOVIL_POR_DEFECTO = {
   intervalSeconds: 10,
   bufferMax: 5000,

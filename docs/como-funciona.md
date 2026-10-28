@@ -195,3 +195,10 @@ PostgreSQL 18 con TimescaleDB. Los datos están separados en esquemas:
 
 Los puntos de ruta se guardan en tablas por mes, que se crean solas con
 anticipación.
+
+## Más detalle
+
+- [El servidor por dentro](servidor.md): servicios, carpetas de la API, cómo se arma un recorrido.
+- [Cómo captura la app](app-captura.md): proveedores, movimiento, filtros y envío.
+- [Repetición de ruta por dentro](repeticion-de-ruta.md): paradas, dibujo y mouse.
+- [Calidad de la ruta](calidad-de-ruta.md): qué corta la ruta y qué falta.

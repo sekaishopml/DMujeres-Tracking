@@ -4,7 +4,7 @@ import { mensajeError } from '@/dominio/errores';
 import { Tarjeta, CabeceraTarjeta } from '@/componentes/ui/Tarjeta';
 
 // Consola de Sistema: comandos de solo lectura contra la base (ver
-// servidor/api/src/consola.js). "ayuda" lista los comandos; ↑ ↓ recorren los
+// servidor/api/src/equipos/consola.js). "ayuda" lista los comandos; ↑ ↓ recorren los
 // anteriores. Los colores son fijos: una terminal se ve igual en tema claro y oscuro.
 
 export interface RespuestaConsola {

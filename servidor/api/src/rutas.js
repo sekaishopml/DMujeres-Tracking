@@ -1,29 +1,29 @@
 // Tabla de rutas del contrato /api/v1 y emparejador simple.
 
-import * as auth from './auth.js';
-import * as bateria from './bateria.js';
-import * as config from './config.js';
-import * as cronograma from './cronograma.js';
-import * as eventos from './eventos.js';
-import * as clientes from './clientes.js';
-import * as geocercas from './geocercas.js';
-import * as cuentas from './cuentas.js';
-import * as bajas from './bajas.js';
-import * as esquema from './esquema.js';
-import * as flota from './flota.js';
-import * as geocodigo from './geocodigo.js';
-import * as grupos from './grupos.js';
-import * as jornadas from './jornadas.js';
-import * as panel from './panel.js';
-import * as posiciones from './posiciones.js';
-import * as replay from './replay.js';
-import * as reportes from './reportes.js';
-import * as reporteMarketing from './reporteMarketing.js';
-import * as roles from './roles.js';
-import * as salud from './salud.js';
-import * as usuarios from './usuarios.js';
-import * as vivo from './vivo.js';
-import * as consola from './consola.js';
+import * as auth from './acceso/auth.js';
+import * as bateria from './equipos/bateria.js';
+import * as config from './equipos/config.js';
+import * as cronograma from './reportes/cronograma.js';
+import * as eventos from './recorrido/eventos.js';
+import * as clientes from './lugares/clientes.js';
+import * as geocercas from './lugares/geocercas.js';
+import * as cuentas from './acceso/cuentas.js';
+import * as bajas from './acceso/bajas.js';
+import * as esquema from './equipos/esquema.js';
+import * as flota from './equipos/flota.js';
+import * as geocodigo from './lugares/geocodigo.js';
+import * as grupos from './acceso/grupos.js';
+import * as jornadas from './recorrido/jornadas.js';
+import * as panel from './acceso/panel.js';
+import * as posiciones from './equipos/posiciones.js';
+import * as replay from './recorrido/replay.js';
+import * as reportes from './reportes/reportes.js';
+import * as reporteMarketing from './reportes/reporteMarketing.js';
+import * as roles from './acceso/roles.js';
+import * as salud from './equipos/salud.js';
+import * as usuarios from './acceso/usuarios.js';
+import * as vivo from './equipos/vivo.js';
+import * as consola from './equipos/consola.js';
 
 export const DEFINICIONES = [
   { metodo: 'POST', ruta: '/api/v1/auth/login', publica: true, manejar: auth.iniciarSesion },

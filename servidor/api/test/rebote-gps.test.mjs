@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { filtrarOutliersTeleport } from '../src/ruteo.js';
+import { filtrarOutliersTeleport } from '../src/recorrido/ruteo.js';
 
 // Diego Duarte 15/10, Quito: el GPS rebota unos 100 m al este de la avenida
 // entre 08:00:43 y 08:00:50 con precisión de 6-8 m.

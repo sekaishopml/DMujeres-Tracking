@@ -10,7 +10,7 @@ import {
   horasDelDia,
   normalizar,
   ponerTexto,
-} from '../src/reporteMarketing.js';
+} from '../src/reportes/reporteMarketing.js';
 
 const ZONA = 'America/Guayaquil';
 // 14/10/2026 en Guayaquil (UTC-5).

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { interpretar } from '../src/consola.js';
+import { interpretar } from '../src/equipos/consola.js';
 
 test('la consola separa persona y cantidad y solo deja leer con sql', () => {
   assert.deepEqual(interpretar('posiciones Maria Perez 50'), { nombre: 'posiciones', persona: 'Maria Perez', cantidad: 50 });

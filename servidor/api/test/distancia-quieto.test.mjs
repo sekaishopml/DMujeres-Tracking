@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { sumarDistanciasKm } from '../src/geo.js';
+import { sumarDistanciasKm } from '../src/recorrido/geo.js';
 
 const punto = (s, norteM, precisionM = 5) => ({
   registradoEn: new Date(Date.UTC(2026, 9, 15, 15, 0, s)).toISOString(),

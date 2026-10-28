@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { calcularVisitas, puntoEnPoligono, puntosValidos, resumirVisitas } from '../src/geocercas.js';
+import { calcularVisitas, puntoEnPoligono, puntosValidos, resumirVisitas } from '../src/lugares/geocercas.js';
 
 const cuadro = [[-79.9, -2.2], [-79.89, -2.2], [-79.89, -2.19], [-79.9, -2.19]];
 const dentro = [-79.895, -2.195];
@@ -89,7 +89,7 @@ test('puntos del polígono: valida, quita el cierre y rechaza lo malo', () => {
 });
 
 test('quieta en una casa pequeña: el temblor del GPS no cuenta como salidas y llegadas', async () => {
-  const { calcularVisitas, metrosAlPoligono } = await import('../src/geocercas.js');
+  const { calcularVisitas, metrosAlPoligono } = await import('../src/lugares/geocercas.js');
   // Casa de unos 15 m de lado.
   const casa = [[-79.91500, -2.24280], [-79.91487, -2.24280], [-79.91487, -2.24267], [-79.91500, -2.24267]];
   const t = (min) => new Date(Date.parse('2026-10-10T08:00:00Z') + min * 60000).toISOString();

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { partirVentanasDensas, saltosEnVentana } from '../src/ruteo.js';
+import { partirVentanasDensas, saltosEnVentana } from '../src/recorrido/ruteo.js';
 
 // Recta hacia el norte, un punto por segundo. `desvio(i)` corre el punto i
 // hacia el este (metros) para simular las pistas fantasma del GPS frío.

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { esPrecisoParaTrazo, PRECISION_MAX_TRAZO_M } from '../src/ruteo.js';
+import { esPrecisoParaTrazo, PRECISION_MAX_TRAZO_M } from '../src/recorrido/ruteo.js';
 
 test('fix de GPS (10 m) entra al trazo', () => {
   assert.equal(esPrecisoParaTrazo({ precisionM: 10 }), true);
@@ -16,7 +16,7 @@ test('el límite es inclusivo y sin precisión no se descarta', () => {
   assert.equal(esPrecisoParaTrazo({ precision_m: 120 }), false);
 });
 
-import { esVentanaAPie, tramoEnVehiculo } from '../src/ruteo.js';
+import { esVentanaAPie, tramoEnVehiculo } from '../src/recorrido/ruteo.js';
 
 test('ventana a pie (5 min, 400 m) no va al ajuste a vía; en vehículo sí', () => {
   const t = (s) => new Date(Date.parse('2026-09-30T14:52:00Z') + s * 1000).toISOString();

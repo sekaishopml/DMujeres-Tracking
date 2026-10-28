@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { causaDeHueco } from '../src/causas.js';
+import { causaDeHueco } from '../src/recorrido/causas.js';
 
 const t = (h, m = 0) => Date.UTC(2026, 9, 7, h, m);
 const hueco = { desde: new Date(t(9)).toISOString(), hasta: new Date(t(10)).toISOString() };

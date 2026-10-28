@@ -13,7 +13,7 @@
 import type { Posicion } from '@contratos';
 import { milisegundos as ms } from './replay.ts';
 
-const RADIO_ESTANCIA_M = 60; // igual que servidor/api/src/paradas.js
+const RADIO_ESTANCIA_M = 60; // igual que servidor/api/src/recorrido/paradas.js
 const DURACION_ESTANCIA_MS = 2 * 60_000;
 // Desde esta precisión, un punto no alcanza para sacar a alguien de una estancia.
 const PRECISION_DUDOSA_M = 80;
@@ -24,7 +24,7 @@ const PICO_VELOCIDAD_KMH = 90;
 // Velocidad reportada con la que una lectura del borde ya es movimiento.
 const VELOCIDAD_BORDE_KMH = 5;
 // Centro de la estancia (igual que RADIO_NUCLEO_M y MIN_FIXES_BORDE de
-// servidor/api/src/paradas.js): llegar o irse caminando despacio cae dentro
+// servidor/api/src/recorrido/paradas.js): llegar o irse caminando despacio cae dentro
 // de los 60 m y la caminata se llevaba al centro. Si en un extremo hay al
 // menos MIN_FIXES_BORDE lecturas seguidas a más de RADIO_NUCLEO_M del centro,
 // son la llegada o la salida y conservan su lugar.

@@ -88,10 +88,13 @@ seguir público hasta que todos tengan la 2.4.2 o una posterior.
 4. En marcas como Xiaomi, Huawei u Oppo, activar el inicio automático desde
    el botón que muestra la app.
 
+La captura por dentro (proveedores, movimiento, filtros) está en
+[Cómo captura la app](app-captura.md).
+
 ## Qué hace la app según la jornada
 
 Con la jornada abierta: servicio en primer plano ("Jornada activa"), GPS cada
-segundo, alarma de rescate cada 9 minutos y aviso por push si deja de reportar.
+segundo, alarma de supervisión cada 3 minutos y aviso por push si deja de reportar.
 
 Sin jornada: el servicio sigue vivo pero en espera. No pide ubicación, no
 arma la cerca de quietud, no corre el vigilante del GPS ni la alarma de

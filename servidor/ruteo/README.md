@@ -8,7 +8,7 @@ estimado, nunca como GPS registrado.
 Usa GraphHopper con el mapa de Ecuador ya importado en
 `/opt/graphhopper/graph-cache-8`, y el jar en `/opt/route-service`. Esos
 archivos no están en el repositorio. Escucha solo en `127.0.0.1:8992` y lo
-consulta la API (`servidor/api/src/ruteo.js`).
+consulta la API (`servidor/api/src/recorrido/ruteo.js`).
 
 ## Compilar y arrancar
 

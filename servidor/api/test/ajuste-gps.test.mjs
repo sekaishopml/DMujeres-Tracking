@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { depurarPosiciones } from '../src/depuracion.js';
-import { validarAjusteMatch } from '../src/ruteo.js';
+import { depurarPosiciones } from '../src/recorrido/depuracion.js';
+import { validarAjusteMatch } from '../src/recorrido/ruteo.js';
 
 const pos = (seg, lat, lon, precisionM) => ({
   id: seg,
@@ -66,7 +66,7 @@ test('quita el pico de velocidad de un teléfono quieto, pero no un giro real en
 });
 
 test('ráfaga al despertar: puntos que saltan diciendo que está quieta quedan en uno solo', async () => {
-  const { sinRafagasQuietas } = await import('../src/depuracion.js');
+  const { sinRafagasQuietas } = await import('../src/recorrido/depuracion.js');
   const t = (s) => new Date(Date.parse('2026-10-10T15:00:00Z') + s * 1000).toISOString();
   const p = (s, lat, lon, velocidadKmh) => ({ registradoEn: t(s), latitud: lat, longitud: lon, velocidadKmh, precisionM: 5 });
   const antes = [p(0, -2.2390, -79.8938, 40), p(5, -2.2391, -79.8930, 40)];
@@ -105,14 +105,14 @@ const fix = (s, metrosNorte, extra = {}) => ({
 });
 
 test('un salto caminando que vuelve en más de un minuto se quita', async () => {
-  const { depurarPosiciones } = await import('../src/depuracion.js');
+  const { depurarPosiciones } = await import('../src/recorrido/depuracion.js');
   // 18:51: camina a 4 km/h, salta 600 m en 17 s y vuelve en 76 s.
   const lista = [fix(0, 0), fix(7, 10), fix(24, 610), fix(25, 620), fix(101, 120), fix(110, 130)];
   assert.deepEqual(depurarPosiciones(lista).conservadas.map((p) => p.id), [0, 7, 101, 110]);
 });
 
 test('un punto falso al despertar tras un silencio se quita', async () => {
-  const { depurarPosiciones } = await import('../src/depuracion.js');
+  const { depurarPosiciones } = await import('../src/recorrido/depuracion.js');
   // 11:04 quieta; 4 min sin puntos; aparece a 445 m con ±11 m y vuelve.
   const lista = [fix(0, 0), fix(231, 445, { precisionM: 11 }), fix(232, 425), fix(233, 402), fix(283, 16), fix(287, 16)];
   assert.deepEqual(depurarPosiciones(lista).conservadas.map((p) => p.id), [0, 283, 287]);
@@ -122,7 +122,7 @@ test('un punto falso al despertar tras un silencio se quita', async () => {
 });
 
 test('una racha de puntos por red al perder el GPS manejando se quita', async () => {
-  const { depurarPosiciones } = await import('../src/depuracion.js');
+  const { depurarPosiciones } = await import('../src/recorrido/depuracion.js');
   const red = Array.from({ length: 12 }, (_, k) => fix(100 + k * 20, 300 + k * 120, { precisionM: k % 2 ? 200 : 100, velocidadKmh: 0 }));
   const lista = [fix(0, 0, { velocidadKmh: 45 }), fix(1, 12, { velocidadKmh: 45 }), ...red, fix(400, 2100, { velocidadKmh: 30 }), fix(401, 2110, { velocidadKmh: 30 })];
   assert.equal(depurarPosiciones(lista).conservadas.length, 4);

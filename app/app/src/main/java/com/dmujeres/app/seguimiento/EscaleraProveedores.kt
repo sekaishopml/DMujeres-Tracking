@@ -20,9 +20,14 @@ object EscaleraProveedores {
 
     fun primero(conGoogle: Boolean): Escalon = if (conGoogle) Escalon.GOOGLE else Escalon.GPS
 
-    fun siguiente(actual: Escalon, conGoogle: Boolean): Escalon = when (actual) {
+    /**
+     * En marcha no se baja a red: da puntos de 50 a 200 m cada 20 s que
+     * dibujan un zigzag y no dicen por qué calle fue (Jeremy, 2.10.1). Se
+     * alterna entre Google y el GPS hasta que alguno vuelva.
+     */
+    fun siguiente(actual: Escalon, conGoogle: Boolean, enMarcha: Boolean = false): Escalon = when (actual) {
         Escalon.GOOGLE -> Escalon.GPS
-        Escalon.GPS -> Escalon.RED
+        Escalon.GPS -> if (enMarcha) primero(conGoogle) else Escalon.RED
         Escalon.RED -> primero(conGoogle)
     }
 

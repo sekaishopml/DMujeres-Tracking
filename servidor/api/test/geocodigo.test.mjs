@@ -2,7 +2,7 @@
 // distancia y clave de caché. Ejecutar: node24 --test test/
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { claveDeCache, distanciaAlResultado, nivelDePrecision, resolverDatos } from '../src/geocodigo.js';
+import { claveDeCache, distanciaAlResultado, nivelDePrecision, resolverDatos } from '../src/lugares/geocodigo.js';
 
 const calle = {
   category: 'highway',

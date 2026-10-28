@@ -2,9 +2,9 @@
 // puntos que lo respalden. Ejecutar: node24 --test test/
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { estimadoPlausible } from '../src/ruteo.js';
-import { depurarPosiciones } from '../src/depuracion.js';
-import { sumarDistanciasKm } from '../src/geo.js';
+import { estimadoPlausible } from '../src/recorrido/ruteo.js';
+import { depurarPosiciones } from '../src/recorrido/depuracion.js';
+import { sumarDistanciasKm } from '../src/recorrido/geo.js';
 
 const fix = (lat, lon, iso) => ({ latitud: lat, longitud: lon, registradoEn: iso });
 // ~111 m por milésima de grado de latitud en Guayaquil.

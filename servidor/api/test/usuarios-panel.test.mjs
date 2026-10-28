@@ -1,17 +1,17 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
-import { aUsuario } from '../src/dto.js';
-import { PREDICADO_PERMISO, permisoDe } from '../src/flota.js';
-import { exigirAccesoDeRuta } from '../src/permisos.js';
-import { ASIGNABLES, POR_DEFECTO, seccionDeRuta, seccionesDe } from '../src/secciones.js';
+import { aUsuario } from '../src/base/dto.js';
+import { PREDICADO_PERMISO, permisoDe } from '../src/equipos/flota.js';
+import { exigirAccesoDeRuta } from '../src/acceso/permisos.js';
+import { ASIGNABLES, POR_DEFECTO, seccionDeRuta, seccionesDe } from '../src/acceso/secciones.js';
 import {
   actualizarCuentaPanel,
   crearCuentaPanel,
   listarCuentasPanel,
   seccionesValidas,
   tipoDe,
-} from '../src/panel.js';
+} from '../src/acceso/panel.js';
 
 const sinRoles = { query: async () => ({ rows: [] }) };
 const cuenta = (extra) => aUsuario({ id: 7, id_publico: 'x', nombre: 'n', habilitado: true, ...extra });
