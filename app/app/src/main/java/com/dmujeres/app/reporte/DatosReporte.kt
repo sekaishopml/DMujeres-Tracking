@@ -97,6 +97,15 @@ object DatosReporte {
         return "${DIAS[c.get(Calendar.DAY_OF_WEEK) - 1]} ${formato("dd/MM").format(c.time)}"
     }
 
+    /** Entre dos descargas del mismo formato hay que esperar 5 min. */
+    const val ESPERA_DESCARGA_MS = 5 * 60_000L
+
+    /** Minutos que faltan para volver a descargar (0 = ya puede), redondeando hacia arriba. */
+    fun minutosParaDescargar(ultimaMs: Long, ahoraMs: Long): Int {
+        val falta = ultimaMs + ESPERA_DESCARGA_MS - ahoraMs
+        return if (ultimaMs <= 0L || falta <= 0L || ahoraMs < ultimaMs) 0 else ((falta + 59_999L) / 60_000L).toInt()
+    }
+
     /** Lunes = 0 … domingo = 6. */
     fun indiceSemana(fecha: String): Int = (calendario(fecha).get(Calendar.DAY_OF_WEEK) + 5) % 7
 

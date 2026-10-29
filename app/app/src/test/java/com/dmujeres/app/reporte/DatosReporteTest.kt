@@ -44,4 +44,15 @@ class DatosReporteTest {
         assertEquals("Del 26/10/2026 al 01/11/2026", r.rango)
         assertEquals("Reporte semanal Santi 2026-10-26", r.nombreArchivo)
     }
+
+    @Test
+    fun esperaDeCincoMinutosEntreDescargas() {
+        val t = 1_800_000_000_000L
+        assertEquals(0, DatosReporte.minutosParaDescargar(0L, t))
+        assertEquals(5, DatosReporte.minutosParaDescargar(t, t + 1_000L))
+        assertEquals(1, DatosReporte.minutosParaDescargar(t, t + 4 * 60_000L + 1_000L))
+        assertEquals(0, DatosReporte.minutosParaDescargar(t, t + 5 * 60_000L))
+        // Reloj del teléfono atrasado: no se bloquea.
+        assertEquals(0, DatosReporte.minutosParaDescargar(t, t - 60_000L))
+    }
 }

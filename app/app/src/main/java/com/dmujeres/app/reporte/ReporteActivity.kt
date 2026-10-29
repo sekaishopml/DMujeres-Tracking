@@ -150,12 +150,29 @@ class ReporteActivity : AppCompatActivity() {
 
     private fun descargarExcel() {
         val r = reporte ?: return
+        if (enEspera(KEY_DESCARGA_XLSX)) return
         guardarYOfrecer("${r.nombreArchivo}.xlsx", MIME_XLSX, excel(r))
     }
 
     private fun descargarPdf() {
         val r = reporte ?: return
+        if (enEspera(KEY_DESCARGA_PDF)) return
         guardarYOfrecer("${r.nombreArchivo}.pdf", MIME_PDF, pdf(r))
+    }
+
+    /**
+     * 5 min entre descargas del mismo formato: evita llenar Descargas con
+     * copias iguales por toques repetidos. Si toca esperar, lo dice abajo.
+     */
+    private fun enEspera(clave: String): Boolean {
+        val ahora = System.currentTimeMillis()
+        val faltan = DatosReporte.minutosParaDescargar(prefs.getLong(clave, 0L), ahora)
+        if (faltan > 0) {
+            mostrarEstado(resources.getQuantityString(R.plurals.rep_espera_descarga, faltan, faltan))
+            return true
+        }
+        prefs.edit().putLong(clave, ahora).apply()
+        return false
     }
 
     private fun guardarYOfrecer(nombre: String, mime: String, bytes: ByteArray) {
@@ -285,6 +302,8 @@ class ReporteActivity : AppCompatActivity() {
 
     companion object {
         const val KEY_CORREO = "correoReporte"
+        private const val KEY_DESCARGA_XLSX = "reporteDescargaExcel"
+        private const val KEY_DESCARGA_PDF = "reporteDescargaPdf"
         private const val MIME_XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         private const val MIME_PDF = "application/pdf"
         private val ZONA: TimeZone = TimeZone.getTimeZone("America/Guayaquil")

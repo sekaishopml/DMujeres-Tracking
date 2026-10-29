@@ -140,7 +140,7 @@ object Xlsx {
             append(XML_DECL)
             append("<styleSheet xmlns=\"$NS_MAIN\">")
             append("<fonts count=\"3\"><font><sz val=\"11\"/><name val=\"Calibri\"/></font><font><b/><sz val=\"11\"/><name val=\"Calibri\"/></font>")
-            append("<font><sz val=\"14\"/><color rgb=\"FFEB0045\"/><name val=\"Calibri\"/></font></fonts>")
+            append("<font><sz val=\"14\"/><color rgb=\"FF000000\"/><name val=\"Calibri\"/></font></fonts>")
             append("<fills count=\"${colores.size + 2}\"><fill><patternFill patternType=\"none\"/></fill><fill><patternFill patternType=\"gray125\"/></fill>")
             colores.forEach { append("<fill><patternFill patternType=\"solid\"><fgColor rgb=\"FF$it\"/><bgColor indexed=\"64\"/></patternFill></fill>") }
             append("</fills>")
