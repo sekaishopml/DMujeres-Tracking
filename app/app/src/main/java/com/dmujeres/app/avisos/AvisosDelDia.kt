@@ -14,13 +14,11 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import androidx.preference.PreferenceManager
 import com.dmujeres.app.R
+import com.dmujeres.app.actualizacion.OtaNotifier
 import com.dmujeres.app.cronograma.Actividades
-import com.dmujeres.app.datos.DatabaseHelper
 import com.dmujeres.app.pantallas.MainActivity
-import com.dmujeres.app.red.ConnectionState
 import com.dmujeres.app.red.DmujeresApi
 import com.dmujeres.app.sistema.AjustesPermisos
-import com.dmujeres.app.sistema.EstadoTelefono
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
@@ -51,25 +49,35 @@ object AvisosDelDia {
         (context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager).createNotificationChannel(canal)
     }
 
-    /** Arma la alarma de la próxima hora de aviso. La única que el reposo del teléfono respeta sin permiso especial. */
+    /** Arma la alarma de la próxima hora de aviso; suena aunque el teléfono esté en reposo. */
     fun programar(context: Context) {
         runCatching {
             val ahora = Calendar.getInstance(zona)
             val minuto = ahora.get(Calendar.HOUR_OF_DAY) * 60 + ahora.get(Calendar.MINUTE)
             val cuando = ahora.timeInMillis - ahora.get(Calendar.SECOND) * 1000L +
-                AvisosHorarios.minutosHastaLaProxima(minuto) * 60_000L
-            val alarmas = context.applicationContext.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-            val pendiente = PendingIntent.getBroadcast(
-                context.applicationContext, ID_NOTIFICACION,
-                Intent(context.applicationContext, Receptor::class.java).setAction(ACCION),
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-            )
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                alarmas.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, cuando, pendiente)
-            } else {
-                alarmas.set(AlarmManager.RTC_WAKEUP, cuando, pendiente)
-            }
+                AvisosHorarios.minutosHastaLaProxima(minuto, ahora.get(Calendar.DAY_OF_WEEK)) * 60_000L
+            armar(context, ID_NOTIFICACION, Intent(context.applicationContext, Receptor::class.java).setAction(ACCION), cuando)
         }.onFailure { Log.w(TAG, "no se pudo programar el aviso", it) }
+    }
+
+    /**
+     * Alarma exacta a la hora [cuando]: la hora es fija y la otra se podía
+     * atrasar hasta una hora. Sin el permiso de alarmas exactas, la otra.
+     */
+    fun armar(context: Context, codigo: Int, intent: Intent, cuando: Long) {
+        val alarmas = context.applicationContext.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        val pendiente = PendingIntent.getBroadcast(
+            context.applicationContext, codigo, intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+        val exacta = Build.VERSION.SDK_INT < Build.VERSION_CODES.S || alarmas.canScheduleExactAlarms()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && exacta) {
+            alarmas.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, cuando, pendiente)
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            alarmas.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, cuando, pendiente)
+        } else {
+            alarmas.set(AlarmManager.RTC_WAKEUP, cuando, pendiente)
+        }
     }
 
     /**
@@ -78,6 +86,7 @@ object AvisosDelDia {
      */
     fun atender(context: Context, franjaPedida: String? = null) {
         val ahora = Calendar.getInstance(zona)
+        if (!AvisosHorarios.diaHabil(ahora.get(Calendar.DAY_OF_WEEK))) return
         val minuto = ahora.get(Calendar.HOUR_OF_DAY) * 60 + ahora.get(Calendar.MINUTE)
         val pedida = franjaPedida?.takeIf { it.length == 4 }?.let { (it.substring(0, 2).toIntOrNull() ?: -1) * 60 + (it.substring(2).toIntOrNull() ?: 0) }
         val franja = AvisosHorarios.franjaVigente(minuto)?.takeIf { pedida == null || pedida == it } ?: return
@@ -103,14 +112,11 @@ object AvisosDelDia {
         }.getOrDefault(false)
         return AvisosHorarios.Estado(
             jornadaAbierta = DmujeresApi.isJourneyOpen(context),
-            hayRed = EstadoTelefono.conexion(context) != "ninguna",
-            servidorFalla = ConnectionState.isFailing(),
-            pendientes = runCatching { DatabaseHelper(context).countPositions() }.getOrDefault(0),
             gpsEncendido = gps,
             permisoUbicacion = AjustesPermisos.ubicacion(context),
             permisoTodoElTiempo = AjustesPermisos.ubicacionSiempre(context),
             bateriaRestringida = restringida,
-            ahorroDeBateria = EstadoTelefono.ahorroDeBateria(context),
+            hayActualizacion = OtaNotifier.hayActualizacion(context),
             tiposDeHoy = Actividades.delDia(context, hoy).map { it.tipo }.toSet(),
         )
     }
@@ -118,13 +124,8 @@ object AvisosDelDia {
     fun texto(context: Context, novedad: AvisosHorarios.Novedad): String = context.getString(
         when (novedad) {
             AvisosHorarios.Novedad.SIN_JORNADA -> R.string.aviso_h_sin_jornada
-            AvisosHorarios.Novedad.SIN_CONEXION -> R.string.aviso_h_sin_conexion
-            AvisosHorarios.Novedad.SENAL_DEBIL -> R.string.aviso_h_senal_debil
-            AvisosHorarios.Novedad.GPS_APAGADO -> R.string.aviso_h_gps
-            AvisosHorarios.Novedad.SIN_PERMISO -> R.string.aviso_h_permiso
-            AvisosHorarios.Novedad.SIN_TODO_EL_TIEMPO -> R.string.aviso_h_todo_el_tiempo
-            AvisosHorarios.Novedad.BATERIA_RESTRINGIDA -> R.string.aviso_h_bateria
-            AvisosHorarios.Novedad.AHORRO_BATERIA -> R.string.aviso_h_ahorro
+            AvisosHorarios.Novedad.PERMISO_QUITADO -> R.string.aviso_h_permiso
+            AvisosHorarios.Novedad.ACTUALIZAR -> R.string.aviso_h_actualizar
         },
     )
 
@@ -139,7 +140,11 @@ object AvisosDelDia {
             )
             val lineas = novedades.map { texto(context, it) }
             val titulo = context.getString(
-                if (novedades == listOf(AvisosHorarios.Novedad.SIN_JORNADA)) R.string.aviso_h_titulo_jornada else R.string.aviso_h_titulo,
+                when (novedades.singleOrNull()) {
+                    AvisosHorarios.Novedad.SIN_JORNADA -> R.string.aviso_h_titulo_jornada
+                    AvisosHorarios.Novedad.ACTUALIZAR -> R.string.aviso_h_titulo_actualizar
+                    else -> R.string.aviso_h_titulo
+                },
             )
             val notificacion = NotificationCompat.Builder(context, CANAL)
                 .setSmallIcon(R.drawable.ic_stat_notify)

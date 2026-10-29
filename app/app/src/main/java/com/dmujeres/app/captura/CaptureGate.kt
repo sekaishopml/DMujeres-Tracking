@@ -30,6 +30,7 @@ class CaptureGate {
         val lat: Double,
         val lon: Double,
         val courseDeg: Double,
+        val accuracyM: Double = 0.0,
     )
 
     /** Por qué se guardó o tiró el fix (diagnóstico, sin datos fabricados). */
@@ -51,7 +52,7 @@ class CaptureGate {
 
     /** Siembra con el último almacenado del historial (cero queries en régimen). */
     fun seed(capturedAtMs: Long, lat: Double, lon: Double, courseDeg: Double, accuracyM: Double) {
-        lastStored = Stored(capturedAtMs, lat, lon, courseDeg)
+        lastStored = Stored(capturedAtMs, lat, lon, courseDeg, accuracyM)
         lastAccepted = TeleportGuard.Reference(capturedAtMs, lat, lon, accuracyM)
         stillSinceMs = null
         lastTurnExtraMs = Long.MIN_VALUE
@@ -102,7 +103,7 @@ class CaptureGate {
             capturedAtMs - since >= StationaryCollapse.STILL_SUSTAINED_MS
         val stored = lastStored
         if (stored == null) {
-            lastStored = Stored(capturedAtMs, lat, lon, courseDeg)
+            lastStored = Stored(capturedAtMs, lat, lon, courseDeg, accuracyM)
             return Outcome(true, Reason.STORE_FIRST)
         }
         val distM = Geo.distanceM(stored.lat, stored.lon, lat, lon)
@@ -110,7 +111,7 @@ class CaptureGate {
         // El giro se guarda aunque esté quieta (la esquina no se pierde).
         val sinceTurn = if (lastTurnExtraMs == Long.MIN_VALUE) Long.MAX_VALUE else nowMs - lastTurnExtraMs
         if (TurnCapture.isTurn(stored.courseDeg, courseDeg, speedKn, sinceTurn, true)) {
-            lastStored = Stored(capturedAtMs, lat, lon, courseDeg)
+            lastStored = Stored(capturedAtMs, lat, lon, courseDeg, accuracyM)
             lastTurnExtraMs = nowMs
             return Outcome(true, Reason.STORE_TURN)
         }
@@ -121,14 +122,19 @@ class CaptureGate {
             distFromStoredM = distM,
             msSinceStored = elapsedMs,
             hasReference = true,
+            accuracyM = accuracyM,
+            storedAccuracyM = stored.accuracyM,
         )
         if (!keep) return Outcome(false, Reason.DROP_COLLAPSE)
-        lastStored = Stored(capturedAtMs, lat, lon, courseDeg)
-        val reason = if ((stationary || sustained) && elapsedMs >= StationaryCollapse.HEARTBEAT_MS) {
-            Reason.STORE_HEARTBEAT
+        val latido = (stationary || sustained) && !StationaryCollapse.avanzo(distM, accuracyM, stored.accuracyM)
+        // El latido se guarda tal cual, pero una lectura peor no mueve la
+        // referencia de la estancia: el siguiente avance se mide desde el
+        // mejor punto del lugar (casi siempre el último de afuera).
+        lastStored = if (latido && accuracyM > stored.accuracyM) {
+            stored.copy(capturedAtMs = capturedAtMs)
         } else {
-            Reason.STORE_MOVE
+            Stored(capturedAtMs, lat, lon, courseDeg, accuracyM)
         }
-        return Outcome(true, reason)
+        return Outcome(true, if (latido) Reason.STORE_HEARTBEAT else Reason.STORE_MOVE)
     }
 }

@@ -4,6 +4,8 @@ import android.content.Context
 import androidx.preference.PreferenceManager
 import org.json.JSONArray
 import org.json.JSONObject
+import com.dmujeres.app.jornada.InicioAutomatico
+import com.dmujeres.app.jornada.ReglasJornada
 import com.dmujeres.app.red.DmujeresApi
 import com.dmujeres.app.seguimiento.PositionProvider
 import com.dmujeres.app.R
@@ -202,6 +204,17 @@ object Actividades {
         actividades.forEach { lista.add(it.copy(pendiente = true)) }
         guardarTodas(context, lista)
         sincronizar(context)
+        // Iniciar una visita o un almuerzo sin jornada la inicia; y el
+        // cronograma nuevo mueve el inicio automático.
+        val zona = java.util.TimeZone.getTimeZone("America/Guayaquil")
+        val hoy = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).apply { timeZone = zona }.format(java.util.Date())
+        val ahora = java.text.SimpleDateFormat("HH:mm", java.util.Locale.US).apply { timeZone = zona }.format(java.util.Date())
+        val enCurso = actividades.any {
+            !it.eliminada && it.fecha == hoy && it.tipo in ReglasJornada.DE_RUTA && it.hora <= ahora &&
+                (it.horaFin == null || it.horaFin > ahora)
+        }
+        if (enCurso) DmujeresApi.iniciarJornada(context, "actividad")
+        InicioAutomatico.revisar(context)
     }
 
     /** Inicio (nueva sin hora de fin) y fin (recibe su hora de fin) a la consola. */
@@ -228,10 +241,10 @@ object Actividades {
      * escribir para no repetir y para que los nombres coincidan en el panel.
      */
     fun lugaresFrecuentes(context: Context): List<String> =
-        todas(context).mapNotNull { it.lugar?.trim()?.takeIf { l -> l.isNotEmpty() } }
-            .groupingBy { it.lowercase() }.eachCount().entries
-            .sortedByDescending { it.value }
-            .mapNotNull { e -> todas(context).firstOrNull { it.lugar?.trim()?.lowercase() == e.key }?.lugar?.trim() }
+        todas(context).filter { !it.eliminada }.mapNotNull { it.lugar?.trim()?.takeIf { l -> l.isNotEmpty() } }
+            .groupBy { it.lowercase() }.values
+            .sortedByDescending { it.size }
+            .map { it.first() }
 
     /** Notas más usadas en un tipo de actividad (hasta cuatro), para no volver a escribirlas. */
     fun notasFrecuentes(context: Context, tipo: TipoActividad): List<String> =
@@ -320,6 +333,8 @@ object Actividades {
                     }
                     guardarTodas(app, fuera + delServidor + recienSubidas)
                 }
+                // Lo cargado en otro teléfono también arma el inicio automático.
+                InicioAutomatico.revisar(app)
                 if (pendientes(app) == 0) marcarSincronizado(app)
             }
             alTerminar(remoto != null)

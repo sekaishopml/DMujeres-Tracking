@@ -593,6 +593,11 @@ table.tabla thead th { position: sticky; top: 0; z-index: 1; }
 .replay-dia .replay-csv { display: inline-flex; align-items: center; gap: 5px; font-variant-numeric: tabular-nums; }
 /* El campo real queda debajo del botón: el calendario se abre ahí. */
 .replay-dia-campo { position: absolute; inset: 0; width: 100%; opacity: 0; pointer-events: none; }
+/* En el teléfono el navegador no abre el calendario desde el botón: el toque
+   cae directo en el campo (16px evita que el teléfono acerque la pantalla). */
+@media (pointer: coarse) {
+  .replay-dia-campo { pointer-events: auto; z-index: 1; font-size: 16px; }
+}
 .replay-panel .cuerpo-panel { display: flex; flex-direction: column; gap: 8px; }
 .replay-panel .cuerpo-panel > .filtro-replay { margin-bottom: 0; }
 /* Panel anclado a los bordes superior e inferior del mapa, sin margen flotante:

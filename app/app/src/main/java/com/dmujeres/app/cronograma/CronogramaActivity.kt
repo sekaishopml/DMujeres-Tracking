@@ -87,6 +87,7 @@ class CronogramaActivity : AppCompatActivity() {
         com.dmujeres.app.pantallas.Animaciones.respuestaAlToque(
             findViewById(R.id.crono_agregar), findViewById(R.id.crono_ir_hoy),
         )
+        com.dmujeres.app.pantallas.Animaciones.alDesplazar(findViewById(R.id.crono_scroll), findViewById(R.id.crono_lista))
         if (savedInstanceState == null) {
             com.dmujeres.app.pantallas.Animaciones.entradaEscalonada(
                 listOf(R.id.crono_semana, R.id.crono_dia_cab, R.id.crono_dia, R.id.crono_mes)

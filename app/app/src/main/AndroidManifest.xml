@@ -172,9 +172,14 @@
             android:name=".recuperacion.DozeAlarmReceiver"
             android:exported="false" />
 
-        <!-- Avisos de horario (08:00, 14:00, 15:00 y 17:00). -->
+        <!-- Avisos de horario (07:30, 08:15, 12:00 y 15:00). -->
         <receiver
             android:name=".avisos.AvisosDelDia$Receptor"
+            android:exported="false" />
+
+        <!-- Inicio de jornada 1 h antes de la primera actividad del cronograma. -->
+        <receiver
+            android:name=".jornada.InicioAutomatico$Receptor"
             android:exported="false" />
 
         <receiver

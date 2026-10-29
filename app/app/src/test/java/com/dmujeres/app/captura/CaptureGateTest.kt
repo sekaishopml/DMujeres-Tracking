@@ -113,4 +113,37 @@ class CaptureGateTest {
         assertTrue(outcome.store)
         assertEquals(CaptureGate.Reason.STORE_MOVE, outcome.reason)
     }
+
+    @Test
+    fun `bajo techo el temblor de 30 m con error de 26 m no se guarda`() {
+        val gate = CaptureGate()
+        // Último punto de afuera, preciso.
+        gate.seed(t0, baseLat, baseLon, 0.0, 4.0)
+        // Adentro: lecturas a 30 m con 26 m de error (el doble, 52 m, no se alcanza).
+        val adentro = gate.evaluate(baseLat + 0.00027, baseLon, 0.0, 26.0, 0.0, t0 + 20_000L, true, t0 + 20_000L)
+        assertFalse(adentro.store)
+        // Una salida real (70 m) sí se guarda.
+        val salida = gate.evaluate(baseLat + 0.00063, baseLon, 0.0, 26.0, 0.0, t0 + 40_000L, true, t0 + 40_000L)
+        assertTrue(salida.store)
+    }
+
+    @Test
+    fun `un latido peor no mueve la referencia de la estancia`() {
+        val gate = CaptureGate()
+        gate.seed(t0, baseLat, baseLon, 0.0, 4.0)
+        val beat = gate.evaluate(baseLat + 0.0002, baseLon, 0.0, 30.0, 0.0, t0 + 300_000L, true, t0 + 300_000L)
+        assertTrue(beat.store)
+        assertEquals(CaptureGate.Reason.STORE_HEARTBEAT, beat.reason)
+        // Volver al punto bueno no cuenta como avance (la referencia sigue ahí).
+        val vuelta = gate.evaluate(baseLat, baseLon, 0.0, 4.0, 0.0, t0 + 310_000L, true, t0 + 310_000L)
+        assertFalse(vuelta.store)
+    }
+
+    @Test
+    fun `quieta, una lectura de 200 m de error a 320 m no es avance`() {
+        val gate = CaptureGate()
+        gate.seed(t0, baseLat, baseLon, 0.0, 12.0)
+        val antena = gate.evaluate(baseLat + 0.0029, baseLon, 0.0, 200.0, 0.0, t0 + 120_000L, true, t0 + 120_000L)
+        assertFalse(antena.store)
+    }
 }

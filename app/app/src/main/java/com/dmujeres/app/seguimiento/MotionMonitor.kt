@@ -5,7 +5,6 @@ import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
-import android.os.Build
 import android.util.Log
 import kotlin.math.sqrt
 
@@ -21,6 +20,8 @@ import kotlin.math.sqrt
  *   movimiento; en el medio se mantiene el estado.
  * - El giroscopio solo se usa con el teléfono en movimiento (ahorra batería),
  *   para detectar giros fuertes ([TurnDetector]) y guardar las esquinas.
+ * - 20 s seguidos de movimiento avisan el arranque ([ArranqueSostenido]),
+ *   igual que el sensor de movimiento significativo o la actividad de Google.
  */
 object MotionMonitor : SensorEventListener {
 
@@ -39,6 +40,7 @@ object MotionMonitor : SensorEventListener {
 
     private val magnitudes = ArrayDeque<Double>()
     private val turnDetector = TurnDetector()
+    private val arranque = ArranqueSostenido()
 
     private var sensorManager: SensorManager? = null
 
@@ -118,6 +120,7 @@ object MotionMonitor : SensorEventListener {
         gyroRegistered = false
         sensorManager = null
         magnitudes.clear()
+        arranque.reiniciar()
         state = State.UNKNOWN
         turnDetector.reset()
         turnListener = null
@@ -131,9 +134,8 @@ object MotionMonitor : SensorEventListener {
      */
     private fun armSignificantMotion() {
         if (!registered) return
-        // El trigger cambió de firma en Android 14 (TriggerEvent); en equipos
-        // anteriores el acelerómetro + la red de velocidad ya cubren el arranque.
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) return
+        // Es el único sensor que despierta al teléfono dormido en el bolsillo:
+        // se usa en todas las versiones (antes solo desde Android 14).
         val manager = sensorManager ?: return
         val sensor = manager.getDefaultSensor(Sensor.TYPE_SIGNIFICANT_MOTION) ?: return
         val trigger = object : android.hardware.TriggerEventListener() {
@@ -191,6 +193,10 @@ object MotionMonitor : SensorEventListener {
             std >= MOVING_STD -> State.MOVING
             std <= STATIONARY_STD -> State.STATIONARY
             else -> state // zona de histéresis: se conserva el estado previo
+        }
+        if (arranque.muestra(System.currentTimeMillis(), state == State.MOVING)) {
+            Log.i(TAG, "movimiento sostenido del acelerómetro: arranque")
+            significantMotionListener?.onSignificantMotion()
         }
         updateGyroscope()
     }

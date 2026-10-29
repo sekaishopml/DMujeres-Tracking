@@ -12,6 +12,7 @@ import com.dmujeres.app.datos.RemoteConfig
 import com.dmujeres.app.pantallas.StatusActivity
 import com.dmujeres.app.seguimiento.Pasos
 import com.dmujeres.app.seguimiento.TrackingService
+import com.dmujeres.app.sistema.AjustesPermisos
 import com.dmujeres.app.sesion.JourneyOutbox
 import com.dmujeres.app.sesion.SessionAuth
 import com.dmujeres.app.sesion.SessionStore
@@ -86,7 +87,7 @@ object DmujeresApi {
         SessionStore.clearOnUnauthorized(context)
         Log.w(TAG, "sesión terminada por el servidor (401 con token): se cierra la jornada")
         StatusActivity.addMessage(context.getString(R.string.status_session_expired))
-        journeyEnded(context)
+        journeyEnded(context, "sesion")
         Thread { revisarCierreTrasBaja(context) }.start()
     }
 
@@ -181,8 +182,25 @@ object DmujeresApi {
         )
     }
 
+    /**
+     * Inicia la jornada desde fuera del botón (al iniciar una actividad o 1 h
+     * antes de la primera del cronograma). Sin ubicación "todo el tiempo" no
+     * arranca: el GPS no podría registrar con la app cerrada.
+     */
+    fun iniciarJornada(context: Context, como: String): Boolean {
+        if (isJourneyOpen(context)) return true
+        if (!AjustesPermisos.ubicacion(context) || !AjustesPermisos.ubicacionSiempre(context)) return false
+        runCatching {
+            androidx.core.content.ContextCompat.startForegroundService(
+                context, android.content.Intent(context, TrackingService::class.java),
+            )
+        }.onFailure { Log.w(TAG, "no se pudo levantar el servicio al iniciar la jornada ($como)", it) }
+        journeyStarted(context, como)
+        return true
+    }
+
     /** Inicio de jornada: id = epoch ms, evento mobileJourneyStarted en el panel. */
-    fun journeyStarted(context: Context) {
+    fun journeyStarted(context: Context, como: String = "manual") {
         // Doble toque o reintento: si ya hay jornada abierta no se abre otra.
         if (isJourneyOpen(context)) return
         val now = System.currentTimeMillis()
@@ -194,7 +212,7 @@ object DmujeresApi {
             .apply()
         Pasos.reiniciar(context)
         StatusActivity.addMessage(context.getString(R.string.journey_started_toast))
-        JourneyOutbox.enqueue(context, "start", journeyId, now)
+        JourneyOutbox.enqueue(context, "start", journeyId, now, como = como)
         flushJourneyEvents(context)
         // El GPS y el aviso de la barra siguen a la jornada sin esperar el pulso.
         TrackingService.syncJourneyNow()
@@ -246,21 +264,21 @@ object DmujeresApi {
             .putLong(KEY_JOURNEY_STARTED_AT, hoy)
             .putBoolean(KEY_JOURNEY_OPEN, true)
             .commit()
-        JourneyOutbox.enqueue(context, "stop", anterior, hoy - 1, Pasos.deLaJornada(context))
+        JourneyOutbox.enqueue(context, "stop", anterior, hoy - 1, Pasos.deLaJornada(context), como = "medianoche")
         Pasos.reiniciar(context)
-        JourneyOutbox.enqueue(context, "start", hoy, hoy)
+        JourneyOutbox.enqueue(context, "start", hoy, hoy, como = "medianoche")
         StatusActivity.addMessage(context.getString(R.string.journey_renewed))
         flushJourneyEvents(context)
     }
 
-    /** Fin de jornada: cierra la jornada abierta (si la hay). */
-    fun journeyEnded(context: Context) {
+    /** Fin de jornada: cierra la jornada abierta (si la hay). [nota]: por qué, en horario laboral. */
+    fun journeyEnded(context: Context, como: String = "manual", nota: String? = null) {
         val open = prefs(context).getBoolean(KEY_JOURNEY_OPEN, false)
         if (!open) return
         val journeyId = prefs(context).getLong(KEY_JOURNEY_ID, System.currentTimeMillis())
         prefs(context).edit().putBoolean(KEY_JOURNEY_OPEN, false).apply()
         StatusActivity.addMessage(context.getString(R.string.journey_ended_toast))
-        JourneyOutbox.enqueue(context, "stop", journeyId, System.currentTimeMillis(), Pasos.deLaJornada(context))
+        JourneyOutbox.enqueue(context, "stop", journeyId, System.currentTimeMillis(), Pasos.deLaJornada(context), como, nota)
         flushJourneyEvents(context)
         // Se apaga el GPS y se sube lo que quedaba en la cola.
         TrackingService.syncJourneyNow()
@@ -349,6 +367,8 @@ object DmujeresApi {
                             .put("journeyId", event.journeyId)
                             .put("at", event.at)
                             .put("steps", event.steps)
+                            .put("como", event.como)
+                            .put("nota", event.nota)
                             .put("client", CLIENT),
                     )
                     if (!ok) {

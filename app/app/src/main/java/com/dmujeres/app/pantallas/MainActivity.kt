@@ -15,6 +15,8 @@
  */
 package com.dmujeres.app.pantallas
 
+import androidx.core.widget.doAfterTextChanged
+import android.widget.EditText
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -44,6 +46,8 @@ import com.dmujeres.app.sistema.EstadoTelefono
 import com.dmujeres.app.sistema.ServiceHeartbeat
 import com.dmujeres.app.datos.RemoteConfig
 import com.dmujeres.app.red.ConnectionState
+import com.dmujeres.app.red.EstadoEnvio
+import com.dmujeres.app.jornada.ReglasJornada
 import com.dmujeres.app.red.DmujeresApi
 import com.dmujeres.app.red.NetworkManager
 import com.dmujeres.app.seguimiento.PositionProvider
@@ -92,6 +96,8 @@ class MainActivity : AppCompatActivity() {
     /** Último número de posiciones en el búfer, leído por el refresco de la tarjeta. */
     @Volatile
     private var cachedPending = 0
+    /** Último estado de envío mostrado (ver [EstadoEnvio]). */
+    private var envio = EstadoEnvio.EN_LINEA
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -291,6 +297,11 @@ class MainActivity : AppCompatActivity() {
             if (SystemClock.elapsedRealtime() - lastJourneyTapAt < JOURNEY_TAP_GUARD_MS) return@setOnClickListener
             lastJourneyTapAt = SystemClock.elapsedRealtime()
             if (DmujeresApi.isJourneyOpen(this)) {
+                // En horario laboral se finaliza solo con el motivo escrito.
+                if (ReglasJornada.pideNota(minutoDelDia())) {
+                    mostrarNotaFin(findViewById<View>(R.id.fin_nota_panel).visibility != View.VISIBLE)
+                    return@setOnClickListener
+                }
                 // Sin ventana de confirmación: el primer toque avisa en el
                 // mismo botón y el segundo, dentro de unos segundos, finaliza.
                 if (finArmado()) {
@@ -321,6 +332,21 @@ class MainActivity : AppCompatActivity() {
                 refreshLockedHome()
             }
         }
+        findViewById<View>(R.id.fin_nota_volver).setOnClickListener { mostrarNotaFin(false) }
+        findViewById<View>(R.id.fin_nota_finalizar).setOnClickListener {
+            val nota = findViewById<EditText>(R.id.fin_nota_campo).text.toString().trim()
+            if (!ReglasJornada.notaValida(nota)) {
+                findViewById<View>(R.id.fin_nota_error).visibility = View.VISIBLE
+                return@setOnClickListener
+            }
+            DmujeresApi.journeyEnded(this, "manual", nota)
+            mostrarNotaFin(false)
+            refreshLockedHome()
+        }
+        findViewById<EditText>(R.id.fin_nota_campo).doAfterTextChanged {
+            findViewById<View>(R.id.fin_nota_error).visibility = View.GONE
+        }
+        Animaciones.respuestaAlToque(findViewById(R.id.fin_nota_finalizar), findViewById(R.id.fin_nota_volver))
         // ACTUALIZAR: reenvía lo pendiente, pide una ubicación nueva y revisa
         // el servicio. El avance se ve dentro del botón: el texto cambia con
         // cada paso y el relleno avanza de izquierda a derecha. La
@@ -406,13 +432,15 @@ class MainActivity : AppCompatActivity() {
             findViewById(R.id.journey_button), findViewById(R.id.update_button),
             findViewById(R.id.ayuda_boton), findViewById(R.id.permission_warning),
         )
+        // Lo de abajo aparece al llegar a ello desplazando.
+        findViewById<ViewGroup>(R.id.cuerpo)?.let { c -> (c.parent as? ViewGroup)?.let { Animaciones.alDesplazar(it, c) } }
         if (!conEntrada) return
         val tarjetas = listOf(
             R.id.tarjeta_jornada, R.id.actividad_card, R.id.skeleton_group, R.id.fila_jornada,
         ).mapNotNull { findViewById<View>(it) }
         Animaciones.entradaEscalonada(tarjetas)
         // El resumen aparece en lugar del cuadro vacío: se anima el contenedor de ambos.
-        findViewById<View>(R.id.home_content)?.let { Animaciones.entradaEscalonada(listOf(it), 60 + 2 * 70L) }
+        findViewById<View>(R.id.home_content)?.let { Animaciones.entradaEscalonada(listOf(it), 30 + 2 * 40L) }
     }
 
     // Lo último que se sabe del día, para decir qué toca hacer ahora.
@@ -429,8 +457,9 @@ class MainActivity : AppCompatActivity() {
             abierta && finArmado() -> getString(R.string.sug_confirmar)
             !ubicacionActiva -> getString(R.string.sug_ubicacion)
             !abierta -> getString(R.string.sug_iniciar)
+            envio == EstadoEnvio.SERVIDOR_NO_RESPONDE -> getString(R.string.sug_servidor_no_responde)
             cachedPending >= PENDING_OFFLINE_THRESHOLD -> getString(R.string.sug_pendientes_fmt, cachedPending)
-            ConnectionState.isFailing() ->
+            envio == EstadoEnvio.SIN_INTERNET ->
                 if (cachedPending > 0) getString(R.string.sug_pendientes_fmt, cachedPending) else getString(R.string.sug_sin_conexion)
             else -> null
         }
@@ -540,6 +569,8 @@ class MainActivity : AppCompatActivity() {
     private fun refreshLockedHome() {
         if (isFinishing || isDestroyed) return
         val open = DmujeresApi.isJourneyOpen(this)
+        // Si la jornada se cerró por otro lado, el recuadro del motivo ya no sirve.
+        if (!open) findViewById<View>(R.id.fin_nota_panel)?.visibility = View.GONE
         val running = TrackingService.isRunning
         // Si la ubicación del sistema está apagada no hay ruta: se avisa en la
         // píldora y en el aviso de arriba.
@@ -561,15 +592,19 @@ class MainActivity : AppCompatActivity() {
         // (rojo, tiene prioridad). "Detenido" solo se muestra en el panel.
         // Sin red del teléfono también es "Sin señal", aunque no haya fallos de envío aún.
         val sinRed = EstadoTelefono.conexion(this) == "ninguna"
+        envio = ConnectionState.estado(!sinRed, EstadoTelefono.internetValidado(this))
         val target = when {
             !locationOn -> Triple(R.drawable.bg_pill_red, getString(R.string.pill_sin_senal), R.color.white)
             !open -> Triple(R.drawable.bg_pill_gray, getString(R.string.pill_disabled), R.color.white)
-            sinRed || !canSend() -> Triple(R.drawable.bg_pill_orange, getString(R.string.pill_sin_senal), R.color.white)
+            envio == EstadoEnvio.SERVIDOR_NO_RESPONDE ->
+                Triple(R.drawable.bg_pill_orange, getString(R.string.pill_servidor_no_responde), R.color.white)
+            envio == EstadoEnvio.SIN_INTERNET || (sinRed && cachedPending > 0) ->
+                Triple(R.drawable.bg_pill_orange, getString(R.string.pill_sin_internet), R.color.white)
             else -> Triple(R.drawable.bg_pill_green, getString(R.string.pill_online), R.color.white)
         }
         if (!open) finArmadoHasta = 0L
         // Cuando cambia el estado de fondo, lo que cuelga de la tarjeta se acomoda con suavidad.
-        val firma = "$open|${finArmado()}|$locationOn|${canSend()}|$sinRed"
+        val firma = "$open|${finArmado()}|$locationOn|$envio|$sinRed"
         if (firma != firmaEstado) {
             if (firmaEstado.isNotEmpty()) findViewById<ViewGroup>(R.id.cuerpo)?.let { Animaciones.suave(it) }
             firmaEstado = firma
@@ -616,7 +651,7 @@ class MainActivity : AppCompatActivity() {
             val pending = runCatching { DatabaseHelper(this).countPositions() }.getOrDefault(0)
             runOnUiThread {
                 if (isFinishing || isDestroyed) return@runOnUiThread
-                // Guardamos el valor para que canSend() sepa si queda algo por enviar.
+                // Guardamos el valor para la píldora y la sugerencia.
                 cachedPending = pending
                 findViewById<TextView>(R.id.pending_value)?.let {
                     // Sin salto: en movimiento cambia cada pocos segundos y mareaba.
@@ -734,6 +769,28 @@ class MainActivity : AppCompatActivity() {
     private var finArmadoHasta = 0L
 
     private fun finArmado(): Boolean = SystemClock.elapsedRealtime() < finArmadoHasta
+
+    private fun minutoDelDia(): Int =
+        java.util.Calendar.getInstance(java.util.TimeZone.getTimeZone("America/Guayaquil"))
+            .let { it.get(java.util.Calendar.HOUR_OF_DAY) * 60 + it.get(java.util.Calendar.MINUTE) }
+
+    /** Recuadro del motivo para finalizar en horario laboral, en la misma pantalla. */
+    private fun mostrarNotaFin(visible: Boolean) {
+        val panel = findViewById<View>(R.id.fin_nota_panel)
+        val campo = findViewById<EditText>(R.id.fin_nota_campo)
+        findViewById<ViewGroup>(R.id.cuerpo)?.let { Animaciones.fluido(it) }
+        panel.visibility = if (visible) View.VISIBLE else View.GONE
+        findViewById<View>(R.id.fin_nota_error).visibility = View.GONE
+        val teclado = getSystemService(INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager
+        if (visible) {
+            campo.requestFocus()
+            campo.post { teclado.showSoftInput(campo, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT) }
+        } else {
+            campo.text.clear()
+            teclado.hideSoftInputFromWindow(campo.windowToken, 0)
+            campo.clearFocus()
+        }
+    }
 
     // Cuenta atrás dentro del botón ACTUALIZAR cuando se toca antes de tiempo:
     // así se ve que el toque se recibió y cuándo vuelve a estar disponible.
@@ -980,9 +1037,6 @@ class MainActivity : AppCompatActivity() {
     // Con GPS continuo casi siempre hay 1-3 puntos esperando su lote: exigir 0
     // hacía parpadear "Sin conexión" con la red perfecta. Cuenta la falla real
     // de envío o una cola que ya se acumula.
-    private fun canSend(): Boolean =
-        !ConnectionState.isFailing() && cachedPending < PENDING_OFFLINE_THRESHOLD
-
     /**
      * Tras un 401 con token, cuando la cola ya subió lo pendiente, lleva a
      * entrar de nuevo. Se revisa al volver y mientras la pantalla está abierta.

@@ -11,25 +11,27 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import androidx.preference.PreferenceManager
+import com.dmujeres.app.BuildConfig
 import com.dmujeres.app.R
 import com.dmujeres.app.pantallas.MainActivity
 import com.dmujeres.app.red.DmujeresApi
-import com.dmujeres.app.sistema.MainApplication
 
 /**
- * Aviso de actualización desde el servicio, sin abrir la app.
+ * Actualización desde el servicio, sin abrir la app.
  *
- * El aviso de actualización solo aparece al abrir la pantalla principal; quien
- * nunca la abre se queda en una versión vieja. Cada 6 h el latido pregunta
- * si hay versión nueva y, si la hay, deja una notificación que abre la app
- * (ahí se descarga e instala). Instalar siempre lo confirma la persona.
+ * Cada 6 h el latido pregunta si hay versión nueva y lo anota. No avisa en el
+ * momento (podía ser de madrugada): el aviso "Actualizar app de monitoreo"
+ * sale con los avisos de horario (ver AvisosHorarios). Al abrir la app, el
+ * banner de arriba la ofrece enseguida. Instalar siempre lo confirma la persona.
  */
 object OtaNotifier {
 
     private const val TAG = "OtaNotifier"
     private const val KEY_LAST_CHECK = "otaBackgroundCheckAt"
     private const val INTERVAL_MS = 6 * 60 * 60_000L
-    private const val NOTIFICATION_ID = 7
+    /** Versión nueva vista y la versión instalada cuando se vio. */
+    private const val KEY_DISPONIBLE = "otaDisponible"
+    private const val KEY_DISPONIBLE_DESDE = "otaDisponibleDesdeVersion"
 
     fun maybeCheck(context: Context) {
         val prefs = PreferenceManager.getDefaultSharedPreferences(context)
@@ -38,8 +40,25 @@ object OtaNotifier {
         if (last in 1..now && now - last < INTERVAL_MS) return
         prefs.edit().putLong(KEY_LAST_CHECK, now).apply()
         DmujeresApi.checkOta(context) { label, _, _ ->
-            if (label != null) notify(context.applicationContext, label)
+            prefs.edit().apply {
+                if (label != null) {
+                    putString(KEY_DISPONIBLE, label)
+                    putInt(KEY_DISPONIBLE_DESDE, BuildConfig.VERSION_CODE)
+                } else {
+                    remove(KEY_DISPONIBLE)
+                }
+            }.apply()
         }
+    }
+
+    /**
+     * Hay una versión nueva por instalar: la última revisión la vio y la app no
+     * se actualizó desde entonces. Sin conexión vale lo último que se supo.
+     */
+    fun hayActualizacion(context: Context): Boolean {
+        val prefs = PreferenceManager.getDefaultSharedPreferences(context)
+        return prefs.getString(KEY_DISPONIBLE, null) != null &&
+            prefs.getInt(KEY_DISPONIBLE_DESDE, -1) == BuildConfig.VERSION_CODE
     }
 
     /** La app se instaló sola y Android la cerró: se vuelve a abrir. */
@@ -85,40 +104,5 @@ object OtaNotifier {
 
     fun quitarAvisoActualizada(context: Context) {
         runCatching { NotificationManagerCompat.from(context).cancel(ID_ACTUALIZADA) }
-    }
-
-    private fun notify(context: Context, version: String) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
-            PackageManager.PERMISSION_GRANTED
-        ) {
-            return
-        }
-        runCatching {
-            val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
-            } else {
-                PendingIntent.FLAG_UPDATE_CURRENT
-            }
-            val open = PendingIntent.getActivity(
-                context, NOTIFICATION_ID,
-                Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-                flags,
-            )
-            val notification = NotificationCompat.Builder(context, MainApplication.PRIMARY_CHANNEL)
-                .setSmallIcon(R.drawable.ic_stat_notify)
-                .setContentTitle(context.getString(R.string.ota_notification_title))
-                .setContentText(context.getString(R.string.ota_notification_text, version))
-                .setStyle(
-                    NotificationCompat.BigTextStyle()
-                        .bigText(context.getString(R.string.ota_notification_text, version)),
-                )
-                .setColor(ContextCompat.getColor(context, R.color.primary_dark))
-                .setContentIntent(open)
-                .setAutoCancel(true)
-                .setOnlyAlertOnce(true)
-                .build()
-            NotificationManagerCompat.from(context).notify(NOTIFICATION_ID, notification)
-        }.onFailure { Log.w(TAG, "no se pudo avisar la actualización", it) }
     }
 }

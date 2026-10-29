@@ -56,7 +56,11 @@ a menos importante:
 4. Movimiento significativo (sensor de bajo consumo) y, desde la 2.10.2, la
    actividad de Google "en vehículo / bicicleta / a pie" con 70 % de
    confianza (`ReconocimientoActividad.kt` → `MotionMonitor.avisarMovimiento`).
-5. Acelerómetro (`MotionMonitor.kt`): pista, nunca decide solo.
+5. Acelerómetro (`MotionMonitor.kt`): 20 s seguidos de movimiento avisan el
+   arranque (`ArranqueSostenido.kt`, desde la 2.10.10), con 2 min de espera
+   entre avisos. Cubre los teléfonos sin actividad de Google. El sensor de
+   movimiento significativo (el único que despierta al teléfono dormido) se
+   usa en todas las versiones de Android; antes solo desde la 14.
 
 Para pasar a STATIONARY hacen falta 3 min seguidos de quietud. Sin puntos
 4 min se pasa a RECOVERING.
@@ -70,8 +74,13 @@ En este orden, para cada posición:
    más de 15 km/h; o rebote (en 30 s, más de 30 m a más del triple de la
    velocidad reportada +15 km/h). Si el salto cabe en el error de los dos
    puntos se acepta.
-2. `CaptureGate` + `StationaryCollapse`: quieta solo guarda si avanzó 15 m o
-   pasaron 5 min; en una esquina guarda aunque no toque (`TurnCapture`).
+2. `CaptureGate` + `StationaryCollapse`: quieta solo guarda si avanzó más
+   que el doble del error de las lecturas (15 a 100 m; bajo techo el punto
+   "camina" 25 a 80 m) o pasaron 5 min; una lectura de más de 100 m de error
+   nunca cuenta como avance. El latido de 5 min se guarda tal cual, pero si es
+   peor no mueve la referencia: el avance se mide desde el mejor punto del
+   lugar (desde la 2.10.9). En una esquina guarda aunque no toque
+   (`TurnCapture`).
 3. `DuplicateFixGuard`: no guarda dos veces el mismo punto.
 
 Cada punto lleva precisión, velocidad, batería, actividad y pasos
@@ -111,8 +120,7 @@ lleva el arranque de la app y un número de secuencia: reenviar no duplica.
 - Medir en la calle la 2.10.2 (GPS en paralelo a los 3 s y arranque por
   actividad) antes de pasarla a toda la flota; con la 2.10.1 Jeremy tenía más
   cortes que con la 2.9.5.
-- Teléfonos sin Google (Huawei de Silvia) y iPhone: no hay actividad; usar el
-  acelerómetro propio para despertar la captura.
+- iPhone: no hay actividad ni acelerómetro propio de la app.
 - Teléfonos que el sistema congela (Huawei, Honor, Xiaomi, Infinix): siguen
   siendo la causa de los silencios de más de 2 min.
 - Rechazar puntos con la hora del teléfono muy desfasada.

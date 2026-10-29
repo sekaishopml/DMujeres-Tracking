@@ -495,6 +495,9 @@ export async function atenderConfig(req, res, ctx) {
 // POST /api/mobile/v1/journey
 // ---------------------------------------------------------------------------
 
+const COMO_INICIO = new Set(['manual', 'actividad', 'cronograma', 'medianoche']);
+const COMO_FIN = new Set(['manual', 'medianoche', 'sesion']);
+
 export async function atenderJornada(req, res, ctx) {
   if (!ctx.configuracion.canalMovilActivo) return responderSinCuerpo(res, 404);
   if (!(await autorizacionMovil(req, ctx))) {
@@ -533,6 +536,9 @@ export async function atenderJornada(req, res, ctx) {
           journeyId: jornadaId,
           client: cliente,
           origen: 'movil.journey',
+          // Cómo empezó: a mano, al iniciar una actividad, por el cronograma o
+          // por el corte de medianoche (las versiones viejas no lo mandan).
+          ...(COMO_INICIO.has(cuerpo.como) ? { inicio: cuerpo.como } : {}),
         },
         parcheDispositivo: parche,
         inicioEn: new Date(instante),
@@ -550,6 +556,11 @@ export async function atenderJornada(req, res, ctx) {
         journeyId: jornadaId,
         soloJornada,
         pasos: numeroFinito(cuerpo.steps) !== null && cuerpo.steps >= 0 ? Math.trunc(cuerpo.steps) : null,
+        // Por qué terminó: la nota que se pide para cerrar en horario laboral.
+        detalleFin: {
+          ...(COMO_FIN.has(cuerpo.como) ? { fin: cuerpo.como } : {}),
+          ...(texto(cuerpo.nota) ? { notaFin: texto(cuerpo.nota).slice(0, 300) } : {}),
+        },
         finEn: new Date(instante),
         bateriaFin: bateria >= 0 && bateria <= 100 ? bateria : null,
         parcheDispositivo: {

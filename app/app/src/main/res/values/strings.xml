@@ -79,8 +79,6 @@
   <string name="perm_activity">Actividad física</string>
   <string name="perm_activity_why">Cuenta tus pasos para comprobar que llevas el teléfono contigo.</string>
   <string name="perm_autostart">Inicio automático</string>
-  <string name="ota_notification_title">Actualización disponible</string>
-  <string name="ota_notification_text">Toca para instalar la versión %1$s. El seguimiento mejora con cada versión.</string>
   <string name="perm_autostart_manual">Si tu teléfono lo pide, permite el inicio automático en Ajustes.</string>
   <string name="version_format">Versión %1$s</string>
   <string name="journey_start_upper">Iniciar jornada</string>
@@ -97,6 +95,10 @@ Se registrará el cierre en el panel.</string>
   <string name="journey_ended_toast">Jornada finalizada</string>
   <string name="journey_renewed">Nuevo día: la jornada sigue como una nueva desde las 00:00</string>
   <string name="journey_confirm_tap">Toca otra vez para finalizar</string>
+  <string name="fin_nota_titulo">¿Por qué finaliza la jornada?</string>
+  <string name="fin_nota_ayuda">Entre las 07:00 y las 17:00 debe escribir el motivo. Queda en su reporte.</string>
+  <string name="fin_nota_hint">Ej.: Cita médica, terminé mis visitas…</string>
+  <string name="fin_nota_falta">Escriba el motivo para finalizar</string>
   <string name="pending_label">Pendientes por enviar</string>
   <string name="battery_label">Batería</string>
   <string name="duration_label">Duración</string>
@@ -118,6 +120,8 @@ Se registrará el cierre en el panel.</string>
   <string name="pill_online">En línea</string>
   <string name="pill_no_connection">Sin conexión</string>
   <string name="pill_sin_senal">Sin señal</string>
+  <string name="pill_sin_internet">Sin internet</string>
+  <string name="pill_servidor_no_responde">Servidor no responde</string>
   <string name="pill_disabled">Deshabilitado</string>
   <string name="pill_location_off">Ubicación apagada</string>
   <string name="location_warning_text">Ubicación apagada · Toca para activarla</string>
@@ -126,20 +130,24 @@ Se registrará el cierre en el panel.</string>
   <string name="permission_warning_notifications">Las notificaciones están apagadas · Toca para activarlas</string>
   <string name="permission_warning_activity">Falta el permiso de actividad física · Toca para permitirlo</string>
   <string name="canal_avisos">Avisos de la jornada</string>
-  <string name="canal_avisos_descripcion">Recordatorios a las 08:00, 14:00, 15:00 y 17:00 cuando algo impide registrar su ruta.</string>
+  <string name="canal_avisos_descripcion">De lunes a viernes a las 07:30, 12:00 y 15:00: jornada sin iniciar, un permiso quitado o la app por actualizar.</string>
   <string name="aviso_h_titulo">Revise su aplicación</string>
   <string name="aviso_h_titulo_jornada">Jornada sin iniciar</string>
-  <string name="aviso_h_sin_jornada">Todavía no ha iniciado su jornada. Ábrala y pulse Iniciar jornada.</string>
-  <string name="aviso_h_sin_conexion">Sin conexión con el servidor. Sus puntos se guardan y se envían al recuperar la señal.</string>
-  <string name="aviso_h_senal_debil">Señal débil: hay puntos de su ruta pendientes de enviar.</string>
-  <string name="aviso_h_gps">La ubicación del teléfono está apagada. Actívela para registrar su ruta.</string>
-  <string name="aviso_h_permiso">Falta el permiso de ubicación. Abra la aplicación para concederlo.</string>
-  <string name="aviso_h_todo_el_tiempo">Falta elegir «Permitir todo el tiempo» en el permiso de ubicación.</string>
-  <string name="aviso_h_bateria">El teléfono restringe la batería de la aplicación. Quite la restricción para no perder su ruta.</string>
-  <string name="aviso_h_ahorro">El ahorro de batería está activo y puede interrumpir el registro de su ruta.</string>
+  <string name="aviso_h_sin_jornada">Inicie su jornada.</string>
+  <string name="aviso_h_permiso">Tiene un permiso desactivado: abra la app para activarlo.</string>
+  <string name="aviso_h_actualizar">Actualice la app de monitoreo.</string>
+  <string name="aviso_h_titulo_actualizar">Actualizar app de monitoreo</string>
   <string name="debug_section_avisos">Avisos de horario</string>
   <string name="debug_aviso_evaluar_title">Revisar ahora</string>
-  <string name="debug_aviso_evaluar_summary">Evalúa el estado real como a las 08:00, 14:00, 15:00 y 17:00, y muestra el aviso si hay novedades</string>
+  <string name="debug_aviso_evaluar_summary">Evalúa el estado real como a las 07:30, 08:15, 12:00 y 15:00, y muestra el aviso si hay novedades</string>
+  <string name="debug_section_jornada">Jornada automática</string>
+  <string name="debug_jornada_proximo_title">Próximo inicio automático</string>
+  <string name="debug_jornada_sin_cronograma">Ninguno: no hay visitas en el cronograma</string>
+  <string name="debug_jornada_ultimo_title">Último inicio automático</string>
+  <string name="debug_jornada_revisar_title">Revisar ahora</string>
+  <string name="debug_jornada_revisar_summary">Inicia la jornada si falta 1 h o menos para la primera visita de hoy</string>
+  <string name="debug_jornada_nota_title">Finalizar con motivo</string>
+  <string name="debug_jornada_nota_fmt">De 07:00 a 17:00 se pide el motivo · ahora: %1$s</string>
   <string name="debug_aviso_ultimo_title">Último aviso atendido</string>
   <string name="debug_aviso_ninguno">Ninguno todavía</string>
   <string name="debug_aviso_probar_title">Probar aviso</string>
@@ -173,6 +181,8 @@ Se registrará el cierre en el panel.</string>
 
   <!-- Menú de depuración (5 toques en la versión) -->
   <string name="debug_title">Depuración</string>
+  <string name="debug_clave_titulo">Clave de acceso</string>
+  <string name="debug_clave_incorrecta">Clave incorrecta</string>
   <string name="debug_subtitle">Pantallas y backend</string>
   <string name="debug_section_screens">PANTALLAS</string>
   <string name="debug_section_backend">BACKEND</string>
@@ -486,7 +496,8 @@ Se registrará el cierre en el panel.</string>
   <string name="sug_ubicacion">Encienda la ubicación del teléfono para que se registre su recorrido.</string>
   <string name="sug_iniciar">Inicie su jornada para comenzar a registrar su recorrido.</string>
   <string name="sug_pendientes_fmt">Hay %1$d puntos por enviar; se enviarán al volver la señal.</string>
-  <string name="sug_sin_conexion">Sin señal por ahora; lo registrado se enviará al volver.</string>
+  <string name="sug_sin_conexion">Sin internet por ahora; lo registrado se guarda y se enviará al volver.</string>
+  <string name="sug_servidor_no_responde">El teléfono tiene internet pero el servidor no responde; lo registrado se guarda y se enviará solo.</string>
   <!-- Inicio: actividad rápida -->
   <string name="act_home_etiqueta">ACTIVIDAD</string>
   <string name="act_home_nueva">Nueva actividad</string>
@@ -498,7 +509,7 @@ Se registrará el cierre en el panel.</string>
   <string name="act_home_guardar_nota">Guardar nota</string>
   <string name="act_home_nota">NOTA</string>
   <string name="act_home_nota_hint">Ej.: Permiso en la mañana…</string>
-  <string name="act_home_otro">Otra…</string>
+  <string name="act_home_mas">Más…</string>
   <string name="act_home_donde">¿DÓNDE?</string>
   <string name="act_home_lugar_hint">Ej.: Mall del Sur</string>
   <string name="act_home_iniciar_ahora">Iniciar ahora</string>

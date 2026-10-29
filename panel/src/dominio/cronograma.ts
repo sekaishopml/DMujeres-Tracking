@@ -55,8 +55,49 @@ export const TIPOS: Record<TipoActividad, { etiqueta: string; clase: string }> =
   novedad: { etiqueta: 'Novedad', clase: 'bg-marca-suave text-marca' },
 };
 
+// Jornada de un día: cómo empezó y cómo terminó (con la nota si se cerró en
+// horario laboral). Las versiones viejas de la app no mandan el cómo.
+export interface JornadaDia {
+  dispositivoId: string;
+  fecha: string;
+  inicio: string;
+  fin: string | null;
+  abierta: boolean;
+  comoInicio: 'manual' | 'actividad' | 'cronograma' | 'medianoche' | null;
+  comoFin: 'manual' | 'medianoche' | 'sesion' | 'sinDatos' | null;
+  notaFin: string | null;
+}
+
+const COMO_INICIO: Record<string, string> = {
+  manual: 'A mano',
+  actividad: 'Al iniciar una actividad',
+  cronograma: 'Automática por el cronograma',
+  medianoche: 'Seguía abierta del día anterior',
+};
+const COMO_FIN: Record<string, string> = {
+  manual: 'A mano',
+  medianoche: 'No la cerró (corte de medianoche)',
+  sesion: 'Al cerrar la sesión',
+  sinDatos: 'La cerró el servidor (sin datos)',
+};
+
+const horaLocal = (iso: string) =>
+  new Intl.DateTimeFormat('es-EC', { timeZone: 'America/Guayaquil', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date(iso));
+
+// Sin el dato, el corte de medianoche se reconoce por la hora (00:00 / 23:59).
+export function comoInicio(j: JornadaDia): string | null {
+  const como = j.comoInicio ?? (horaLocal(j.inicio) === '00:00' ? 'medianoche' : null);
+  return como ? COMO_INICIO[como] : null;
+}
+
+export function comoFin(j: JornadaDia): string | null {
+  if (j.abierta) return 'En curso';
+  const como = j.comoFin ?? (j.fin && horaLocal(j.fin) === '23:59' ? 'medianoche' : null);
+  return como ? COMO_FIN[como] : null;
+}
+
 export async function traerCronograma(desde: string, hasta: string, dispositivoId?: string) {
-  return api.get<{ desde: string; hasta: string; datos: Actividad[] }>(
+  return api.get<{ desde: string; hasta: string; datos: Actividad[]; jornadas?: JornadaDia[] }>(
     `/api/v1/cronograma${consulta({ desde, hasta, dispositivoId: dispositivoId || undefined })}`,
   );
 }

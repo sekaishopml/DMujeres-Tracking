@@ -751,7 +751,7 @@ export class Almacen {
     return creado.rows[0] ? Number(creado.rows[0].id) : null;
   }
 
-  async cerrarJornada({ dispositivoId, journeyId, soloJornada = null, finEn, bateriaFin, parcheDispositivo, pasos = null }) {
+  async cerrarJornada({ dispositivoId, journeyId, soloJornada = null, finEn, bateriaFin, parcheDispositivo, pasos = null, detalleFin = {} }) {
     const conexion = await this.#pool.connect();
     try {
       await conexion.query('BEGIN');
@@ -769,8 +769,8 @@ export class Almacen {
                 fin_en = $2,
                 duracion_s = GREATEST(0, EXTRACT(EPOCH FROM ($2 - inicio_en))::bigint),
                 bateria_fin_pct = $3,
-                atributos = (CASE WHEN $5::bigint IS NULL THEN atributos
-                                  ELSE atributos || jsonb_build_object('pasos', $5::bigint) END) - 'reason',
+                atributos = ((CASE WHEN $5::bigint IS NULL THEN atributos
+                                   ELSE atributos || jsonb_build_object('pasos', $5::bigint) END) || $6::jsonb) - 'reason',
                 actualizado_en = now()
           WHERE dispositivo_id = $1
             AND ($4::text IS NULL OR atributos->>'journeyId' IS NULL OR atributos->>'journeyId' = $4::text)
@@ -780,7 +780,7 @@ export class Almacen {
                      AND NOT EXISTS (SELECT 1 FROM operations.dmt_jornada o
                                       WHERE o.dispositivo_id = j.dispositivo_id AND o.inicio_en > j.inicio_en)))
           RETURNING j.id`,
-        [dispositivoId, finEn, bateriaFin, soloJornada == null ? null : String(soloJornada), pasos],
+        [dispositivoId, finEn, bateriaFin, soloJornada == null ? null : String(soloJornada), pasos, JSON.stringify(detalleFin ?? {})],
       );
       // La app corta la jornada sola a las 23:59. Si el teléfono no mandaba
       // puntos desde hacía más de una hora (GPS apagado por la tarde), ese fin

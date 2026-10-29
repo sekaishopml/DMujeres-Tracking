@@ -206,7 +206,42 @@ export async function listarCronograma(ctx) {
       respaldo: respaldoDe({ tipo: f.tipo, enHora, cliente }),
     };
   });
-  respuestaJson(ctx.res, 200, { desde, hasta, datos });
+  // Inicio y fin de jornada de cada día: cómo empezó (a mano, al iniciar una
+  // actividad, por el cronograma o seguida de la noche anterior) y, si se
+  // cerró en horario laboral, la nota con el motivo.
+  const jornadas = await consultar(
+    ctx.pool,
+    `SELECT d.id_publico AS dispositivo_publico,
+            to_char(j.inicio_en AT TIME ZONE 'America/Guayaquil', 'YYYY-MM-DD') AS fecha,
+            j.inicio_en, j.fin_en, j.estado,
+            j.atributos->>'inicio' AS como_inicio, j.atributos->>'fin' AS como_fin,
+            j.atributos->>'notaFin' AS nota_fin, j.atributos->>'reason' AS motivo
+       FROM operations.dmt_jornada j
+       JOIN tracking.dmt_dispositivo d ON d.id = j.dispositivo_id
+      WHERE j.inicio_en >= ($2::date::timestamp AT TIME ZONE 'America/Guayaquil')
+        AND j.inicio_en < (($3::date + 1)::timestamp AT TIME ZONE 'America/Guayaquil')
+        AND ${PREDICADO_PERMISO}
+        AND ($4::text IS NULL OR d.id_publico::text = $4 OR d.id::text = $4)
+      ORDER BY j.inicio_en`,
+    [permisoDe(ctx.usuario), desde, hasta, equipo],
+    { signal: ctx.signal, timeoutMs: 20000 },
+  );
+  const iso = (v) => (v instanceof Date ? v.toISOString() : v ?? null);
+  respuestaJson(ctx.res, 200, {
+    desde,
+    hasta,
+    datos,
+    jornadas: jornadas.rows.map((j) => ({
+      dispositivoId: j.dispositivo_publico,
+      fecha: j.fecha,
+      inicio: iso(j.inicio_en),
+      fin: iso(j.fin_en),
+      abierta: j.estado === 'abierta',
+      comoInicio: j.como_inicio ?? null,
+      comoFin: j.como_fin ?? (j.motivo === 'timeout' ? 'sinDatos' : null),
+      notaFin: j.nota_fin ?? null,
+    })),
+  });
 }
 
 // La primera vez (sin marca), cuenta como nuevo lo de la última semana.

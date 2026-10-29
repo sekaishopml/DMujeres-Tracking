@@ -10,6 +10,7 @@ import androidx.core.widget.doAfterTextChanged
 import com.dmujeres.app.R
 import com.dmujeres.app.cronograma.Actividad
 import com.dmujeres.app.cronograma.Actividades
+import com.dmujeres.app.cronograma.BuscadorLugares
 import com.dmujeres.app.cronograma.CierreDia
 import com.dmujeres.app.cronograma.CronogramaActivity
 import com.dmujeres.app.cronograma.HoraCronograma
@@ -18,7 +19,8 @@ import com.dmujeres.app.cronograma.TipoActividad
 /**
  * Tarjeta de actividad del inicio. Visitan muchos sitios al día y el
  * formulario completo quitaba tiempo: aquí se elige qué hace (visita o
- * almuerzo), se escribe o se toca dónde y se inicia a la hora actual. Con una
+ * permiso), se escribe o se toca uno de los lugares ya usados y se inicia a
+ * la hora actual. "Más…" lleva al formulario con los demás tipos. Con una
  * iniciada muestra "Actividad en curso" con el lugar y el tiempo. El lugar lo
  * pone la persona; la app no lo deduce del GPS. Otros tipos y otras horas van
  * al formulario del cronograma.
@@ -34,6 +36,10 @@ class ActividadExpress(private val pantalla: Activity) {
     private val aviso = pantalla.findViewById<TextView>(R.id.act_home_error)
     private val visita = pantalla.findViewById<TextView>(R.id.act_home_tipo_visita)
     private val permiso = pantalla.findViewById<TextView>(R.id.act_home_tipo_permiso)
+    private val sugerencias = pantalla.findViewById<LinearLayout>(R.id.act_home_sugerencias)
+
+    /** Lo escrito antes en este tipo, del más usado al menos; se lee al abrir. */
+    private var usados: List<String> = emptyList()
 
     private var tipo = TipoActividad.VISITA
     private var abierto = false
@@ -64,8 +70,17 @@ class ActividadExpress(private val pantalla: Activity) {
         }
         visita.setOnClickListener { elegir(TipoActividad.VISITA) }
         permiso.setOnClickListener { elegir(TipoActividad.PERMISO) }
+        // Los demás tipos (almuerzo, vacaciones, novedad...) van al formulario completo.
+        val mas = pantalla.findViewById<View>(R.id.act_home_tipo_mas)
+        mas.setOnClickListener {
+            cerrar()
+            com.dmujeres.app.cronograma.ActividadActivity.abrir(pantalla, hoy())
+        }
         lugar.setOnEditorActionListener { _, _, _ -> iniciar(); true }
-        lugar.doAfterTextChanged { if (!it.isNullOrEmpty()) quitarAviso() }
+        lugar.doAfterTextChanged {
+            if (!it.isNullOrEmpty()) quitarAviso()
+            pintarSugerencias()
+        }
         aviso.setOnClickListener {
             quitarAviso()
             lugar.requestFocus()
@@ -74,7 +89,7 @@ class ActividadExpress(private val pantalla: Activity) {
         }
         Animaciones.respuestaAlToque(
             pantalla.findViewById(R.id.act_home_iniciar), pantalla.findViewById(R.id.act_home_guardar),
-            pantalla.findViewById(R.id.act_home_finalizar), visita, permiso,
+            pantalla.findViewById(R.id.act_home_finalizar), visita, permiso, mas,
             pantalla.findViewById(R.id.act_home_cancelar),
             pantalla.findViewById(R.id.act_home_nota), pantalla.findViewById(R.id.act_home_siguiente),
             pantalla.findViewById(R.id.act_home_nota_guardar), pantalla.findViewById(R.id.act_home_nota_volver),
@@ -168,6 +183,33 @@ class ActividadExpress(private val pantalla: Activity) {
             .setText(if (esVisita) R.string.act_home_donde else R.string.act_home_nota)
         lugar.setHint(if (esVisita) R.string.act_home_lugar_hint else R.string.act_home_nota_hint)
         aviso.visibility = View.GONE
+        usados = if (esVisita) Actividades.lugaresFrecuentes(pantalla) else Actividades.notasFrecuentes(pantalla, t)
+        pintarSugerencias()
+    }
+
+    /** Lo escrito antes, ordenado por lo que se va escribiendo; un toque lo pone en el campo. */
+    private fun pintarSugerencias() {
+        sugerencias.removeAllViews()
+        val d = pantalla.resources.displayMetrics.density
+        BuscadorLugares.ordenar(usados, lugar.text.toString()).forEach { texto ->
+            sugerencias.addView(TextView(pantalla).apply {
+                text = texto
+                gravity = android.view.Gravity.CENTER
+                maxLines = 1
+                textSize = 14f
+                setTextColor(pantalla.getColor(R.color.text_primary))
+                setBackgroundResource(R.drawable.ds_chip_tipo)
+                setPadding((14 * d).toInt(), 0, (14 * d).toInt(), 0)
+                layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, (40 * d).toInt())
+                    .apply { marginEnd = (6 * d).toInt() }
+                setOnClickListener {
+                    lugar.setText(texto)
+                    lugar.setSelection(texto.length)
+                }
+            })
+        }
+        pantalla.findViewById<View>(R.id.act_home_sugerencias_scroll).visibility =
+            if (sugerencias.childCount > 0) View.VISIBLE else View.GONE
     }
 
     private fun iniciar() {

@@ -21,13 +21,59 @@ import com.dmujeres.app.R
 object Animaciones {
 
     /** Cada vista aparece con un fundido, una tras otra (sin moverse: mareaba). */
-    fun entradaEscalonada(vistas: List<View>, inicioMs: Long = 60, pasoMs: Long = 70) {
+    fun entradaEscalonada(vistas: List<View>, inicioMs: Long = 30, pasoMs: Long = 40) {
+        // Corta: la pantalla tiene que sentirse lista enseguida (terminaba a los
+        // 650 ms y la app parecía lenta al abrir).
         vistas.forEachIndexed { i, v ->
             v.alpha = 0f
             v.animate().alpha(1f)
-                .setStartDelay(inicioMs + i * pasoMs).setDuration(380)
-                .setInterpolator(DecelerateInterpolator(1.8f)).start()
+                .setStartDelay(inicioMs + i * pasoMs).setDuration(280)
+                .setInterpolator(curvaSuave).start()
         }
+    }
+
+    /** Arranca rápido y se asienta despacio: se siente suave sin hacer esperar. */
+    private val curvaSuave = PathInterpolator(0.2f, 0f, 0f, 1f)
+
+    /**
+     * Lo que queda fuera de la pantalla aparece con un fundido cuando se llega
+     * a ello desplazando. Vale también para listas que se rehacen: lo nuevo
+     * se revisa en cada acomodo. Se llama una vez por pantalla.
+     */
+    fun alDesplazar(scroll: ViewGroup, lista: ViewGroup) {
+        fun revisar() {
+            val fondoVisto = scroll.scrollY + scroll.height
+            for (i in 0 until lista.childCount) {
+                val v = lista.getChildAt(i)
+                if (v.visibility != View.VISIBLE || v.getTag(R.id.tag_revelada) == true) continue
+                val arriba = v.top + desplazamiento(lista, scroll)
+                when {
+                    arriba < fondoVisto - 24 * scroll.resources.displayMetrics.density -> {
+                        val oculta = v.getTag(R.id.tag_revelada) == false
+                        v.setTag(R.id.tag_revelada, true)
+                        if (oculta) v.animate().alpha(1f).setStartDelay(0).setDuration(320).setInterpolator(curvaSuave).start()
+                    }
+                    v.getTag(R.id.tag_revelada) == null -> {
+                        v.setTag(R.id.tag_revelada, false)
+                        v.animate().cancel()
+                        v.alpha = 0f
+                    }
+                }
+            }
+        }
+        scroll.viewTreeObserver.addOnScrollChangedListener { revisar() }
+        scroll.viewTreeObserver.addOnGlobalLayoutListener { revisar() }
+    }
+
+    /** Distancia de [lista] al inicio del contenido de [scroll]. */
+    private fun desplazamiento(lista: View, scroll: View): Int {
+        var y = 0
+        var v: View? = lista
+        while (v != null && v.parent !== scroll) {
+            y += v.top
+            v = v.parent as? View
+        }
+        return y + (v?.top ?: 0)
     }
 
     /**

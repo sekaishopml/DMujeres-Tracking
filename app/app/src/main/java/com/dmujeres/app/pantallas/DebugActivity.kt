@@ -38,6 +38,11 @@ import kotlinx.coroutines.launch
  */
 class DebugActivity : AppCompatActivity() {
 
+    private companion object {
+        // Se pide cada vez que se abre: la persona no debe entrar aquí.
+        const val CLAVE = "8080"
+    }
+
     /** Trabajo del cierre limpio en curso (se cancela al salir). */
     private var closeJob: Job? = null
 
@@ -48,6 +53,24 @@ class DebugActivity : AppCompatActivity() {
         findViewById<TextView>(R.id.version_label).text =
             getString(R.string.version_format, BuildConfig.VERSION_NAME)
 
+        val campo = findViewById<EditText>(R.id.debug_clave_campo)
+        val entrar = {
+            if (campo.text.toString() == CLAVE) {
+                findViewById<android.view.View>(R.id.debug_clave).visibility = android.view.View.GONE
+                findViewById<android.view.View>(R.id.debug_menu).visibility = android.view.View.VISIBLE
+                getSystemService(android.view.inputmethod.InputMethodManager::class.java)
+                    ?.hideSoftInputFromWindow(campo.windowToken, 0)
+                mostrarMenu()
+            } else {
+                campo.text.clear()
+                findViewById<TextView>(R.id.debug_clave_error).visibility = android.view.View.VISIBLE
+            }
+        }
+        findViewById<android.view.View>(R.id.debug_clave_entrar).setOnClickListener { entrar() }
+        campo.setOnEditorActionListener { _, _, _ -> entrar(); true }
+    }
+
+    private fun mostrarMenu() {
         val rows = findViewById<LinearLayout>(R.id.debug_rows)
 
         addSection(rows, R.string.debug_section_screens)
@@ -101,6 +124,7 @@ class DebugActivity : AppCompatActivity() {
         }
 
         avisosDeHorario(rows)
+        jornadaAutomatica(rows)
 
         // "Finalizar sesión" va en rojo, debajo de "vaciar consola", y está
         // también en la versión publicada. Pide confirmación; sin sesión solo
@@ -142,6 +166,32 @@ class DebugActivity : AppCompatActivity() {
      * Avisos de horario: revisar el estado real en cada hora, ver el último
      * atendido y lanzar cada tipo de aviso para ajustar su texto.
      */
+    /**
+     * Jornada: próximo inicio automático por el cronograma, el último que se
+     * hizo y la regla del motivo para finalizar entre 07:00 y 17:00.
+     */
+    private fun jornadaAutomatica(rows: LinearLayout) {
+        val auto = com.dmujeres.app.jornada.InicioAutomatico
+        val reglas = com.dmujeres.app.jornada.ReglasJornada
+        val prefs = PreferenceManager.getDefaultSharedPreferences(this)
+        addSection(rows, R.string.debug_section_jornada)
+        val proximo = prefs.getLong(auto.KEY_PROXIMO, 0L).takeIf { it > 0L }?.let {
+            java.text.SimpleDateFormat("EEE dd/MM HH:mm", java.util.Locale("es")).format(java.util.Date(it))
+        } ?: getString(R.string.debug_jornada_sin_cronograma)
+        addRow(rows, R.string.debug_jornada_proximo_title, proximo) {}
+        addRow(rows, R.string.debug_jornada_ultimo_title, prefs.getString(auto.KEY_ULTIMO, null) ?: getString(R.string.debug_aviso_ninguno)) {}
+        addRow(rows, R.string.debug_jornada_revisar_title, R.string.debug_jornada_revisar_summary) {
+            auto.revisar(this)
+            recreate()
+        }
+        val ahora = java.util.Calendar.getInstance(java.util.TimeZone.getTimeZone("America/Guayaquil"))
+        val pide = reglas.pideNota(ahora.get(java.util.Calendar.HOUR_OF_DAY) * 60 + ahora.get(java.util.Calendar.MINUTE))
+        addRow(
+            rows, R.string.debug_jornada_nota_title,
+            getString(R.string.debug_jornada_nota_fmt, getString(if (pide) R.string.debug_yes else R.string.debug_no)),
+        ) {}
+    }
+
     private fun avisosDeHorario(rows: LinearLayout) {
         val avisos = com.dmujeres.app.avisos.AvisosDelDia
         val reglas = com.dmujeres.app.avisos.AvisosHorarios

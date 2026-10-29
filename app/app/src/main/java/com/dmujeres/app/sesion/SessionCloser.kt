@@ -343,6 +343,7 @@ object SessionCloser {
                 .put("deviceId", device)
                 .put("action", "stop")
                 .put("journeyId", journeyId)
+                .put("como", "sesion")
                 .put("client", CLIENT)
             connection.outputStream.use { it.write(body.toString().toByteArray()) }
             return when (val code = connection.responseCode) {

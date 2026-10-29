@@ -102,6 +102,58 @@ rescate, y ignora los avisos de recuperación. Solo manda el latido de
 diagnóstico cada 10 minutos (batería, permisos y versión, sin coordenadas) y
 vacía la cola de puntos pendientes. Al abrir la jornada todo se enciende.
 
+## Avisos a la persona
+
+Solo de lunes a viernes, a las **07:30, 08:15, 12:00 y 15:00** (nunca en la
+tarde ni de noche), una notificación corta con lo que haga falta:
+
+- "Inicie su jornada": a las 07:30, 08:15 y 15:00, si no la inició. La de
+  las 08:15 es solo este recordatorio.
+- "Tiene un permiso desactivado" (07:30, 12:00, 15:00): ubicación apagada,
+  sin permiso de ubicación o sin "todo el tiempo", o batería restringida.
+- "Actualice la app de monitoreo" (07:30, 12:00, 15:00): si hay versión
+  nueva. La app revisa cada 6 h en segundo plano y solo lo anota.
+
+Con vacaciones, permiso o novedad anotados ese día no se avisa nada. Lo
+dispara una alarma exacta del teléfono (funciona sin internet) y el servidor
+de recuperación manda el mismo aviso como respaldo; a las 08:15 solo a los
+teléfonos que no mandaron puntos desde las 08:00. Cada hora se atiende una
+sola vez. Código: `avisos/AvisosHorarios.kt` (reglas, con pruebas),
+`avisos/AvisosDelDia.kt` y `servidor/recuperacion/src/avisos.js`.
+
+## Jornada automática y cierre con motivo
+
+- **Al iniciar una actividad:** iniciar una visita o un almuerzo (tarjeta
+  rápida o formulario) sin jornada la inicia.
+- **Por el cronograma:** con una visita o un almuerzo cargados, la jornada se
+  inicia sola 1 h antes de la primera del día (alarma exacta, sin internet).
+  Si el teléfono estaba apagado a esa hora, se inicia al prenderlo, hasta 2 h
+  después de la primera actividad. Una vez por día: si la persona la cierra,
+  no se vuelve a abrir sola.
+- En los dos casos hace falta la ubicación "todo el tiempo"; sin ella no se
+  inicia (el aviso de las 07:30 pide activarla).
+- **Cierre:** de 07:00 a 17:00 la jornada se finaliza solo escribiendo el
+  motivo (5 letras o más), en un recuadro de la pantalla principal. Fuera de
+  ese horario, con el doble toque de siempre.
+- Cada inicio y fin manda cómo fue (`manual`, `actividad`, `cronograma`,
+  `medianoche`, `sesion`) y la nota. El panel lo muestra en Reportes →
+  Cronograma, en la primera y la última fila de cada día.
+
+Código: `jornada/ReglasJornada.kt` (reglas, con pruebas),
+`jornada/InicioAutomatico.kt`, `DmujeresApi.iniciarJornada` y el recuadro
+`fin_nota_panel` de la pantalla principal. En Depuración, "Jornada
+automática" muestra el próximo inicio, el último y si ahora se pide motivo.
+
+## Abrir rápido
+
+`app/src/main/baseline-prof.txt` lista las clases que se usan al abrir (la
+aplicación, la pantalla principal, el registro y el envío). Android las
+precompila (lo instala `profileinstaller`, ya incluido) y la app abre más
+rápido en frío; con una actualización por OTA el efecto llega cuando el
+teléfono optimiza las apps en reposo. Si se agrega una clase al arranque, se
+suma a ese archivo. Las animaciones de entrada de la pantalla principal duran
+unos 350 ms (`Animaciones.entradaEscalonada`).
+
 ## Depuración
 
 Tocando 5 veces la versión en la pantalla principal se abre un menú con el

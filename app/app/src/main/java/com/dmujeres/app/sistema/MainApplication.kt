@@ -61,6 +61,7 @@ open class MainApplication : MultiDexApplication() {
         // queda armada al encender el teléfono, que arranca la app.
         com.dmujeres.app.avisos.AvisosDelDia.crearCanal(this)
         com.dmujeres.app.avisos.AvisosDelDia.programar(this)
+        com.dmujeres.app.jornada.InicioAutomatico.revisar(this)
         // Teléfono solo en vertical; la tablet gira (ver Responsivo).
         registerActivityLifecycleCallbacks(object : ActivityLifecycleCallbacks {
             override fun onActivityCreated(activity: Activity, savedInstanceState: android.os.Bundle?) =

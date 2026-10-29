@@ -13,13 +13,20 @@ object JourneyOutbox {
     private const val KEY = "journeyOutbox"
     private const val MAX_EVENTS = 50
 
-    /** [steps]: pasos de la jornada, solo en el aviso de fin. */
-    data class Event(val action: String, val journeyId: Long, val at: Long, val steps: Long = 0L)
+    /**
+     * [steps]: pasos de la jornada, solo en el aviso de fin. [como]: cómo
+     * empezó o terminó (manual, actividad, cronograma, medianoche, sesion).
+     * [nota]: por qué se cerró en horario laboral.
+     */
+    data class Event(
+        val action: String, val journeyId: Long, val at: Long, val steps: Long = 0L,
+        val como: String? = null, val nota: String? = null,
+    )
 
     @Synchronized
-    fun enqueue(context: Context, action: String, journeyId: Long, at: Long, steps: Long = 0L) {
+    fun enqueue(context: Context, action: String, journeyId: Long, at: Long, steps: Long = 0L, como: String? = null, nota: String? = null) {
         val list = read(context)
-        list.add(Event(action, journeyId, at, steps))
+        list.add(Event(action, journeyId, at, steps, como, nota))
         write(context, list.takeLast(MAX_EVENTS))
     }
 
@@ -47,14 +54,22 @@ object JourneyOutbox {
             val array = JSONArray(raw)
             MutableList(array.length()) { i ->
                 val o = array.getJSONObject(i)
-                Event(o.getString("action"), o.getLong("journeyId"), o.getLong("at"), o.optLong("steps", 0L))
+                Event(
+                    o.getString("action"), o.getLong("journeyId"), o.getLong("at"), o.optLong("steps", 0L),
+                    o.optString("como").ifEmpty { null }, o.optString("nota").ifEmpty { null },
+                )
             }
         }.getOrDefault(mutableListOf())
     }
 
     private fun write(context: Context, list: List<Event>) {
         val array = JSONArray()
-        list.forEach { array.put(JSONObject().put("action", it.action).put("journeyId", it.journeyId).put("at", it.at).put("steps", it.steps)) }
+        list.forEach {
+            array.put(
+                JSONObject().put("action", it.action).put("journeyId", it.journeyId).put("at", it.at).put("steps", it.steps)
+                    .put("como", it.como).put("nota", it.nota),
+            )
+        }
         PreferenceManager.getDefaultSharedPreferences(context).edit().putString(KEY, array.toString()).commit()
     }
 }

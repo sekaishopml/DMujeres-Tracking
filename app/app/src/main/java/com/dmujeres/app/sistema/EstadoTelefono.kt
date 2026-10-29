@@ -25,6 +25,15 @@ object EstadoTelefono {
         }
     }.getOrDefault("desconocida")
 
+    /**
+     * Android comprobó que la red activa llega a internet (red validada). Una
+     * red sin salida (wifi sin servicio, datos sin saldo) no lo está.
+     */
+    fun internetValidado(context: Context): Boolean = runCatching {
+        val manager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        manager.getNetworkCapabilities(manager.activeNetwork)?.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED) == true
+    }.getOrDefault(false)
+
     /** Memoria libre en MB (-1 si no se pudo leer). */
     fun memoriaLibreMb(context: Context): Long = runCatching {
         val info = ActivityManager.MemoryInfo()

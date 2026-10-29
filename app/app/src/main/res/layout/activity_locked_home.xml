@@ -361,6 +361,19 @@
                                 android:textSize="15sp"
                                 android:textStyle="bold" />
 
+                            <TextView
+                                android:id="@+id/act_home_tipo_mas"
+                                android:layout_width="0dp"
+                                android:layout_height="match_parent"
+                                android:layout_marginStart="8dp"
+                                android:layout_weight="1"
+                                android:background="@drawable/ds_chip_tipo"
+                                android:gravity="center"
+                                android:text="@string/act_home_mas"
+                                android:textColor="@color/text_primary"
+                                android:textSize="15sp"
+                                android:textStyle="bold" />
+
                         </LinearLayout>
 
                         <LinearLayout
@@ -415,6 +428,22 @@
                                 android:textStyle="bold"
                                 android:visibility="gone" />
                             </FrameLayout>
+
+                            <!-- Lo escrito antes, ordenado por lo que se va escribiendo. -->
+                            <HorizontalScrollView
+                                android:id="@+id/act_home_sugerencias_scroll"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="8dp"
+                                android:scrollbars="none"
+                                android:visibility="gone">
+
+                                <LinearLayout
+                                    android:id="@+id/act_home_sugerencias"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:orientation="horizontal" />
+                            </HorizontalScrollView>
 
                         </LinearLayout>
 
@@ -507,7 +536,7 @@
                         <LinearLayout
                             android:id="@+id/act_home_curso_acciones"
                             android:layout_width="match_parent"
-                            android:layout_height="44dp"
+                            android:layout_height="50dp"
                             android:layout_marginTop="8dp"
                             android:orientation="horizontal">
 
@@ -528,11 +557,13 @@
                                 android:layout_width="0dp"
                                 android:layout_height="match_parent"
                                 android:layout_weight="1"
-                                android:background="@drawable/ds_boton_borde_claro"
+                                android:background="@drawable/bg_button_green"
+                                android:elevation="3dp"
                                 android:gravity="center"
                                 android:text="@string/act_home_siguiente"
                                 android:textColor="@color/white"
-                                android:textSize="14sp" />
+                                android:textSize="15sp"
+                                android:textStyle="bold" />
                         </LinearLayout>
 
                         <!-- Nota exprés: se escribe aquí mismo, sin otra pantalla. -->
@@ -776,6 +807,87 @@
                         android:textColor="@color/white"
                         android:textSize="16sp"
                         android:textStyle="bold" />
+
+                    <!-- De 07:00 a 17:00 la jornada se finaliza solo con el motivo escrito. -->
+                    <LinearLayout
+                        android:id="@+id/fin_nota_panel"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="10dp"
+                        android:background="@drawable/ds_hero"
+                        android:orientation="vertical"
+                        android:padding="14dp"
+                        android:visibility="gone">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="@string/fin_nota_titulo"
+                            android:textColor="@color/text_primary"
+                            android:textSize="17sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="2dp"
+                            android:text="@string/fin_nota_ayuda"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="13sp" />
+
+                        <EditText
+                            android:id="@+id/fin_nota_campo"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="10dp"
+                            android:background="@drawable/ds_field"
+                            android:hint="@string/fin_nota_hint"
+                            android:importantForAutofill="no"
+                            android:inputType="textCapSentences|textMultiLine"
+                            android:maxLength="300"
+                            android:maxLines="3"
+                            android:minHeight="50dp"
+                            android:paddingStart="14dp"
+                            android:paddingTop="10dp"
+                            android:paddingEnd="14dp"
+                            android:paddingBottom="10dp"
+                            android:textColor="@color/text_primary"
+                            android:textSize="16sp" />
+
+                        <TextView
+                            android:id="@+id/fin_nota_error"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="6dp"
+                            android:text="@string/fin_nota_falta"
+                            android:textColor="@color/primary_dark"
+                            android:textSize="13sp"
+                            android:textStyle="bold"
+                            android:visibility="gone" />
+
+                        <TextView
+                            android:id="@+id/fin_nota_finalizar"
+                            android:layout_width="match_parent"
+                            android:layout_height="52dp"
+                            android:layout_marginTop="10dp"
+                            android:background="@drawable/ds_button_primary"
+                            android:gravity="center"
+                            android:text="@string/journey_stop_upper"
+                            android:textColor="@color/white"
+                            android:textSize="16sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/fin_nota_volver"
+                            android:layout_width="match_parent"
+                            android:layout_height="44dp"
+                            android:layout_marginTop="8dp"
+                            android:background="@drawable/ds_button_outline"
+                            android:gravity="center"
+                            android:text="@string/act_home_cancelar"
+                            android:textColor="@color/text_primary"
+                            android:textSize="15sp" />
+                    </LinearLayout>
 
                     <Button
                         android:id="@+id/update_button"

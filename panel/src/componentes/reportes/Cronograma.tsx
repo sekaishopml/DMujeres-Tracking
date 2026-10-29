@@ -22,7 +22,10 @@ import {
   sumarMeses,
   traerCronograma,
   ultimoDeMes,
+  comoFin,
+  comoInicio,
   type Actividad,
+  type JornadaDia,
 } from '@/dominio/cronograma';
 import { cn } from '@/lib/cn';
 import {
@@ -167,7 +170,7 @@ export default function Cronograma({ pestanas }: { pestanas?: ReactNode }) {
           }}
         />
       ) : (
-        <Planilla dias={diasDeSemana(lunes)} hoy={hoy} datos={datos} resaltar={resaltar} />
+        <Planilla dias={diasDeSemana(lunes)} hoy={hoy} datos={datos} jornadas={cronograma.data?.jornadas} resaltar={resaltar} />
       )}
     </div>
   );
@@ -292,12 +295,12 @@ const tinte = (color: string, pct: number) => `color-mix(in srgb, ${color} ${pct
 
 // Planilla semanal de una persona, con la misma forma que su Excel: una
 // columna por día (HORA | PLANIFICACIÓN) y una fila por actividad en orden.
-function Planilla({ dias, hoy, datos, nombre, resaltar }: { dias: string[]; hoy: string; datos: Actividad[]; nombre?: string; resaltar?: string | null }) {
+function Planilla({ dias, hoy, datos, jornadas, nombre, resaltar }: { dias: string[]; hoy: string; datos: Actividad[]; jornadas?: JornadaDia[]; nombre?: string; resaltar?: string | null }) {
   // Una columna por día de la semana, sábado y domingo incluidos.
   const visibles = dias.map((d, i) => ({ d, i }));
   const porDia = visibles.map(({ d }) => datos.filter((a) => a.fecha === d).sort((x, y) => x.hora.localeCompare(y.hora)));
   const filas = Math.max(1, ...porDia.map((l) => l.length));
-  if (datos.length === 0 && !nombre) {
+  if (datos.length === 0 && !jornadas?.length && !nombre) {
     return (
       <Tarjeta>
         <Vacio titulo="Sin actividades esta semana">La persona no cargó actividades en la app para estas fechas.</Vacio>
@@ -340,6 +343,13 @@ function Planilla({ dias, hoy, datos, nombre, resaltar }: { dias: string[]; hoy:
           </tr>
         </thead>
         <tbody>
+          {jornadas && (
+            <tr>
+              {visibles.map(({ d, i }) => (
+                <FilaJornada key={d} color={COLOR_DIA[i]} jornadas={jornadas.filter((j) => j.fecha === d)} extremo="inicio" />
+              ))}
+            </tr>
+          )}
           {Array.from({ length: filas }, (_, fila) => (
             <tr key={fila}>
               {visibles.map(({ d, i }, col) => {
@@ -351,6 +361,13 @@ function Planilla({ dias, hoy, datos, nombre, resaltar }: { dias: string[]; hoy:
               })}
             </tr>
           ))}
+          {jornadas && (
+            <tr>
+              {visibles.map(({ d, i }) => (
+                <FilaJornada key={d} color={COLOR_DIA[i]} jornadas={jornadas.filter((j) => j.fecha === d)} extremo="fin" />
+              ))}
+            </tr>
+          )}
         </tbody>
       </table>
     </Tarjeta>
@@ -363,6 +380,34 @@ function FragmentoCol() {
     <>
       <col className="w-[62px]" />
       <col />
+    </>
+  );
+}
+
+// Primera y última fila de cada día: cuándo y cómo empezó y terminó la
+// jornada; si la cerró en horario laboral, el motivo que escribió.
+function FilaJornada({ color, jornadas, extremo }: { color: string; jornadas: JornadaDia[]; extremo: 'inicio' | 'fin' }) {
+  const fondo = tinte(color, 12);
+  return (
+    <>
+      <td className="border border-borde px-1 py-1 text-center align-top text-[10px] font-bold text-texto-3 uppercase" style={{ background: tinte(color, 30) }}>
+        {extremo === 'inicio' ? 'Inicio' : 'Fin'}
+      </td>
+      <td className="border border-borde px-2 py-1 align-top text-[11.5px]" style={{ background: fondo }}>
+        {jornadas.length === 0 && <span className="text-texto-3">{extremo === 'inicio' ? 'Sin jornada' : '—'}</span>}
+        {jornadas.map((j) => {
+          const como = extremo === 'inicio' ? comoInicio(j) : comoFin(j);
+          return (
+            <div key={j.inicio}>
+              <span className="font-mono font-semibold text-marino-900">
+                {extremo === 'inicio' ? hora(j.inicio) : j.abierta ? '—' : hora(j.fin)}
+              </span>
+              {como && <span className="text-texto-2"> · {como}</span>}
+              {extremo === 'fin' && j.notaFin && <span className="block break-words text-marino-900">“{j.notaFin}”</span>}
+            </div>
+          );
+        })}
+      </td>
     </>
   );
 }
