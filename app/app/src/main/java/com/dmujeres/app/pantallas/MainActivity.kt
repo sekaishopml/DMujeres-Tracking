@@ -592,7 +592,10 @@ class MainActivity : AppCompatActivity() {
         if (isFinishing || isDestroyed) return
         val open = DmujeresApi.isJourneyOpen(this)
         // Si la jornada se cerró por otro lado, el recuadro del motivo ya no sirve.
-        if (!open) findViewById<View>(R.id.fin_nota_panel)?.visibility = View.GONE
+        if (!open && findViewById<View>(R.id.fin_nota_panel)?.visibility == View.VISIBLE) {
+            findViewById<View>(R.id.fin_nota_panel)?.visibility = View.GONE
+            findViewById<View>(R.id.journey_button)?.visibility = View.VISIBLE
+        }
         val running = TrackingService.isRunning
         // Si la ubicación del sistema está apagada no hay ruta: se avisa en la
         // píldora y en el aviso de arriba.
@@ -802,6 +805,8 @@ class MainActivity : AppCompatActivity() {
         val campo = findViewById<EditText>(R.id.fin_nota_campo)
         findViewById<ViewGroup>(R.id.cuerpo)?.let { Animaciones.fluido(it) }
         panel.visibility = if (visible) View.VISIBLE else View.GONE
+        // El recuadro trae su propio "Finalizar jornada": el de arriba se oculta para no repetirlo.
+        findViewById<View>(R.id.journey_button).visibility = if (visible) View.GONE else View.VISIBLE
         findViewById<View>(R.id.fin_nota_error).visibility = View.GONE
         val teclado = getSystemService(INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager
         if (visible) {
