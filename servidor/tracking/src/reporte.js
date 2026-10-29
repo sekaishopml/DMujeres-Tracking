@@ -60,7 +60,7 @@ export function frasesCorreo({ titulo, nombre, rango, archivos }) {
   return {
     asunto: `${titulo}${de}${periodo}`,
     cuerpo: `Adjunto encontrará el ${titulo.charAt(0).toLowerCase()}${titulo.slice(1)}${de}${periodo}${periodo && en ? ',' : ''}${en}.`,
-    nota: 'Lo recibe porque lo solicitó desde la app. Esta dirección solo envía reportes; si necesita algo, comuníquese con su supervisor.',
+    nota: 'Lo recibe porque lo solicitó desde la app. Esta dirección solo envía reportes; si necesita algo, comuníquese con el departamento de CCTV.',
   };
 }
 
