@@ -83,11 +83,22 @@ class TrackingService : Service() {
             gpsReceiver = runCatching {
                 val receptor = object : android.content.BroadcastReceiver() {
                     override fun onReceive(context: android.content.Context, intent: Intent) {
+                        // Cómo estaba el teléfono en ese instante: con la pantalla
+                        // encendida y desbloqueada lo cambió la persona (solo se
+                        // puede desde los ajustes); con la pantalla apagada o con
+                        // el ahorro de batería, el teléfono.
+                        runCatching {
+                            val energia = context.getSystemService(POWER_SERVICE) as android.os.PowerManager
+                            val bloqueo = context.getSystemService(KEYGUARD_SERVICE) as android.app.KeyguardManager
+                            ServiceHeartbeat.anotarCambioGps(context, energia.isInteractive, bloqueo.isKeyguardLocked, energia.isPowerSaveMode)
+                        }
                         // Se espera a que el estado se asiente: leído al instante
                         // a veces todavía da el valor anterior.
                         Log.i(TAG, "cambio de ubicación del sistema")
-                        android.os.Handler(android.os.Looper.getMainLooper())
-                            .postDelayed({ ServiceHeartbeat.reportNow() }, 2_000L)
+                        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                            ServiceHeartbeat.reportNow()
+                            com.dmujeres.app.avisos.AvisoInmediato.revisar(context)
+                        }, 2_000L)
                     }
                 }
                 ContextCompat.registerReceiver(

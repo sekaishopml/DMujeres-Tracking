@@ -82,6 +82,9 @@ class CronogramaActivity : AppCompatActivity() {
             }
             ActividadActivity.abrir(this, fechaDe(dia))
         }
+        findViewById<View>(R.id.crono_reporte).setOnClickListener {
+            startActivity(android.content.Intent(this, com.dmujeres.app.reporte.ReporteActivity::class.java))
+        }
         cabeceraSemana()
         pintar()
         com.dmujeres.app.pantallas.Animaciones.respuestaAlToque(

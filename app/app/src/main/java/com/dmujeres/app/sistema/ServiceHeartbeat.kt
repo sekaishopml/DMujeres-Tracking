@@ -125,9 +125,22 @@ object ServiceHeartbeat {
         appContext = null
     }
 
+    private const val KEY_CAMBIO_GPS = "gpsUltimoCambio"
+
+    /** Cómo estaba el teléfono cuando cambió la ubicación (viaja en el diagnóstico). */
+    fun anotarCambioGps(context: Context, pantallaEncendida: Boolean, bloqueado: Boolean, ahorro: Boolean) {
+        PreferenceManager.getDefaultSharedPreferences(context).edit().putString(
+            KEY_CAMBIO_GPS,
+            JSONObject().put("en", System.currentTimeMillis()).put("pantalla", pantallaEncendida)
+                .put("bloqueado", bloqueado).put("ahorro", ahorro).toString(),
+        ).apply()
+    }
+
     private fun report() {
         val context = appContext ?: return
         ultimoReporteMs = System.currentTimeMillis()
+        // GPS apagado o permiso quitado con jornada: aviso (sin insistir).
+        com.dmujeres.app.avisos.AvisoInmediato.revisar(context)
         medirTemperaturaSiToca()
         val lecturas = synchronized(temperaturas) { temperaturas.toList().also { temperaturas.clear() } }
         Thread {
@@ -185,7 +198,14 @@ object ServiceHeartbeat {
                                     .put("provider", TrackingController.proveedorVigente)
                                     .put("vigilia", VigiliaGps.activa())
                                     .put("fixAgeSec", fixAgeSec)
-                                    .put("mock", prefs.getBoolean(Prefs.LAST_MOCK, false)),
+                                    .put("mock", prefs.getBoolean(Prefs.LAST_MOCK, false))
+                                    .put("cambio", prefs.getString(KEY_CAMBIO_GPS, null)?.let { runCatching { JSONObject(it) }.getOrNull() }),
+                            )
+                            // Si los avisos no llegan: cómo está el canal y qué pasó con el último.
+                            .put(
+                                "avisos",
+                                runCatching { com.dmujeres.app.avisos.AvisosDelDia.estadoCanal(context) }.getOrDefault(JSONObject())
+                                    .put("inmediato", prefs.getString(com.dmujeres.app.avisos.AvisoInmediato.KEY_DIAGNOSTICO, null)),
                             )
                             .put("buffer", JSONObject().put("pending", pending)
                                 // Pendientes; overflow y dead explican huecos que

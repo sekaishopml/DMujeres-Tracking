@@ -79,6 +79,18 @@ Los teléfonos con la versión 2.4.1 o anterior todavía buscan en el
 repositorio viejo, `sekaishopml/Dmujeres-Traccar`. Ese repositorio tiene que
 seguir público hasta que todos tengan la 2.4.2 o una posterior.
 
+
+**Desde la 2.10.12 la app hace lo posible para que todos actualicen:**
+- Al abrirla, al volver a ella y cada minuto con la app abierta, si hay
+  versión nueva se abre sola la pantalla de actualización (no si la persona
+  está escribiendo una actividad, una nota o el motivo de cierre). En Android
+  12+ con el permiso "instalar apps desconocidas" se instala sin preguntar;
+  si no, Android pide un toque. Si lo cancela, se vuelve a intentar a los
+  20 min.
+- Con la app cerrada y sin jornada, el latido revisa cada hora y en Android
+  12+ la instala sola (`UpdateActivity.enSegundoPlano`). Con jornada no, para
+  no cortar el registro.
+
 ## Primer uso en un teléfono nuevo
 
 1. Instalar el APK de `http://68.168.20.219:999/` (el último publicado).
@@ -120,6 +132,47 @@ de recuperación manda el mismo aviso como respaldo; a las 08:15 solo a los
 teléfonos que no mandaron puntos desde las 08:00. Cada hora se atiende una
 sola vez. Código: `avisos/AvisosHorarios.kt` (reglas, con pruebas),
 `avisos/AvisosDelDia.kt` y `servidor/recuperacion/src/avisos.js`.
+
+## Aviso inmediato: ubicación apagada o permiso quitado
+
+Con la jornada abierta, apagar la ubicación o quitar el permiso "todo el
+tiempo" deja de registrar el recorrido, así que no espera a la hora fija:
+un aviso al momento y uno más si a los 15 min sigue igual, nunca más
+(`avisos/AvisoInmediato.kt`). Al tocarlo abre el ajuste que falta.
+
+Al cambiar la ubicación la app anota cómo estaba el teléfono (pantalla,
+bloqueo, ahorro de batería) y el servidor dice quién la apagó: "a mano"
+(pantalla encendida y desbloqueada), "el teléfono" (pantalla apagada) o "el
+ahorro de batería" (`servidor/tracking/src/alertas.js`, `quienApagoGps`).
+
+El encendido del teléfono se registra con su hora real (ahora menos el
+tiempo desde el arranque) y se revisa también cada vez que arranca la app:
+sin "inicio automático" (Xiaomi y otros) el aviso del sistema no llega.
+
+Una jornada que nadie cerró sigue cada día desde las 00:00; la app y el
+reporte dicen desde cuándo está abierta de verdad ("Sin cerrar desde el
+18/10 11:07").
+
+## Mi reporte
+
+Desde el cronograma (ícono de hoja con flecha, arriba) se abre "Mi reporte":
+diario, semanal (lunes a domingo) o mensual, con las actividades y la
+jornada de cada día (y el motivo si se cerró en horario laboral).
+
+- **Excel:** un .xlsx real escrito por la app (`reporte/Xlsx.kt`, sin
+  librerías): título, encabezado azul congelado, filtro y una fila por
+  actividad (`reporte/ReporteExcel.kt`).
+- **Imagen:** PNG de la misma vista que se ve en pantalla (`VistaReporte`).
+- Se guardan en Descargas/DMujeres (Android 10+, sin permisos; antes, en la
+  carpeta de la app) y se abren tocando el aviso de abajo.
+- **Correo:** se escribe una vez y queda guardado (en el teléfono y en el
+  servidor) hasta que la persona lo cambie. El servidor lo manda desde
+  reporte@sekaidevec.com con Resend (`servidor/tracking/src/reporte.js`),
+  como mucho 10 envíos por teléfono por hora. La clave va en
+  `/opt/dmj-keys/correo.env` (`RESEND_API_KEY=...`, dueño dmujeres, 600);
+  sin ella la app dice que el envío todavía no está activo.
+- Sin conexión, la jornada sale "—" (nunca se inventa); las actividades
+  salen igual porque están en el teléfono.
 
 ## Jornada automática y cierre con motivo
 

@@ -66,6 +66,8 @@ export interface JornadaDia {
   comoInicio: 'manual' | 'actividad' | 'cronograma' | 'medianoche' | null;
   comoFin: 'manual' | 'medianoche' | 'sesion' | 'sinDatos' | null;
   notaFin: string | null;
+  // Seguida de la noche anterior: cuándo se inició de verdad.
+  abiertaDesde?: string | null;
 }
 
 const COMO_INICIO: Record<string, string> = {
@@ -87,6 +89,11 @@ const horaLocal = (iso: string) =>
 // Sin el dato, el corte de medianoche se reconoce por la hora (00:00 / 23:59).
 export function comoInicio(j: JornadaDia): string | null {
   const como = j.comoInicio ?? (horaLocal(j.inicio) === '00:00' ? 'medianoche' : null);
+  if (como === 'medianoche' && j.abiertaDesde) {
+    const d = new Date(j.abiertaDesde);
+    const dia = new Intl.DateTimeFormat('es-EC', { timeZone: 'America/Guayaquil', day: '2-digit', month: '2-digit' }).format(d);
+    return `Sin cerrar desde el ${dia} ${horaLocal(j.abiertaDesde)}`;
+  }
   return como ? COMO_INICIO[como] : null;
 }
 

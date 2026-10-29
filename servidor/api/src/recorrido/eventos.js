@@ -48,6 +48,13 @@ const ETIQUETA_ACTIVIDAD = {
 
 const MAX_EVENTOS = 300;
 
+// Quién apagó la ubicación (lo anota la app desde la 2.10.11).
+const GPS_APAGADO_POR = {
+  persona: 'Apagó el GPS a mano',
+  telefono: 'El teléfono apagó el GPS (pantalla apagada)',
+  ahorro: 'El ahorro de batería apagó el GPS',
+};
+
 export async function listarEventos(ctx) {
   const desde = ctx.url.searchParams.get('desde');
   const hasta = ctx.url.searchParams.get('hasta');
@@ -58,7 +65,7 @@ export async function listarEventos(ctx) {
   const [eventos, actividades] = await Promise.all([
     consultar(
       ctx.pool,
-      `SELECT e.tipo, e.ocurrido_en AS en, d.id_publico, d.nombre
+      `SELECT e.tipo, e.ocurrido_en AS en, d.id_publico, d.nombre, e.atributos->>'quien' AS quien
          FROM tracking.dmt_evento e
          JOIN tracking.dmt_dispositivo d ON d.id = e.dispositivo_id
         WHERE e.ocurrido_en BETWEEN $2::timestamptz AND $3::timestamptz
@@ -87,7 +94,7 @@ export async function listarEventos(ctx) {
   const datos = [
     ...eventos.rows.map((f) => ({
       categoria: TIPOS[f.tipo].categoria,
-      texto: TIPOS[f.tipo].texto,
+      texto: (f.tipo === 'mobileGpsDisabled' && GPS_APAGADO_POR[f.quien]) || TIPOS[f.tipo].texto,
       detalle: null,
       en: iso(f.en),
       dispositivoId: f.id_publico,

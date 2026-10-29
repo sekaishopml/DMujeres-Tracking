@@ -64,6 +64,8 @@ const val EXTRA_BANNER_DEMO = "bannerDemo"
 
 /** Marca del último chequeo de actualización (para el freno). */
 private const val KEY_LAST_OTA_CHECK = "lastOtaCheckApp"
+private const val KEY_OTA_INTENTO = "otaIntentoSolo"
+private const val REINTENTO_OTA_MS = 20 * 60_000L
 
 /** Pasos visibles del refresco manual (para el relleno proporcional). */
 private const val REFRESH_STEPS = 3
@@ -150,14 +152,15 @@ class MainActivity : AppCompatActivity() {
      * volver a ella o cada minuto), como mucho una vez por minuto (ver
      * OtaPolicy). La hora del último chequeo se guarda al terminar, para que si
      * la pantalla se cierra a mitad se vuelva a intentar enseguida. El aviso
-     * sale siempre que la versión publicada sea mayor que la instalada.
+     * sale siempre que la versión publicada sea mayor que la instalada, y la
+     * actualización se abre sola (ver [intentarSola]).
      */
     private fun maybeCheckOta(force: Boolean = false) {
         val prefs = PreferenceManager.getDefaultSharedPreferences(this)
         val now = System.currentTimeMillis()
         val last = prefs.getLong(KEY_LAST_OTA_CHECK, 0L)
         if (!force && !OtaPolicy.shouldCheck(now, last, coldStart = false)) return
-        showUpdateDialogIfAvailable(automatica = force) {
+        showUpdateDialogIfAvailable(automatica = true) {
             prefs.edit().putLong(KEY_LAST_OTA_CHECK, System.currentTimeMillis()).apply()
         }
     }
@@ -174,14 +177,28 @@ class MainActivity : AppCompatActivity() {
                 if (isFinishing || isDestroyed) return@runOnUiThread
                 if (label == null) return@runOnUiThread
                 showUpdateBanner(url, sha256, version = label)
-                // Al abrir la app, si se puede instalar sin confirmar, se
-                // actualiza sola; con la app ya en uso solo queda el aviso
-                // (no se corta lo que la persona está escribiendo).
-                if (automatica && UpdateActivity.puedeSinConfirmar(this)) {
-                    UpdateActivity.start(this, url, sha256, label)
-                }
+                if (automatica && intentarSola(label)) UpdateActivity.start(this, url, sha256, label)
             }
         }
+    }
+
+    /**
+     * ¿Se abre la actualización sola? Al abrir la app, al volver a ella y con
+     * la app abierta, salvo que la persona esté escribiendo (actividad, nota o
+     * motivo de cierre). Sin permiso de instalar sin confirmar, se descarga y
+     * Android pide un toque. Si la persona lo cancela, se vuelve a intentar a
+     * los 20 min: insiste sin trabar el trabajo.
+     */
+    private fun intentarSola(version: String): Boolean {
+        if (actividadExpress?.ocupada() == true) return false
+        if (findViewById<View>(R.id.fin_nota_panel)?.visibility == View.VISIBLE) return false
+        val prefs = PreferenceManager.getDefaultSharedPreferences(this)
+        val previo = prefs.getString(KEY_OTA_INTENTO, null)?.split("|")
+        val ahora = System.currentTimeMillis()
+        val reciente = previo?.getOrNull(0) == version && ahora - (previo.getOrNull(1)?.toLongOrNull() ?: 0L) < REINTENTO_OTA_MS
+        if (reciente) return false
+        prefs.edit().putString(KEY_OTA_INTENTO, "$version|$ahora").apply()
+        return true
     }
 
     /**
@@ -452,8 +469,11 @@ class MainActivity : AppCompatActivity() {
         val texto = findViewById<TextView>(R.id.sugerencia_texto) ?: return
         val fila = findViewById<View>(R.id.sugerencia) ?: return
         val abierta = DmujeresApi.isJourneyOpen(this)
+        // Con el aviso rojo (o verde) a la vista, ocupa su lugar: no se repite.
+        val conAviso = findViewById<View>(R.id.permission_warning)?.visibility == View.VISIBLE
         // Solo lo urgente: las actividades ya se leen debajo, en la misma tarjeta.
         val mensaje = when {
+            conAviso -> null
             abierta && finArmado() -> getString(R.string.sug_confirmar)
             !ubicacionActiva -> getString(R.string.sug_ubicacion)
             !abierta -> getString(R.string.sug_iniciar)
@@ -517,7 +537,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        com.dmujeres.app.actualizacion.OtaNotifier.quitarAvisoActualizada(this)
+        com.dmujeres.app.actualizacion.OtaNotifier.pantallaAbierta = true
         // Refresco inmediato + vivo cada 5 s mientras la pantalla esté abierta.
         runCatching { refreshLockedHome() }
         // Los avisos se miran cada 1,5 s: el rojo sale al instante.
@@ -551,6 +571,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onPause() {
         super.onPause()
+        com.dmujeres.app.actualizacion.OtaNotifier.pantallaAbierta = false
         // En segundo plano no se refresca (ahorra batería); al volver, sigue.
         durationTicker?.let { uiHandler.removeCallbacks(it) }
         uiHandler.removeCallbacks(tickEspera)
@@ -719,6 +740,16 @@ class MainActivity : AppCompatActivity() {
             .getLong(DmujeresApi.KEY_JOURNEY_STARTED_AT, 0L)
         if (startedAt <= 0L) {
             text.text = getString(R.string.journey_none_banner)
+            return
+        }
+        // Abierta de otro día (nunca la cerró): se dice desde cuándo, no
+        // "desde las 00:00", que parecía un inicio de hoy.
+        val origen = PreferenceManager.getDefaultSharedPreferences(this).getLong(DmujeresApi.KEY_JOURNEY_ORIGEN, 0L)
+        if (origen in 1 until DmujeresApi.inicioDelDia(System.currentTimeMillis())) {
+            text.text = getString(
+                R.string.journey_abierta_desde_fmt,
+                java.text.SimpleDateFormat("dd/MM HH:mm", java.util.Locale.US).format(java.util.Date(origen)),
+            )
             return
         }
         val minutes = ((System.currentTimeMillis() - startedAt) / 60_000L).toInt()
@@ -1149,6 +1180,7 @@ class MainActivity : AppCompatActivity() {
             ahora >= verdeHasta && banner.visibility != View.GONE -> {
                 findViewById<ViewGroup>(R.id.cuerpo)?.let { Animaciones.suave(it) }
                 banner.visibility = View.GONE
+                compactar(false)
             }
         }
     }
@@ -1169,6 +1201,34 @@ class MainActivity : AppCompatActivity() {
         Animaciones.fondo(banner, if (verde) R.drawable.ds_ok_aviso else R.drawable.ds_aviso_rojo)
         banner.setOnClickListener(accion?.let { a -> View.OnClickListener { a() } })
         banner.visibility = View.VISIBLE
+        compactar(true)
+    }
+
+    /**
+     * Con un aviso a la vista la pantalla se compacta (menos aire, el tiempo
+     * un poco más chico) para que todo siga cabiendo sin desplazar: si no,
+     * el logo quedaba cortado arriba. Sin aviso vuelve a su tamaño.
+     */
+    private fun compactar(compacta: Boolean) {
+        val d = resources.displayMetrics.density
+        fun dp(v: Int) = (v * d).toInt()
+        findViewById<View>(R.id.logo_inicio)?.let { logo ->
+            (logo.layoutParams as? ViewGroup.MarginLayoutParams)?.let {
+                it.topMargin = dp(if (compacta) 0 else 2)
+                it.bottomMargin = dp(if (compacta) 2 else 8)
+                logo.layoutParams = it
+            }
+        }
+        findViewById<View>(R.id.tarjeta_jornada)?.let {
+            val p = dp(if (compacta) 10 else 12)
+            it.setPadding(p, if (compacta) dp(8) else p, p, p)
+        }
+        findViewById<TextView>(R.id.duration_value)?.textSize = if (compacta) 23f else 27f
+        findViewById<View>(R.id.permission_warning)?.let {
+            it.minimumHeight = dp(if (compacta) 44 else 52)
+            it.setPadding(dp(12), dp(if (compacta) 7 else 10), dp(12), dp(if (compacta) 7 else 10))
+        }
+        findViewById<TextView>(R.id.permission_warning_text)?.textSize = if (compacta) 13f else 14f
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {

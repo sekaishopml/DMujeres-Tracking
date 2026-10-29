@@ -150,68 +150,23 @@ class UpdateActivity : AppCompatActivity() {
     }
 
     private fun downloadAndInstall(url: String, sha256: String) {
-        try {
-            val target = File(cacheDir, APK_NAME)
-            val connection = URL(url).openConnection() as HttpURLConnection
-            connection.connectTimeout = 15_000
-            connection.readTimeout = 60_000
-            // Un 404/500 devolvía su página de error y se "instalaba" como APK
-            // (el sistema decía "error al analizar el paquete").
-            if (connection.responseCode !in 200..299) {
-                Log.w(TAG, "descarga respondió ${connection.responseCode}")
-                connection.disconnect()
-                showError()
-                return
-            }
-            val total = connection.contentLengthLong
-            var readTotal = 0L
-            var lastPercent = -1
-            connection.inputStream.use { input ->
-                target.outputStream().use { output ->
-                    val buffer = ByteArray(16 * 1024)
-                    while (true) {
-                        val read = input.read(buffer)
-                        if (read <= 0) break
-                        output.write(buffer, 0, read)
-                        readTotal += read
-                        val percent = if (total > 0) (readTotal * 100 / total).toInt() else -1
-                        // Solo se actualiza la pantalla cuando cambia el
-                        // porcentaje.
-                        if (percent >= 0 && percent != lastPercent) {
-                            lastPercent = percent
-                            ultimoAvance = percent
-                            enPantalla { it.mostrarAvance(percent) }
-                        }
-                    }
-                }
-            }
-            connection.disconnect()
-            // La descarga se cortó: no se instala a medias.
-            if (total > 0 && readTotal != total) {
-                Log.w(TAG, "descarga incompleta: $readTotal de $total bytes")
-                target.delete()
-                showError()
-                return
-            }
-            if (sha256.isNotBlank() && !sha256.equals(sha256Of(target), ignoreCase = true)) {
-                Log.w(TAG, "sha256 no coincide; se descarta la descarga")
-                target.delete()
-                showError()
-                return
-            }
-            enPantalla { it.faseInstalacion() }
-            install(target)
-        } catch (e: Exception) {
-            Log.w(TAG, "Descarga de actualización falló", e)
-            showError()
+        val target = descargar(this, url, sha256) { percent ->
+            ultimoAvance = percent
+            enPantalla { it.mostrarAvance(percent) }
         }
+        if (target == null) {
+            showError()
+            return
+        }
+        enPantalla { it.faseInstalacion() }
+        install(target)
     }
 
     private fun install(file: File) {
         // Android 12+: la app se actualiza a sí misma sin pedir confirmación.
         // Si el sistema la pide igual, llega como STATUS_PENDING_USER_ACTION.
         if (puedeSinConfirmar(this)) {
-            runCatching { instalarSinConfirmar(file) }.onSuccess { return }
+            runCatching { instalarSinConfirmar(this, file) }.onSuccess { return }
                 .onFailure { Log.w(TAG, "instalación sin confirmar falló", it) }
         }
         val uri = FileProvider.getUriForFile(this, packageName + ".fileprovider", file)
@@ -229,35 +184,6 @@ class UpdateActivity : AppCompatActivity() {
         actual.runOnUiThread {
             actual.startActivity(intent)
             actual.finish()
-        }
-    }
-
-    @android.annotation.TargetApi(31)
-    private fun instalarSinConfirmar(file: File) {
-        val instalador = packageManager.packageInstaller
-        val params = android.content.pm.PackageInstaller.SessionParams(
-            android.content.pm.PackageInstaller.SessionParams.MODE_FULL_INSTALL,
-        ).apply {
-            setAppPackageName(packageName)
-            setRequireUserAction(android.content.pm.PackageInstaller.SessionParams.USER_ACTION_NOT_REQUIRED)
-        }
-        val id = instalador.createSession(params)
-        instalador.openSession(id).use { sesion ->
-            file.inputStream().use { input ->
-                sesion.openWrite(APK_NAME, 0, file.length()).use { out ->
-                    input.copyTo(out)
-                    sesion.fsync(out)
-                }
-            }
-            val aviso = android.app.PendingIntent.getBroadcast(
-                this, id, Intent(this, ResultadoInstalacion::class.java),
-                android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_MUTABLE,
-            )
-            // Android cierra la app al reemplazarla: al volver, se reabre sola.
-            androidx.preference.PreferenceManager.getDefaultSharedPreferences(this).edit()
-                .putLong(com.dmujeres.app.actualizacion.OtaNotifier.KEY_REABRIR, System.currentTimeMillis())
-                .commit()
-            sesion.commit(aviso.intentSender)
         }
     }
 
@@ -293,18 +219,6 @@ class UpdateActivity : AppCompatActivity() {
         }
     }
 
-    private fun sha256Of(file: File): String {
-        val digest = MessageDigest.getInstance("SHA-256")
-        file.inputStream().use { input ->
-            val buffer = ByteArray(8192)
-            while (true) {
-                val read = input.read(buffer)
-                if (read <= 0) break
-                digest.update(buffer, 0, read)
-            }
-        }
-        return digest.digest().joinToString("") { "%02x".format(it) }
-    }
 
     companion object {
         private const val TAG = "UpdateActivity"
@@ -319,6 +233,124 @@ class UpdateActivity : AppCompatActivity() {
             actual.runOnUiThread { if (!actual.isFinishing && !actual.isDestroyed) accion(actual) }
         }
         private const val APK_NAME = "dmujeres-update.apk"
+
+        private fun sha256Of(file: File): String {
+            val digest = MessageDigest.getInstance("SHA-256")
+            file.inputStream().use { input ->
+                val buffer = ByteArray(8192)
+                while (true) {
+                    val read = input.read(buffer)
+                    if (read <= 0) break
+                    digest.update(buffer, 0, read)
+                }
+            }
+            return digest.digest().joinToString("") { "%02x".format(it) }
+        }
+
+        /**
+         * Descarga el APK y revisa que esté completo y que su huella sea la
+         * publicada. null si algo falló (no se instala a medias).
+         */
+        fun descargar(context: android.content.Context, url: String, sha256: String, avance: (Int) -> Unit = {}): File? {
+            try {
+                val target = File(context.cacheDir, APK_NAME)
+                val connection = URL(url).openConnection() as HttpURLConnection
+                connection.connectTimeout = 15_000
+                connection.readTimeout = 60_000
+                // Un 404/500 devolvía su página de error y se "instalaba" como APK
+                // (el sistema decía "error al analizar el paquete").
+                if (connection.responseCode !in 200..299) {
+                    Log.w(TAG, "descarga respondió ${connection.responseCode}")
+                    connection.disconnect()
+                    return null
+                }
+                val total = connection.contentLengthLong
+                var readTotal = 0L
+                var lastPercent = -1
+                connection.inputStream.use { input ->
+                    target.outputStream().use { output ->
+                        val buffer = ByteArray(16 * 1024)
+                        while (true) {
+                            val read = input.read(buffer)
+                            if (read <= 0) break
+                            output.write(buffer, 0, read)
+                            readTotal += read
+                            val percent = if (total > 0) (readTotal * 100 / total).toInt() else -1
+                            // Solo se avisa cuando cambia el porcentaje.
+                            if (percent >= 0 && percent != lastPercent) {
+                                lastPercent = percent
+                                avance(percent)
+                            }
+                        }
+                    }
+                }
+                connection.disconnect()
+                // La descarga se cortó: no se instala a medias.
+                if (total > 0 && readTotal != total) {
+                    Log.w(TAG, "descarga incompleta: $readTotal de $total bytes")
+                    target.delete()
+                    return null
+                }
+                if (sha256.isNotBlank() && !sha256.equals(sha256Of(target), ignoreCase = true)) {
+                    Log.w(TAG, "sha256 no coincide; se descarta la descarga")
+                    target.delete()
+                    return null
+                }
+                return target
+            } catch (e: Exception) {
+                Log.w(TAG, "Descarga de actualización falló", e)
+                return null
+            }
+        }
+
+        /**
+         * Con la app cerrada y sin jornada: descarga e instala sola, sin
+         * pantalla (Android 12+ con el permiso de instalar). Así se actualizan
+         * también los que nunca abren la app.
+         */
+        fun enSegundoPlano(context: android.content.Context, url: String, sha256: String) {
+            if (!puedeSinConfirmar(context) || !downloading.compareAndSet(false, true)) return
+            val app = context.applicationContext
+            Thread {
+                try {
+                    descargar(app, url, sha256)?.let { runCatching { instalarSinConfirmar(app, it) } }
+                } finally {
+                    downloading.set(false)
+                }
+            }.start()
+        }
+
+        /** Android 12+: instala sin pedir confirmación (si el sistema la pide, llega a [ResultadoInstalacion]). */
+        @android.annotation.TargetApi(31)
+        fun instalarSinConfirmar(context: android.content.Context, file: File) {
+            val instalador = context.packageManager.packageInstaller
+            val params = android.content.pm.PackageInstaller.SessionParams(
+                android.content.pm.PackageInstaller.SessionParams.MODE_FULL_INSTALL,
+            ).apply {
+                setAppPackageName(context.packageName)
+                setRequireUserAction(android.content.pm.PackageInstaller.SessionParams.USER_ACTION_NOT_REQUIRED)
+            }
+            val id = instalador.createSession(params)
+            instalador.openSession(id).use { sesion ->
+                file.inputStream().use { input ->
+                    sesion.openWrite(APK_NAME, 0, file.length()).use { out ->
+                        input.copyTo(out)
+                        sesion.fsync(out)
+                    }
+                }
+                val aviso = android.app.PendingIntent.getBroadcast(
+                    context, id, Intent(context, ResultadoInstalacion::class.java),
+                    android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_MUTABLE,
+                )
+                // Android cierra la app al reemplazarla: al volver, se reabre sola.
+                androidx.preference.PreferenceManager.getDefaultSharedPreferences(context).edit()
+                    .putLong(com.dmujeres.app.actualizacion.OtaNotifier.KEY_REABRIR, System.currentTimeMillis())
+                    .commit()
+                sesion.commit(aviso.intentSender)
+            }
+        }
+
+
         const val EXTRA_URL = "update_url"
         const val EXTRA_SHA256 = "update_sha256"
         const val EXTRA_VERSION = "update_version"

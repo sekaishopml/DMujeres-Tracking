@@ -74,6 +74,11 @@
             android:theme="@style/AppTheme" />
 
         <activity
+            android:name=".reporte.ReporteActivity"
+            android:exported="false"
+            android:theme="@style/AppTheme" />
+
+        <activity
             android:name=".cronograma.ActividadActivity"
             android:exported="false"
             android:theme="@style/AppTheme"
@@ -161,6 +166,9 @@
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <!-- Xiaomi, HTC y otros avisan el encendido rápido con este nombre. -->
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+                <action android:name="com.htc.intent.action.QUICKBOOT_POWERON" />
             </intent-filter>
             <intent-filter>
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />

@@ -43,6 +43,9 @@ class ActividadExpress(private val pantalla: Activity) {
 
     private var tipo = TipoActividad.VISITA
     private var abierto = false
+
+    /** La persona está escribiendo aquí (no se le abre la actualización encima). */
+    fun ocupada(): Boolean = abierto || editandoNota
     private var abierta: Actividad? = null
 
     /** Nota exprés de la actividad en curso, escrita en la misma tarjeta. */

@@ -32,6 +32,7 @@ object PowerEvents {
     private const val KEY_LAST_BATTERY = "powerLastBattery"
     private const val KEY_LAST_BATTERY_AT = "powerLastBatteryAt"
     private const val KEY_SHUTDOWN_RECORDED_AT = "powerShutdownRecordedAt"
+    private const val KEY_BOOT_AT = "powerBootAt"
     private const val MAX_EVENTS = 20
 
     /** Causa del apagado (pura, testeable). */
@@ -67,8 +68,23 @@ object PowerEvents {
         return receiver
     }
 
+    /**
+     * Encendido con su hora real (ahora menos el tiempo desde que arrancó el
+     * teléfono). Se revisa al recibir el aviso del sistema y cada vez que la
+     * app arranca: en Xiaomi y otros, sin "inicio automático" el aviso no
+     * llega y el encendido de la mañana aparecía recién al abrir la app.
+     */
+    fun revisarArranque(context: Context) {
+        val prefs = PreferenceManager.getDefaultSharedPreferences(context)
+        val bootAt = System.currentTimeMillis() - android.os.SystemClock.elapsedRealtime()
+        // El mismo arranque calculado dos veces difiere en milisegundos.
+        if (kotlin.math.abs(bootAt - prefs.getLong(KEY_BOOT_AT, 0L)) < 60_000L) return
+        prefs.edit().putLong(KEY_BOOT_AT, bootAt).apply()
+        onBoot(context, bootAt)
+    }
+
     /** Al encender: se registra el encendido y, si murió sin avisar, la causa. */
-    fun onBoot(context: Context) {
+    private fun onBoot(context: Context, bootAt: Long) {
         val prefs = PreferenceManager.getDefaultSharedPreferences(context)
         val lastBattery = prefs.getInt(KEY_LAST_BATTERY, -1)
         val lastAt = prefs.getLong(KEY_LAST_BATTERY_AT, 0L)
@@ -78,7 +94,7 @@ object PowerEvents {
             prefs.edit().putLong(KEY_SHUTDOWN_RECORDED_AT, lastAt).apply()
         }
         val (pct, _) = battery(context)
-        enqueue(context, "boot", null, System.currentTimeMillis(), pct)
+        enqueue(context, "boot", null, bootAt, pct)
         StatusActivity.addMessage(context.getString(R.string.console_boot_fmt, pct))
     }
 

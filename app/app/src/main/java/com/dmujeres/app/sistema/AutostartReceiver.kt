@@ -43,8 +43,8 @@ class AutostartReceiver : WakefulBroadcastReceiver() {
             runCatching { com.dmujeres.app.actualizacion.OtaNotifier.reabrir(context) }
         }
         // Encendido del teléfono (no la reinstalación de la app).
-        if (intent.action == Intent.ACTION_BOOT_COMPLETED) {
-            runCatching { PowerEvents.onBoot(context) }
+        if (intent.action != Intent.ACTION_MY_PACKAGE_REPLACED) {
+            runCatching { PowerEvents.revisarArranque(context) }
         }
         val sharedPreferences = PreferenceManager.getDefaultSharedPreferences(context)
         // Si había jornada abierta, el próximo arranque entra en RECOVERING y

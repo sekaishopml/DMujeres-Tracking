@@ -9,6 +9,8 @@
 //   GET/POST /api/mobile/v1/clientes  clientes para registrar actividades
 //   GET  /api/mobile/v1/paradas    paradas de un día (actividades desde el GPS)
 //   GET  /api/mobile/v1/estado     último punto que tiene el servidor
+//   GET  /api/mobile/v1/jornadas   inicio y fin de jornada (reporte de la app)
+//   POST /api/mobile/v1/reporte/correo  envía el reporte por correo
 //   POST /api/mobile/v1/diagnostics
 //   GET  /api/mobile/v1/ota
 //   POST /api/mobile/v1/fcm-token
@@ -36,6 +38,7 @@ import {
 } from './movil.js';
 import { atenderClienteNuevo, atenderClientesConsulta, atenderParadasDia } from './clientes.js';
 import { atenderEstado } from './estado.js';
+import { atenderJornadasConsulta, atenderReporteCorreo } from './reporte.js';
 
 function responderNoEncontrado(res) {
   res.writeHead(404, { 'cache-control': 'no-store' });
@@ -95,6 +98,12 @@ async function manejar(req, res, ctx) {
   }
   if (ruta === '/api/mobile/v1/paradas' && metodo === 'GET') {
     return atenderParadasDia(req, res, { ...ctx, url });
+  }
+  if (ruta === '/api/mobile/v1/jornadas' && metodo === 'GET') {
+    return atenderJornadasConsulta(req, res, { ...ctx, url });
+  }
+  if (ruta === '/api/mobile/v1/reporte/correo' && metodo === 'POST') {
+    return atenderReporteCorreo(req, res, { ...ctx, url });
   }
   if (ruta === '/api/mobile/v1/power' && metodo === 'POST') {
     return atenderEnergia(req, res, { ...ctx, url });

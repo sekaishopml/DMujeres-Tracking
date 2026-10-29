@@ -62,6 +62,20 @@ export function esRepetido(recientes, clave, ahoraMs) {
   return false;
 }
 
+// Quién apagó la ubicación, según cómo estaba el teléfono en ese instante
+// (la app lo anota al cambiar): con la pantalla encendida y desbloqueada solo
+// pudo ser la persona; con el ahorro de batería activo o la pantalla apagada,
+// el teléfono. Sin el dato (versiones viejas) o si es de otro cambio, null.
+export const VENTANA_CAMBIO_MS = 5 * 60_000;
+export function quienApagoGps(reporte, ahoraMs = Date.now()) {
+  const c = reporte?.gps?.cambio;
+  if (!c || !Number.isFinite(c.en) || Math.abs(ahoraMs - c.en) > VENTANA_CAMBIO_MS) return null;
+  if (c.ahorro === true) return 'ahorro';
+  if (c.pantalla === false) return 'telefono';
+  if (c.pantalla === true && c.bloqueado === false) return 'persona';
+  return null;
+}
+
 // Devuelve {eventos, parche}: los eventos a registrar y los atributos a
 // guardar. Un estado desconocido antes no avisa "se arregló", pero sí avisa
 // si ya llega mal.

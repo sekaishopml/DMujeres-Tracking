@@ -216,6 +216,12 @@ class DebugActivity : AppCompatActivity() {
         com.dmujeres.app.avisos.AvisosHorarios.Novedad.values().forEach { novedad ->
             addRow(rows, R.string.debug_aviso_probar_title, avisos.texto(this, novedad)) { avisos.mostrar(this, listOf(novedad)) }
         }
+        addRow(rows, R.string.debug_sonido_title, R.string.debug_sonido_summary) {
+            com.dmujeres.app.avisos.SonidoAvisos.probar(this)
+        }
+        addRow(rows, R.string.debug_aviso_gps_title, R.string.aviso_gps_texto) {
+            com.dmujeres.app.avisos.AvisoInmediato.probar(this)
+        }
         addRow(rows, R.string.debug_aviso_todas_title, R.string.debug_aviso_todas_summary) {
             avisos.mostrar(this, com.dmujeres.app.avisos.AvisosHorarios.Novedad.values().filter { it != com.dmujeres.app.avisos.AvisosHorarios.Novedad.SIN_JORNADA })
         }

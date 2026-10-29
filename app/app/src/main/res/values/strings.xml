@@ -94,6 +94,11 @@ Se registrará el cierre en el panel.</string>
   <string name="journey_started_toast">Jornada iniciada</string>
   <string name="journey_ended_toast">Jornada finalizada</string>
   <string name="journey_renewed">Nuevo día: la jornada sigue como una nueva desde las 00:00</string>
+  <string name="journey_abierta_desde_fmt">Abierta desde el %1$s, sin cerrar</string>
+  <string name="aviso_gps_titulo">Ubicación apagada</string>
+  <string name="aviso_gps_texto">Actívela para que se registre su recorrido.</string>
+  <string name="aviso_permiso_titulo">Falta el permiso de ubicación</string>
+  <string name="aviso_permiso_texto">Toque aquí y elija «Permitir todo el tiempo».</string>
   <string name="journey_confirm_tap">Toca otra vez para finalizar</string>
   <string name="fin_nota_titulo">¿Por qué finaliza la jornada?</string>
   <string name="fin_nota_ayuda">Entre las 07:00 y las 17:00 debe escribir el motivo. Queda en su reporte.</string>
@@ -152,6 +157,9 @@ Se registrará el cierre en el panel.</string>
   <string name="debug_aviso_ninguno">Ninguno todavía</string>
   <string name="debug_aviso_probar_title">Probar aviso</string>
   <string name="debug_aviso_todas_title">Probar con varias novedades</string>
+  <string name="debug_sonido_title">Probar sonido</string>
+  <string name="debug_sonido_summary">El sonido propio de los avisos de la app</string>
+  <string name="debug_aviso_gps_title">Probar aviso de ubicación apagada</string>
   <string name="debug_aviso_todas_summary">Una sola notificación con todas las novedades juntas</string>
   <string name="debug_aviso_resultado_fmt">%1$s → %2$s</string>
   <string name="debug_aviso_sin_novedades">sin novedades: no se avisa</string>
@@ -166,8 +174,8 @@ Se registrará el cierre en el panel.</string>
   <string name="aviso_ok_ahorro">Ahorro de batería desactivado</string>
   <string name="pill_none">Sin jornada</string>
   <string name="refresh_button">Actualizar</string>
-  <string name="ota_actualizada_titulo">DMujeres se actualizó</string>
-  <string name="ota_actualizada_texto">Toque para volver a abrir la app.</string>
+  <string name="ota_actualizada_titulo">App actualizada a la versión %1$s</string>
+  <string name="ota_actualizada_texto">Toque para abrirla.</string>
   <string name="refresh_cooldown_fmt">Recién actualizado · podrá repetirlo en %1$d s</string>
   <string name="version_footer_fmt">Versión %1$s · código %2$d</string>
   <string name="update_installing">Instalando</string>
@@ -523,4 +531,30 @@ Se registrará el cierre en el panel.</string>
   <string name="act_home_hoy_ninguna">Ver cronograma · 0 hoy</string>
   <string name="act_home_hoy_una">Ver cronograma · 1 hoy</string>
   <string name="act_home_hoy_fmt">Ver cronograma · %1$d hoy</string>
+  <!-- Mi reporte -->
+  <string name="rep_titulo">Mi reporte</string>
+  <string name="rep_abrir_desc">Mi reporte</string>
+  <string name="rep_dia">Día</string>
+  <string name="rep_semana">Semana</string>
+  <string name="rep_mes">Mes</string>
+  <string name="rep_cambiar">Cambiar</string>
+  <string name="rep_correo_fmt">Enviar a: %1$s</string>
+  <string name="rep_sin_correo">Escriba su correo para recibir el reporte</string>
+  <string name="rep_correo_hint">nombre@empresa.com</string>
+  <string name="rep_correo_invalido">Revise el correo: no parece válido</string>
+  <string name="rep_correo_guardado">Correo guardado</string>
+  <string name="rep_excel">Excel</string>
+  <string name="rep_imagen">Imagen</string>
+  <string name="rep_enviar">Enviar a mi correo</string>
+  <string name="rep_cargando">Cargando…</string>
+  <string name="rep_sin_conexion_jornadas">Sin conexión: la jornada se muestra con «—»</string>
+  <string name="rep_guardado_fmt">Guardado en Descargas/DMujeres · toque aquí para abrir</string>
+  <string name="rep_no_guardado">No se pudo guardar el archivo</string>
+  <string name="rep_sin_app">El archivo quedó en Descargas/DMujeres; no hay una app para abrirlo</string>
+  <string name="rep_enviando">Enviando…</string>
+  <string name="rep_enviado_fmt">Enviado a %1$s</string>
+  <string name="rep_envio_sin_configurar">El envío por correo todavía no está activo. Descargue el Excel o la imagen.</string>
+  <string name="rep_envio_muchos">Demasiados envíos seguidos: intente en una hora</string>
+  <string name="rep_envio_sin_red">Sin conexión: intente cuando tenga internet</string>
+  <string name="rep_envio_fallo">No se pudo enviar: intente de nuevo</string>
 </resources>

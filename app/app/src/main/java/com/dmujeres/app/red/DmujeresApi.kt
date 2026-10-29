@@ -38,6 +38,9 @@ object DmujeresApi {
     private val ZONA_JORNADA = java.util.TimeZone.getTimeZone("America/Guayaquil")
     const val KEY_PASSWORD = "password"
     const val KEY_JOURNEY_STARTED_AT = "journeyStartedAt"
+
+    /** Cuándo se inició de verdad (el corte de medianoche no lo cambia). */
+    const val KEY_JOURNEY_ORIGEN = "journeyOrigen"
     const val KEY_JOURNEY_CONFIRMED_ID = "journeyConfirmedId"
     const val KEY_JOURNEY_CONFIRMED_AT = "journeyConfirmedAt"
     const val KEY_JOURNEY_OPEN = "journeyOpen"
@@ -208,6 +211,7 @@ object DmujeresApi {
         prefs(context).edit()
             .putLong(KEY_JOURNEY_ID, journeyId)
             .putLong(KEY_JOURNEY_STARTED_AT, now)
+            .putLong(KEY_JOURNEY_ORIGEN, now)
             .putBoolean(KEY_JOURNEY_OPEN, true)
             .apply()
         Pasos.reiniciar(context)
@@ -259,6 +263,7 @@ object DmujeresApi {
         val inicio = p.getLong(KEY_JOURNEY_STARTED_AT, 0L).takeIf { it > 0L } ?: idGuardado
         if (inicio <= 0L || inicio >= hoy) return
         val anterior = if (idGuardado > 0L) idGuardado else inicio
+        if (p.getLong(KEY_JOURNEY_ORIGEN, 0L) <= 0L) p.edit().putLong(KEY_JOURNEY_ORIGEN, inicio).apply()
         p.edit()
             .putLong(KEY_JOURNEY_ID, hoy)
             .putLong(KEY_JOURNEY_STARTED_AT, hoy)
@@ -277,6 +282,7 @@ object DmujeresApi {
         if (!open) return
         val journeyId = prefs(context).getLong(KEY_JOURNEY_ID, System.currentTimeMillis())
         prefs(context).edit().putBoolean(KEY_JOURNEY_OPEN, false).apply()
+        com.dmujeres.app.avisos.AvisoInmediato.limpiar(context)
         StatusActivity.addMessage(context.getString(R.string.journey_ended_toast))
         JourneyOutbox.enqueue(context, "stop", journeyId, System.currentTimeMillis(), Pasos.deLaJornada(context), como, nota)
         flushJourneyEvents(context)
@@ -295,6 +301,38 @@ object DmujeresApi {
     /** Paradas de un día según el GPS (null sin conexión). */
     fun fetchParadas(context: Context, fecha: String): org.json.JSONArray? =
         getJson(context, "/api/mobile/v1/paradas", "fecha=$fecha")?.optJSONArray("paradas")
+
+    /** Reporte: jornadas de cada día y el correo guardado (null sin conexión). */
+    fun fetchJornadas(context: Context, desde: String, hasta: String): JSONObject? =
+        getJson(context, "/api/mobile/v1/jornadas", "desde=$desde&hasta=$hasta")
+
+    /**
+     * Envía el reporte por correo. Devuelve el código HTTP (200 bien, 503
+     * correo sin configurar, 429 demasiados envíos) o -1 sin conexión.
+     */
+    fun enviarReporte(context: Context, body: JSONObject): Int {
+        val base = webBase(context)
+        val device = deviceId(context)
+        if (base.isBlank() || device.isBlank()) return -1
+        var connection: HttpURLConnection? = null
+        return try {
+            connection = URL("$base/api/mobile/v1/reporte/correo").openConnection() as HttpURLConnection
+            connection.requestMethod = "POST"
+            connection.connectTimeout = 10_000
+            connection.readTimeout = 30_000
+            connection.doOutput = true
+            connection.setRequestProperty("Content-Type", "application/json")
+            val hadToken = setAuthHeaders(connection, context)
+            connection.setRequestProperty("X-Device-Id", device)
+            connection.outputStream.use { it.write(body.put("deviceId", device).toString().toByteArray()) }
+            connection.responseCode.also { if (it !in 200..299) noteHttpResult(context, it, hadToken) }
+        } catch (e: Exception) {
+            Log.w(TAG, "no se pudo enviar el reporte", e)
+            -1
+        } finally {
+            runCatching { connection?.disconnect() }
+        }
+    }
 
     /** Último punto que tiene el servidor de este teléfono (null si no se pudo saber). */
     fun fetchUltimoPunto(context: Context): Long? =

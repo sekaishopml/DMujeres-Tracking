@@ -83,3 +83,15 @@ test('dos diagnósticos a la vez no registran el mismo evento dos veces', async 
   assert.equal(esRepetido(recientes, 'equipo|mobileGpsDisabled', 1016), false);
   assert.equal(esRepetido(recientes, 'equipo|mobileGpsReenabled', 20_000), false);
 });
+
+test('quién apagó el GPS según cómo estaba el teléfono', async () => {
+  const { quienApagoGps } = await import('../src/alertas.js');
+  const ahora = 1_800_000_000_000;
+  const r = (cambio) => ({ gps: { enabled: false, cambio } });
+  assert.equal(quienApagoGps(r({ en: ahora - 3000, pantalla: true, bloqueado: false, ahorro: false }), ahora), 'persona');
+  assert.equal(quienApagoGps(r({ en: ahora - 3000, pantalla: false, bloqueado: true, ahorro: false }), ahora), 'telefono');
+  assert.equal(quienApagoGps(r({ en: ahora - 3000, pantalla: true, bloqueado: false, ahorro: true }), ahora), 'ahorro');
+  // Un cambio viejo no es de este apagado.
+  assert.equal(quienApagoGps(r({ en: ahora - 10 * 60_000, pantalla: true, bloqueado: false }), ahora), null);
+  assert.equal(quienApagoGps({ gps: { enabled: false } }, ahora), null);
+});

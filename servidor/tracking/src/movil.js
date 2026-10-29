@@ -6,7 +6,7 @@ import { createHash, timingSafeEqual, randomBytes, pbkdf2Sync } from 'node:crypt
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { filaSalud } from './salud.js';
-import { alertasDeDiagnostico, esRepetido } from './alertas.js';
+import { alertasDeDiagnostico, esRepetido, quienApagoGps } from './alertas.js';
 import {
   MENSAJE_OTRO_TELEFONO,
   limpiarFallos,
@@ -839,7 +839,11 @@ export async function atenderDiagnosticos(req, res, ctx) {
         dispositivoId: dispositivo.id,
         tipo,
         ocurridoEn: new Date(ahora),
-        atributos: { clave: `${tipo}-${ahora}`, mobileSeverity: 'warning' },
+        atributos: {
+          clave: `${tipo}-${ahora}`,
+          mobileSeverity: 'warning',
+          ...(tipo === 'mobileGpsDisabled' && quienApagoGps(reporte, ahora) ? { quien: quienApagoGps(reporte, ahora) } : {}),
+        },
       })
       .catch((error) => ctx.log.warn(`movil/diagnostics: alerta ${tipo} sin guardar: ${error.message}`));
   }

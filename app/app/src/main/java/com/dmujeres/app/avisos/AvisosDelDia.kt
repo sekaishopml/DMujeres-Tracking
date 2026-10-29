@@ -35,18 +35,36 @@ import java.util.TimeZone
 object AvisosDelDia {
 
     private const val TAG = "AvisosDelDia"
-    const val CANAL = "avisos"
+    // El sonido de un canal no se puede cambiar una vez creado: con el sonido
+    // propio el canal es otro y el viejo se borra.
+    const val CANAL = "avisos_dmj2"
+    private val CANALES_VIEJOS = listOf("avisos", "avisos_dmj")
     private const val ID_NOTIFICACION = 8
     private const val ACCION = "com.dmujeres.app.action.AVISO_HORARIO"
     private const val KEY_ATENDIDA = "avisoHorarioAtendido"
     const val KEY_ULTIMO = "avisoHorarioUltimo"
     private val zona: TimeZone = TimeZone.getTimeZone("America/Guayaquil")
 
+    /** Cómo quedó el canal en el teléfono (diagnóstico): importancia y sonido. */
+    fun estadoCanal(context: Context): org.json.JSONObject {
+        val o = org.json.JSONObject()
+            .put("habilitadas", androidx.core.app.NotificationManagerCompat.from(context).areNotificationsEnabled())
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val canal = (context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager).getNotificationChannel(CANAL)
+            o.put("canal", canal != null)
+            canal?.let { o.put("importancia", it.importance).put("sonido", it.sound?.toString()) }
+        }
+        return o
+    }
+
     fun crearCanal(context: Context) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val canal = NotificationChannel(CANAL, context.getString(R.string.canal_avisos), NotificationManager.IMPORTANCE_HIGH)
         canal.description = context.getString(R.string.canal_avisos_descripcion)
-        (context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager).createNotificationChannel(canal)
+        canal.setSound(SonidoAvisos.uri(context), SonidoAvisos.atributos)
+        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        manager.createNotificationChannel(canal)
+        CANALES_VIEJOS.forEach { runCatching { manager.deleteNotificationChannel(it) } }
     }
 
     /** Arma la alarma de la próxima hora de aviso; suena aunque el teléfono esté en reposo. */
@@ -149,6 +167,7 @@ object AvisosDelDia {
             val notificacion = NotificationCompat.Builder(context, CANAL)
                 .setSmallIcon(R.drawable.ic_stat_notify)
                 .setContentTitle(titulo)
+                .setSound(SonidoAvisos.uri(context))
                 .setContentText(lineas.first())
                 .setStyle(NotificationCompat.BigTextStyle().bigText(lineas.joinToString("\n")))
                 .setColor(ContextCompat.getColor(context, R.color.primary_dark))
