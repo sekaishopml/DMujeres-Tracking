@@ -67,6 +67,24 @@ function textoJornada(jornada: string | null, desde?: string | null): string {
   return dia(d) === dia(new Date()) ? `Abierta desde ${hora}` : `Sin cerrar desde ${dia(d)} ${hora}`;
 }
 
+// Temperatura de la batería con lo que significa. Con GPS encendido y el calor de
+// la costa, 33–39 °C es lo normal. Si el teléfono informa su propio estado de
+// calor (Android 10+), ese manda: es lo que el sistema usa para protegerse.
+const TERMICO = ['Normal', 'Leve', 'Moderado', 'Grave', 'Crítico', 'Emergencia', 'Apagado por calor'];
+function Temperatura({ grados: g, termico }: { grados: number | null; termico: number | null }) {
+  if (g == null && termico == null) return <>{GUION}</>;
+  const nivel = termico != null && termico >= 2 ? (termico >= 3 ? 'peligro' : 'alerta')
+    : g == null ? 'neutro' : g >= 45 ? 'peligro' : g >= 40 ? 'alerta' : 'exito';
+  const texto = termico != null && termico >= 2 ? TERMICO[termico]
+    : g == null ? TERMICO[termico ?? 0] : g >= 45 ? 'Muy alta' : g >= 40 ? 'Alta' : 'Normal';
+  return (
+    <span className="inline-flex items-center gap-2 whitespace-nowrap">
+      {grados(g)}
+      <Insignia tono={nivel}>{texto}</Insignia>
+    </span>
+  );
+}
+
 const ETIQUETA_SALUD: Record<EstadoSalud, { texto: string; tono: 'exito' | 'alerta' | 'peligro' | 'marino' | 'neutro' }> = {
   HEALTHY: { texto: 'Saludable', tono: 'exito' },
   DEGRADED: { texto: 'Degradado', tono: 'alerta' },
@@ -246,7 +264,9 @@ export default function Sistema() {
                     </Td>
                     <Td numerico>{s.bufferDepth ?? dispositivo?.pendientes ?? GUION}</Td>
                     <Td numerico>{bateria(s.bateriaPct ?? dispositivo?.bateriaPct)}</Td>
-                    <Td numerico title="Temperatura de la batería en el último diagnóstico">{grados(s.temperaturaC)}</Td>
+                    <Td numerico title="Batería: normal hasta 40 °C; alta de 40 a 45 °C; muy alta desde 45 °C (el teléfono se protege). Con «—» el teléfono no la informa o el dato quedó congelado.">
+                      <Temperatura grados={s.temperaturaC} termico={s.termico ?? null} />
+                    </Td>
                   </Fila>
                 );
               })}

@@ -23,8 +23,10 @@ import android.os.BatteryManager
 data class BatteryStatus(
     val level: Double = 0.0,
     val charging: Boolean = false,
-    /** °C de la batería; null si el teléfono no la informa. */
+    /** °C de la batería; null si el teléfono no la informa o el dato quedó viejo. */
     val temperatureC: Double? = null,
+    /** false: el aviso guardado de Android no coincide con la carga real (quedó congelado). */
+    val vigente: Boolean = true,
 )
 
 /** Lee el estado de batería del sticky broadcast (sin receptor propio). */
@@ -34,13 +36,23 @@ fun readBatteryStatus(context: Context): BatteryStatus {
         val level = batteryIntent.getIntExtra(BatteryManager.EXTRA_LEVEL, 0)
         val scale = batteryIntent.getIntExtra(BatteryManager.EXTRA_SCALE, 1)
         val status = batteryIntent.getIntExtra(BatteryManager.EXTRA_STATUS, -1)
+        // El aviso guardado de Android no se renueva en algunas marcas (Xiaomi)
+        // mientras la app trabaja de fondo: la carga y la temperatura quedaban
+        // fijas horas. La carga en vivo dice si ese aviso sigue al día.
+        val enVivo = runCatching {
+            (context.getSystemService(Context.BATTERY_SERVICE) as BatteryManager)
+                .getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY)
+        }.getOrDefault(-1).takeIf { it in 0..100 }
+        val guardado = level * 100.0 / scale
+        val vigente = enVivo == null || kotlin.math.abs(enVivo - guardado) < 2.0
         return BatteryStatus(
-            level = level * 100.0 / scale,
+            level = enVivo?.toDouble() ?: guardado,
+            vigente = vigente,
             charging = status == BatteryManager.BATTERY_STATUS_CHARGING ||
                 status == BatteryManager.BATTERY_STATUS_FULL,
             // Viene en décimas de grado; 0 o menos es "no la informa".
             temperatureC = batteryIntent.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, 0)
-                .takeIf { it > 0 }?.let { it / 10.0 },
+                .takeIf { it > 0 && vigente }?.let { it / 10.0 },
         )
     }
     return BatteryStatus()

@@ -152,9 +152,26 @@ function latidoDe(atributos) {
 }
 
 // °C de la batería en el último diagnóstico (app 2.10 en adelante).
-function temperaturaDe(atributos) {
-  const grados = latidoDe(atributos)?.report?.power?.tempC;
-  return typeof grados === 'number' && Number.isFinite(grados) ? grados : null;
+// Temperatura de la batería: la mediana de las lecturas del último
+// diagnóstico (una cada 5 min), no una suelta. Si la app avisa que el dato de
+// Android quedó congelado (Xiaomi y otros), no hay temperatura: "—".
+export function temperaturaDe(atributos) {
+  const energia = latidoDe(atributos)?.report?.power;
+  if (!energia || energia.tempVigente === false) return null;
+  const lecturas = (Array.isArray(energia.tempLecturas) ? energia.tempLecturas : [])
+    .map((l) => (Array.isArray(l) ? l[1] : null))
+    .filter((g) => typeof g === 'number' && Number.isFinite(g) && g > 0 && g < 80)
+    .sort((a, b) => a - b);
+  if (lecturas.length > 0) return lecturas[Math.floor(lecturas.length / 2)];
+  const grados = energia.tempC;
+  return typeof grados === 'number' && Number.isFinite(grados) && grados > 0 && grados < 80 ? grados : null;
+}
+
+// Estado de calor que informa el propio teléfono (Android 10+): 0 normal, 1 leve,
+// 2 moderado, 3 grave, 4 crítico, 5 emergencia, 6 apagado. null si no lo informa.
+export function termicoDe(atributos) {
+  const t = latidoDe(atributos)?.report?.power?.termico;
+  return Number.isInteger(t) && t >= 0 && t <= 6 ? t : null;
 }
 
 function minutosLegibles(segundos) {
@@ -266,6 +283,7 @@ function aSaludDispositivo(fila, ahoraMs) {
     permisos,
     bateriaExenta,
     temperaturaC,
+    termico: termicoDe(atributos),
     fgs,
     jornada,
     jornadaDesde: fila.jornada_desde instanceof Date ? fila.jornada_desde.toISOString() : null,

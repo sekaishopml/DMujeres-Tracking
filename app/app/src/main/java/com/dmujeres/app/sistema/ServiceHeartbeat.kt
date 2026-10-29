@@ -222,6 +222,14 @@ object ServiceHeartbeat {
                                     .put("charging", battery.charging)
                                     .put("exempt", exempt)
                                     .put("tempC", battery.temperatureC)
+                                    .put("tempVigente", battery.vigente)
+                                    // Estado de calor del propio teléfono (Android 10+): 0 normal … 6 apagado por calor.
+                                    .put(
+                                        "termico",
+                                        if (android.os.Build.VERSION.SDK_INT >= 29) runCatching {
+                                            (context.getSystemService(Context.POWER_SERVICE) as android.os.PowerManager).currentThermalStatus
+                                        }.getOrNull() else null,
+                                    )
                                     .put(
                                         "tempLecturas",
                                         org.json.JSONArray(lecturas.map { org.json.JSONArray().put(it.first).put(it.second) }),

@@ -29,6 +29,8 @@ export interface SaludDispositivo {
   bateriaExenta: boolean | null;
   /** °C de la batería en el último diagnóstico (app 2.10 en adelante). */
   temperaturaC: number | null;
+  /** Estado de calor del teléfono (Android 10+): 0 normal … 6 apagado. */
+  termico?: number | null;
   fgs: string | null;
   jornada: string | null;
   /** Abierta: cuándo se inició de verdad (puede ser de días atrás si nunca la cerró). */
