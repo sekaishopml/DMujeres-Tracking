@@ -167,16 +167,23 @@ jornada de cada día (y el motivo si se cerró en horario laboral).
   negrita.
 - **Excel:** un .xlsx real escrito por la app (`reporte/Xlsx.kt`, sin
   librerías, `reporte/ReporteExcel.kt`).
-- **Imagen:** PNG dibujado con la misma planilla (`ImagenReporte`); es
-  también lo que se ve en la app.
+- **PDF:** A4 horizontal con texto vectorial (nítido en el correo y al
+  imprimir; la imagen PNG se veía borrosa): franja azul de la marca, la
+  planilla y el pie con la página (`PdfReporte`, con `PdfDocument` de
+  Android). Robolectric no genera PDF: para ver el dibujo en una prueba se
+  usa `PdfReporte.dibujar` sobre un Bitmap.
+- **En la app:** vistas nativas (`VistaReporte`): resumen, selector de días
+  con el color de cada día y la tarjeta del día elegido.
 - Se guardan en Descargas/DMujeres (Android 10+, sin permisos; antes, en la
   carpeta de la app) y se abren tocando el aviso de abajo.
 - **Correo:** se escribe una vez y queda guardado (en el teléfono y en el
   servidor) hasta que la persona lo cambie. El servidor lo manda desde
   reporte@sekaidevec.com con Resend (`servidor/tracking/src/reporte.js`),
   como mucho 10 envíos por teléfono por hora. La clave va en
-  `/opt/dmj-keys/correo.env` (`RESEND_API_KEY=...`, dueño dmujeres, 600);
-  sin ella la app dice que el envío todavía no está activo.
+  `/opt/dmj-keys/correo.env` (`RESEND_API_KEY=...`, dueño dmujeres, 600). El
+  correo lleva el Excel y el PDF y una cabecera HTML con la marca
+  (`correoHtml`). El dominio se configura con `scripts/configurar-correo.mjs`.
+  Sin la clave, la app dice que el envío todavía no está activo.
 - Sin conexión, la jornada sale "—" (nunca se inventa); las actividades
   salen igual porque están en el teléfono.
 

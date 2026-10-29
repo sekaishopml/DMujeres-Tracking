@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Mi reporte: diario, semanal o mensual. Se ve aquí, se descarga en Excel o
-     imagen y se envía al correo guardado. Sin ventanas emergentes: los avisos
-     van en la línea de estado de abajo. -->
+<!-- Mi reporte: diario, semanal o mensual. Arriba el período, en medio el
+     resumen, los días y la planilla del día elegido; abajo las acciones.
+     Sin ventanas emergentes: los avisos van en la línea de estado. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
@@ -26,63 +26,62 @@
             android:src="@drawable/ds_ic_back"
             android:tint="@color/white" />
 
-        <TextView
+        <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="@string/rep_titulo"
-            android:textColor="@color/white"
-            android:textSize="17sp"
-            android:textStyle="bold" />
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/rep_titulo"
+                android:textColor="@color/white"
+                android:textSize="17sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/rep_subtitulo"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="1dp"
+                android:ellipsize="end"
+                android:singleLine="true"
+                android:textColor="#B3FFFFFF"
+                android:textSize="12sp" />
+        </LinearLayout>
     </LinearLayout>
 
+    <!-- Período: control segmentado. -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="44dp"
-        android:layout_marginStart="12dp"
-        android:layout_marginTop="10dp"
-        android:layout_marginEnd="12dp"
-        android:orientation="horizontal">
+        android:layout_marginStart="16dp"
+        android:layout_marginTop="12dp"
+        android:layout_marginEnd="16dp"
+        android:background="@drawable/ds_surface"
+        android:orientation="horizontal"
+        android:padding="3dp">
 
         <TextView
             android:id="@+id/rep_dia"
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_marginEnd="6dp"
-            android:layout_weight="1"
-            android:background="@drawable/ds_chip_tipo"
-            android:gravity="center"
-            android:text="@string/rep_dia"
-            android:textSize="14sp"
-            android:textStyle="bold" />
+            style="@style/RepSegmento"
+            android:text="@string/rep_dia" />
 
         <TextView
             android:id="@+id/rep_semana"
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_marginEnd="6dp"
-            android:layout_weight="1"
-            android:background="@drawable/ds_chip_tipo"
-            android:gravity="center"
-            android:text="@string/rep_semana"
-            android:textSize="14sp"
-            android:textStyle="bold" />
+            style="@style/RepSegmento"
+            android:text="@string/rep_semana" />
 
         <TextView
             android:id="@+id/rep_mes"
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_weight="1"
-            android:background="@drawable/ds_chip_tipo"
-            android:gravity="center"
-            android:text="@string/rep_mes"
-            android:textSize="14sp"
-            android:textStyle="bold" />
+            style="@style/RepSegmento"
+            android:text="@string/rep_mes" />
     </LinearLayout>
 
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="44dp"
+        android:layout_height="48dp"
         android:gravity="center_vertical"
         android:orientation="horizontal"
         android:paddingStart="8dp"
@@ -92,6 +91,8 @@
             android:id="@+id/rep_anterior"
             android:layout_width="44dp"
             android:layout_height="44dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/rep_anterior_desc"
             android:gravity="center"
             android:text="‹"
             android:textColor="@color/navy_700"
@@ -111,6 +112,8 @@
             android:id="@+id/rep_siguiente"
             android:layout_width="44dp"
             android:layout_height="44dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/rep_siguiente_desc"
             android:gravity="center"
             android:text="›"
             android:textColor="@color/navy_700"
@@ -118,33 +121,40 @@
     </LinearLayout>
 
     <ScrollView
+        android:id="@+id/rep_scroll"
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_marginStart="12dp"
-        android:layout_marginEnd="12dp"
         android:layout_weight="1"
-        android:background="@drawable/ds_hero"
+        android:clipToPadding="false"
+        android:paddingBottom="12dp"
         android:scrollbars="none">
 
-        <FrameLayout
+        <!-- Lo arma VistaReporte: resumen, días y la planilla del día. -->
+        <LinearLayout
             android:id="@+id/rep_vista"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content" />
+            android:layout_height="wrap_content"
+            android:orientation="vertical" />
     </ScrollView>
 
+    <!-- Acciones: correo, descargas y envío. -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:background="@color/surface"
+        android:elevation="8dp"
         android:orientation="vertical"
-        android:padding="12dp">
+        android:paddingStart="16dp"
+        android:paddingTop="10dp"
+        android:paddingEnd="16dp"
+        android:paddingBottom="10dp">
 
-        <!-- Correo guardado: se muestra y se cambia aquí mismo. -->
         <LinearLayout
             android:id="@+id/rep_correo_fila"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:gravity="center_vertical"
-            android:minHeight="40dp"
+            android:minHeight="36dp"
             android:orientation="horizontal">
 
             <TextView
@@ -154,18 +164,18 @@
                 android:layout_weight="1"
                 android:ellipsize="middle"
                 android:singleLine="true"
-                android:textColor="@color/text_primary"
-                android:textSize="14sp" />
+                android:textColor="@color/text_secondary"
+                android:textSize="13.5sp" />
 
             <TextView
                 android:id="@+id/rep_correo_cambiar"
                 android:layout_width="wrap_content"
-                android:layout_height="40dp"
+                android:layout_height="36dp"
                 android:gravity="center"
                 android:paddingStart="12dp"
-                android:paddingEnd="4dp"
+                android:paddingEnd="2dp"
                 android:text="@string/rep_cambiar"
-                android:textColor="@color/primary"
+                android:textColor="@color/navy_700"
                 android:textSize="14sp"
                 android:textStyle="bold" />
         </LinearLayout>
@@ -174,6 +184,7 @@
             android:id="@+id/rep_correo_editor"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:layout_marginBottom="4dp"
             android:orientation="horizontal"
             android:visibility="gone">
 
@@ -182,11 +193,11 @@
                 android:layout_width="0dp"
                 android:layout_height="48dp"
                 android:layout_weight="1"
+                android:autofillHints="emailAddress"
                 android:background="@drawable/ds_field"
                 android:hint="@string/rep_correo_hint"
                 android:imeOptions="actionDone"
                 android:importantForAutofill="yes"
-                android:autofillHints="emailAddress"
                 android:inputType="textEmailAddress"
                 android:paddingStart="12dp"
                 android:paddingEnd="12dp"
@@ -198,7 +209,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="48dp"
                 android:layout_marginStart="8dp"
-                android:background="@drawable/ds_button_primary"
+                android:background="@drawable/ds_boton_marino"
                 android:gravity="center"
                 android:paddingStart="16dp"
                 android:paddingEnd="16dp"
@@ -211,33 +222,19 @@
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="48dp"
-            android:layout_marginTop="8dp"
+            android:layout_marginTop="6dp"
             android:orientation="horizontal">
 
             <TextView
                 android:id="@+id/rep_excel"
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
+                style="@style/RepDescarga"
                 android:layout_marginEnd="8dp"
-                android:layout_weight="1"
-                android:background="@drawable/ds_sugerencia"
-                android:gravity="center"
-                android:text="@string/rep_excel"
-                android:textColor="@color/navy_700"
-                android:textSize="15sp"
-                android:textStyle="bold" />
+                android:text="@string/rep_excel" />
 
             <TextView
                 android:id="@+id/rep_imagen"
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_weight="1"
-                android:background="@drawable/ds_sugerencia"
-                android:gravity="center"
-                android:text="@string/rep_imagen"
-                android:textColor="@color/navy_700"
-                android:textSize="15sp"
-                android:textStyle="bold" />
+                style="@style/RepDescarga"
+                android:text="@string/rep_imagen" />
         </LinearLayout>
 
         <TextView
@@ -256,10 +253,10 @@
             android:id="@+id/rep_estado"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
+            android:layout_marginTop="6dp"
             android:gravity="center"
-            android:minHeight="20dp"
+            android:minHeight="18dp"
             android:textColor="@color/text_secondary"
-            android:textSize="13.5sp" />
+            android:textSize="13sp" />
     </LinearLayout>
 </LinearLayout>

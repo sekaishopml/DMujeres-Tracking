@@ -10,3 +10,12 @@ test('como mucho 10 envíos por teléfono por hora', () => {
   assert.equal(puedeEnviar('B', t0 + 20), true);
   assert.equal(puedeEnviar('A', t0 + 3_600_001), true);
 });
+
+test('el correo lleva la cabecera de la marca y escapa los datos', async () => {
+  const { correoHtml } = await import('../src/reporte.js');
+  const html = correoHtml({ titulo: 'Reporte semanal', nombre: 'Ana <b>', rango: 'Del 26/10 al 01/11', archivos: ['a.xlsx', 'a.pdf'] });
+  assert.match(html, /DMujeres Tracking/);
+  assert.match(html, /background:#17365D/);
+  assert.match(html, /Ana &lt;b&gt;/);
+  assert.match(html, /a\.xlsx, a\.pdf/);
+});

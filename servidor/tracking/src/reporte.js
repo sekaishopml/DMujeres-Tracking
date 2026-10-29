@@ -18,6 +18,7 @@ const CORREO_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const LIMITE_REPORTE = 8 * 1024 * 1024;
 const TIPOS_ARCHIVO = new Set([
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/pdf',
   'image/png',
 ]);
 // Como mucho 10 envíos por teléfono por hora: no es un buzón para cualquier cosa.
@@ -44,6 +45,33 @@ async function claveResend() {
   } catch {
     return null;
   }
+}
+
+const escaparHtml = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+
+// Correo con la cabecera de la marca (franja azul), el resumen del reporte y
+// un pie. Estilos en línea y tablas: así lo muestran bien Outlook y Gmail.
+export function correoHtml({ titulo, nombre, rango, archivos }) {
+  const fila = (etiqueta, valor) =>
+    `<tr><td style="padding:6px 0;color:#5f6b7a;width:110px">${etiqueta}</td><td style="padding:6px 0;color:#17202a;font-weight:bold">${escaparHtml(valor)}</td></tr>`;
+  return `<!doctype html><html lang="es"><body style="margin:0;padding:24px 12px;background:#f3f5f9">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;margin:0 auto;background:#ffffff;border:1px solid #e1e6ee;border-radius:10px;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.5">
+<tr><td style="background:#17365D;border-radius:10px 10px 0 0;padding:22px 28px">
+<div style="color:#ffffff;font-size:20px;font-weight:bold">DMujeres Tracking</div>
+<div style="color:#c9d4e3;font-size:13px">Auditoría de jornadas en campo</div>
+</td></tr>
+<tr><td style="padding:28px">
+<div style="font-size:17px;font-weight:bold;color:#17365D;margin-bottom:6px">${escaparHtml(titulo)}</div>
+<div style="color:#17202a;margin-bottom:18px">Adjuntamos el reporte solicitado desde la app.</div>
+<table role="presentation" cellpadding="0" cellspacing="0" style="border-top:1px solid #e1e6ee;border-bottom:1px solid #e1e6ee;width:100%;margin-bottom:18px">
+${fila('Persona', nombre)}${fila('Período', rango)}${fila('Archivos', archivos.join(', '))}
+</table>
+<div style="color:#5f6b7a;font-size:12px">El PDF se lee mejor para revisar e imprimir; el Excel, para filtrar y sumar.</div>
+</td></tr>
+<tr><td style="padding:16px 28px;border-top:1px solid #e1e6ee;color:#8a95a5;font-size:11px">
+Mensaje automático de DMujeres Tracking. No responda a este correo.
+</td></tr>
+</table></body></html>`;
 }
 
 export async function atenderJornadasConsulta(req, res, ctx) {
@@ -88,7 +116,7 @@ export async function atenderReporteCorreo(req, res, ctx, enviar = globalThis.fe
   const correo = typeof cuerpo.correo === 'string' ? cuerpo.correo.trim().toLowerCase() : '';
   const archivos = Array.isArray(cuerpo.archivos) ? cuerpo.archivos : [];
   const validos = archivos.length > 0 && archivos.length <= 3 && archivos.every((a) =>
-    typeof a?.nombre === 'string' && /^[\w .()-]{1,80}\.(xlsx|png)$/.test(a.nombre) &&
+    typeof a?.nombre === 'string' && /^[\p{L}\p{N} .()-]{1,90}\.(xlsx|pdf|png)$/u.test(a.nombre) &&
     TIPOS_ARCHIVO.has(a.tipo) && typeof a.base64 === 'string' && a.base64.length > 0);
   if (!identificador || !CORREO_RE.test(correo) || correo.length > 120 || !validos) return responderSinCuerpo(res, 400);
   const dispositivo = await buscarOFallar(ctx, res, identificador, 404);
@@ -107,7 +135,13 @@ export async function atenderReporteCorreo(req, res, ctx, enviar = globalThis.fe
         from: REMITENTE,
         to: [correo],
         subject: titulo,
-        text: `${titulo}\n\nAdjunto su reporte generado desde la app DMujeres Tracking.`,
+        html: correoHtml({
+          titulo: typeof cuerpo.titulo === 'string' && cuerpo.titulo.trim() ? cuerpo.titulo.trim().slice(0, 80) : titulo,
+          nombre: typeof cuerpo.nombre === 'string' && cuerpo.nombre.trim() ? cuerpo.nombre.trim().slice(0, 80) : '—',
+          rango: typeof cuerpo.rango === 'string' && cuerpo.rango.trim() ? cuerpo.rango.trim().slice(0, 80) : '—',
+          archivos: archivos.map((a) => a.nombre),
+        }),
+        text: `${titulo}\n\nAdjuntamos el reporte solicitado desde la app DMujeres Tracking.\nMensaje automático: no responda a este correo.`,
         attachments: archivos.map((a) => ({ filename: a.nombre, content: a.base64 })),
       }),
       signal: AbortSignal.timeout(20_000),
