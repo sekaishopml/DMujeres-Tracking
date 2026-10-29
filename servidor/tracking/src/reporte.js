@@ -24,7 +24,7 @@ const TIPOS_ARCHIVO = new Set([
 // Como mucho 10 envíos por teléfono por hora: no es un buzón para cualquier cosa.
 const MAX_ENVIOS_HORA = 10;
 const enviosRecientes = new Map();
-export const REMITENTE = 'DMujeres Reportes <reporte@sekaidevec.com>';
+export const REMITENTE = 'DMujeres Tracking <reporte@sekaidevec.com>';
 export const ARCHIVO_CLAVE = '/opt/dmj-keys/correo.env';
 
 export function puedeEnviar(dispositivoId, ahoraMs = Date.now()) {
@@ -68,7 +68,9 @@ export function frasesCorreo({ titulo, nombre, rango, archivos }, ahoraMs = Date
     saludo: saludo(ahoraMs),
     cuerpo: `Por medio del presente, se adjunta el ${titulo.charAt(0).toLowerCase()}${titulo.slice(1)}${de}${periodo}${periodo && en ? ',' : ''}${en}.`,
     nota: 'Cualquier inquietud, comunicarse con el departamento de CCTV.',
-    firma: ['Saludos cordiales,', '', 'Departamento de CCTV', 'DMujeres'],
+    firma: ['Saludos cordiales,', '', 'DMujeres Tracking'],
+    // Lo envía el sistema: que se sepa y que no respondan a una casilla que nadie lee.
+    aviso: 'Este correo fue generado automáticamente por DMujeres Tracking. Por favor, no responda a este mensaje.',
   };
 }
 
@@ -79,14 +81,14 @@ export function correoHtml(datos, ahoraMs = Date.now()) {
   const parrafo = (t) => `<p style="margin:0 0 14px 0">${t}</p>`;
   return `<!doctype html><html lang="es"><head><meta charset="utf-8"></head><body>
 <div style="font-family:Calibri,Arial,Helvetica,sans-serif;font-size:11pt;line-height:1.4;color:#000000">
-${parrafo(escaparHtml(f.saludo))}${parrafo(escaparHtml(f.cuerpo))}${parrafo(escaparHtml(f.nota))}${parrafo(f.firma.map(escaparHtml).join('<br>'))}
+${parrafo(escaparHtml(f.saludo))}${parrafo(escaparHtml(f.cuerpo))}${parrafo(escaparHtml(f.nota))}${parrafo(f.firma.map(escaparHtml).join('<br>'))}${parrafo(escaparHtml(f.aviso))}
 </div></body></html>`;
 }
 
 // La misma carta en texto plano.
 export function correoTexto(datos, ahoraMs = Date.now()) {
   const f = frasesCorreo(datos, ahoraMs);
-  return [f.saludo, '', f.cuerpo, '', f.nota, '', ...f.firma].join('\n');
+  return [f.saludo, '', f.cuerpo, '', f.nota, '', ...f.firma, '', f.aviso].join('\n');
 }
 
 export async function atenderJornadasConsulta(req, res, ctx) {
