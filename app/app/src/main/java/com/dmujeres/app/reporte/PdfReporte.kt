@@ -26,6 +26,8 @@ object PdfReporte {
     private const val LETRA = 7.6f
     private const val RELLENO = 3.5f
     private val AZUL = Color.rgb(23, 54, 93)
+    // Magenta de la marca para el nombre de arriba.
+    private val MAGENTA = Color.rgb(235, 0, 69)
     private val TINTA = Color.rgb(23, 28, 36)
     private val GRIS = Color.rgb(95, 107, 122)
     private val LINEA = Color.rgb(166, 166, 166)
@@ -134,11 +136,12 @@ object PdfReporte {
 
     /** Membrete sencillo, como una hoja de la empresa: sin franjas de color, solo una línea marina. */
     private fun cabecera(c: Canvas, r: Reporte) {
-        val marca = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = AZUL; textSize = 16f; typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD) }
-        val titulo = Paint(marca).apply { color = TINTA; textSize = 11f; textAlign = Paint.Align.RIGHT }
+        // Misma letra del reporte, sin negrita: solo cambia el color.
+        val marca = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = MAGENTA; textSize = 16f; typeface = Typeface.SANS_SERIF }
+        val titulo = Paint(marca).apply { color = TINTA; textSize = 11f; textAlign = Paint.Align.RIGHT; typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD) }
         val etiqueta = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = GRIS; textSize = 8.5f; typeface = Typeface.SANS_SERIF }
         val dato = Paint(etiqueta).apply { color = TINTA }
-        c.drawText("DMujeres", MARGEN, MARGEN + 10f, marca)
+        c.drawText("DMujeres Tracking", MARGEN, MARGEN + 10f, marca)
         c.drawText(r.titulo, ANCHO - MARGEN, MARGEN + 10f, titulo)
         c.drawRect(MARGEN, MARGEN + 17f, ANCHO - MARGEN, MARGEN + 18f, Paint().apply { color = AZUL })
         var x = MARGEN

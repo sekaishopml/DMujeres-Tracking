@@ -25,7 +25,7 @@ object ReporteExcel {
             combinadas += "${Xlsx.columna(desde)}$fila:${Xlsx.columna(hasta)}$fila"
         }
         // Arriba, como en la planilla de la oficina: empresa, reporte y los datos de la persona.
-        filas += listOf(Celda("DMujeres", Estilo(titulo = true, borde = false)))
+        filas += listOf(Celda("DMujeres Tracking", Estilo(titulo = true, borde = false)))
         combinar(1, 0, columnas - 1)
         filas += listOf(Celda(r.titulo, Estilo(negrita = true, borde = false)))
         combinar(2, 0, columnas - 1)
