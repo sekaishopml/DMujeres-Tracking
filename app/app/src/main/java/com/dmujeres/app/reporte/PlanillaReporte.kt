@@ -44,16 +44,20 @@ object PlanillaReporte {
     }
 
     private fun columna(dia: DiaReporte): Columna {
-        val j = dia.jornadas
+        // Varias jornadas el mismo día (cerró y volvió a abrir): una sola fila
+        // con el primer inicio y otra con el último fin, diciendo cuántos
+        // tramos hubo. Una abierta y cerrada en el mismo minuto no cuenta.
+        val j = dia.jornadas?.let { todas -> todas.filter { it.abierta || it.fin != it.inicio }.ifEmpty { todas } }
+        val tramos = j?.size ?: 0
         val inicio = when {
             j == null -> Celda("—", "Inicio de jornada")
             j.isEmpty() -> Celda("", "Sin jornada")
-            else -> Celda(j.joinToString(" · ") { it.inicio }, "Inicio de jornada")
+            else -> Celda(j.first().inicio, "Inicio de jornada" + if (tramos > 1) " ($tramos tramos)" else "")
         }
         val fin = when {
             j.isNullOrEmpty() -> Celda(if (j == null) "—" else "", "")
             else -> Celda(
-                j.joinToString(" · ") { if (it.abierta || it.fin == null) "en curso" else it.fin },
+                j.last().let { if (it.abierta || it.fin == null) "en curso" else it.fin },
                 "Fin de jornada" + j.mapNotNull { it.notaFin }.joinToString("") { ": $it" },
             )
         }

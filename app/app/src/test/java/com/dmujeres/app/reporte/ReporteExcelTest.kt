@@ -70,4 +70,17 @@ class ReporteExcelTest {
         assertEquals("FFFFFF", PlanillaReporte.tinte("F4B183", 0))
         assertEquals("F4B183", PlanillaReporte.tinte("F4B183", 100))
     }
+
+    @Test
+    fun variasJornadasElMismoDiaVanEnUnaFilaConSusTramos() {
+        val r = DatosReporte.armar(Periodo.DIA, "2026-10-24", "Santi", { emptyList() }, mapOf(
+            "2026-10-24" to listOf(
+                JornadaDia("22:40", "22:48", false, null), JornadaDia("22:49", "22:57", false, null),
+                JornadaDia("22:57", "22:57", false, null), JornadaDia("23:46", "23:59", false, null),
+            ),
+        ))
+        val c = PlanillaReporte.bloques(r).single().columnas.single()
+        assertEquals(PlanillaReporte.Celda("22:40", "Inicio de jornada (3 tramos)"), c.filas.first())
+        assertEquals("23:59", c.filas.last().hora)
+    }
 }
