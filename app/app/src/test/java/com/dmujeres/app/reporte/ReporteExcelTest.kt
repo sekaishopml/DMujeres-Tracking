@@ -43,10 +43,11 @@ class ReporteExcelTest {
         assertTrue(hoja.contains("Tía &amp; Cía &lt;Sur&gt;"))
         assertTrue(hoja.contains("Fin de jornada: Cita médica"))
         // Lunes a domingo: 14 columnas, cada día combinado en dos.
-        assertTrue(hoja.contains("<mergeCell ref=\"M3:N3\"/>"))
-        // Una sola letra: Calibri 11, normal o negrita, nada más.
+        assertTrue(hoja.contains("<mergeCell ref=\"M7:N7\"/>"))
+        // Una sola letra: Calibri normal, negrita y el nombre de la empresa.
         val estilos = p.getValue("xl/styles.xml")
-        assertEquals(2, Regex("<font>").findAll(estilos).count())
+        assertEquals(3, Regex("<font>").findAll(estilos).count())
+        assertEquals(setOf("Calibri"), Regex("<name val=\"([^\"]+)\"").findAll(estilos).map { it.groupValues[1] }.toSet())
         File("build/capturas").mkdirs()
         File("build/capturas/reporte-prueba.xlsx").writeBytes(bytes)
     }

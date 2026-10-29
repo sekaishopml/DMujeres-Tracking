@@ -11,11 +11,14 @@ test('como mucho 10 envíos por teléfono por hora', () => {
   assert.equal(puedeEnviar('A', t0 + 3_600_001), true);
 });
 
-test('el correo lleva la cabecera de la marca y escapa los datos', async () => {
-  const { correoHtml } = await import('../src/reporte.js');
-  const html = correoHtml({ titulo: 'Reporte semanal', nombre: 'Ana <b>', rango: 'Del 26/10 al 01/11', archivos: ['a.xlsx', 'a.pdf'] });
-  assert.match(html, /DMujeres Tracking/);
-  assert.match(html, /background:#17365D/);
-  assert.match(html, /Ana &lt;b&gt;/);
-  assert.match(html, /a\.xlsx, a\.pdf/);
+test('el correo es una carta corta con el nombre de la empresa y escapa los datos', async () => {
+  const { correoHtml, frasesCorreo } = await import('../src/reporte.js');
+  const datos = { titulo: 'Reporte semanal', nombre: 'Ana <b>', rango: 'Del 26/10/2026 al 01/11/2026', archivos: ['a.xlsx', 'a.pdf'] };
+  const html = correoHtml(datos);
+  assert.match(html, />DMujeres</);
+  assert.match(html, /Adjunto encontrará el reporte semanal de Ana &lt;b&gt;, del 26\/10\/2026 al 01\/11\/2026, en Excel y PDF\./);
+  assert.doesNotMatch(html, /<b>|Tracking|·/);
+  const { asunto } = frasesCorreo({ ...datos, nombre: 'Ana', rango: 'Martes 28/10/2026', archivos: ['a.pdf'] });
+  assert.equal(asunto, 'Reporte semanal de Ana, martes 28/10/2026');
+  assert.match(frasesCorreo({ titulo: 'Reporte', nombre: '', rango: '', archivos: [] }).cuerpo, /^Adjunto encontrará el reporte\.$/);
 });

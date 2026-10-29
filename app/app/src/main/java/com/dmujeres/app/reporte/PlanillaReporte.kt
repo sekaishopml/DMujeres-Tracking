@@ -58,7 +58,7 @@ object PlanillaReporte {
             j.isNullOrEmpty() -> Celda(if (j == null) "—" else "", "")
             else -> Celda(
                 j.last().let { if (it.abierta || it.fin == null) "en curso" else it.fin },
-                "Fin de jornada" + j.mapNotNull { it.notaFin }.joinToString("") { ": $it" },
+                "Fin de jornada" + j.mapNotNull { it.notaFin }.takeIf { it.isNotEmpty() }?.joinToString("; ", prefix = ": ").orEmpty(),
             )
         }
         val actividades = dia.actividades.map { a ->
@@ -68,7 +68,7 @@ object PlanillaReporte {
                     a.tipo.takeIf { it != "Visita" || a.lugar == null },
                     a.lugar,
                     a.nota?.takeIf { it.isNotBlank() },
-                ).joinToString(" · "),
+                ).joinToString(". "),
             )
         }
         val titulo = dia.etiqueta

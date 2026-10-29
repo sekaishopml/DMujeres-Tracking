@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Mi reporte: diario, semanal o mensual. Arriba el período, en medio el
-     resumen, los días y la planilla del día elegido; abajo las acciones.
+<!-- Mi reporte: diario, semanal o mensual. Arriba el período, en medio los
+     días y la planilla del día elegido; abajo las acciones.
      Sin ventanas emergentes: los avisos van en la línea de estado. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
@@ -129,7 +129,7 @@
         android:paddingBottom="12dp"
         android:scrollbars="none">
 
-        <!-- Lo arma VistaReporte: resumen, días y la planilla del día. -->
+        <!-- Lo arma VistaReporte: días y la planilla del día. -->
         <LinearLayout
             android:id="@+id/rep_vista"
             android:layout_width="match_parent"
@@ -137,12 +137,16 @@
             android:orientation="vertical" />
     </ScrollView>
 
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="@color/line" />
+
     <!-- Acciones: correo, descargas y envío. -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:background="@color/surface"
-        android:elevation="8dp"
         android:orientation="vertical"
         android:paddingStart="16dp"
         android:paddingTop="10dp"
@@ -221,7 +225,7 @@
 
         <LinearLayout
             android:layout_width="match_parent"
-            android:layout_height="48dp"
+            android:layout_height="44dp"
             android:layout_marginTop="6dp"
             android:orientation="horizontal">
 

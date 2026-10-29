@@ -12,9 +12,9 @@ import java.io.ByteArrayOutputStream
 
 /**
  * El reporte en PDF (A4 horizontal), con texto vectorial: se ve nítido en
- * el correo y al imprimir (la imagen PNG se veía borrosa). Cabecera con la
- * franja azul de la marca, la planilla del panel (columnas por día) y el pie
- * con la página. Una semana por página; si no cabe, sigue en la siguiente con
+ * el correo y al imprimir (la imagen PNG se veía borrosa). Arriba el membrete
+ * (nombre de la empresa, el reporte, la persona y el período), la planilla
+ * del panel (columnas por día) y el pie con la página. Una semana por página; si no cabe, sigue en la siguiente con
  * los encabezados repetidos. Una sola letra; negrita solo en encabezados.
  */
 object PdfReporte {
@@ -22,13 +22,13 @@ object PdfReporte {
     const val ANCHO = 842
     const val ALTO = 595
     private const val MARGEN = 28f
-    private const val FRANJA = 54f
+    private const val MEMBRETE = 58f
     private const val LETRA = 7.6f
     private const val RELLENO = 3.5f
     private val AZUL = Color.rgb(23, 54, 93)
     private val TINTA = Color.rgb(23, 28, 36)
     private val GRIS = Color.rgb(95, 107, 122)
-    private val LINEA = Color.rgb(191, 199, 211)
+    private val LINEA = Color.rgb(166, 166, 166)
 
     fun bytes(r: Reporte, generado: String): ByteArray {
         val doc = PdfDocument()
@@ -64,7 +64,7 @@ object PdfReporte {
             val c = abrir(numero)
             actual = c
             cabecera(c, r)
-            y = MARGEN + FRANJA + 18f
+            y = MARGEN + MEMBRETE
             return c
         }
         fun texto(t: String, w: Float, p: TextPaint, centro: Boolean = false): StaticLayout {
@@ -84,11 +84,11 @@ object PdfReporte {
             data class Celda(val layout: StaticLayout, val w: Float, val fondo: String?)
             fun fila(celdas: List<Celda>) = celdas to (celdas.maxOf { it.layout.height } + 2 * RELLENO)
             val encabezados = listOf(
-                fila(bloque.columnas.map { Celda(texto(it.titulo, anchoDia, negrita, true), anchoDia, PlanillaReporte.tinte(it.color, 70)) }),
+                fila(bloque.columnas.map { Celda(texto(it.titulo, anchoDia, negrita, true), anchoDia, it.color) }),
                 fila(bloque.columnas.flatMap {
                     listOf(
                         Celda(texto("HORA", hora, negrita, true), hora, PlanillaReporte.tinte(it.color, 45)),
-                        Celda(texto("PLANIFICACIÓN", plan, negrita, true), plan, PlanillaReporte.tinte(it.color, 25)),
+                        Celda(texto("PLANIFICACIÓN", plan, negrita, true), plan, PlanillaReporte.tinte(it.color, 45)),
                     )
                 }),
             )
@@ -97,7 +97,7 @@ object PdfReporte {
                 fila(bloque.columnas.flatMap {
                     val c = it.filas[i]
                     listOf(
-                        Celda(texto(c.hora, hora, normal, true), hora, PlanillaReporte.tinte(it.color, 40)),
+                        Celda(texto(c.hora, hora, normal, true), hora, PlanillaReporte.tinte(it.color, 30)),
                         Celda(texto(c.plan, plan, normal), plan, if (jornada) PlanillaReporte.tinte(it.color, 12) else null),
                     )
                 })
@@ -132,23 +132,27 @@ object PdfReporte {
         cerrar()
     }
 
-    /** Franja azul de la marca: nombre de la app a la izquierda, el reporte a la derecha; debajo, persona y período. */
+    /** Membrete sencillo, como una hoja de la empresa: sin franjas de color, solo una línea marina. */
     private fun cabecera(c: Canvas, r: Reporte) {
-        val blanco = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE; textSize = 15f; typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD) }
-        val blancoSuave = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.argb(210, 255, 255, 255); textSize = 9f; typeface = Typeface.SANS_SERIF }
-        c.drawRect(0f, 0f, ANCHO.toFloat(), MARGEN + FRANJA - 14f, Paint().apply { color = AZUL })
-        c.drawText("DMujeres Tracking", MARGEN, 30f, blanco)
-        c.drawText("Auditoría de jornadas en campo", MARGEN, 44f, blancoSuave)
-        val derecha = Paint(blanco).apply { textAlign = Paint.Align.RIGHT }
-        val derechaSuave = Paint(blancoSuave).apply { textAlign = Paint.Align.RIGHT }
-        c.drawText(r.titulo, ANCHO - MARGEN, 30f, derecha)
-        c.drawText("${r.nombre} · ${r.rango}", ANCHO - MARGEN, 44f, derechaSuave)
+        val marca = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = AZUL; textSize = 16f; typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD) }
+        val titulo = Paint(marca).apply { color = TINTA; textSize = 11f; textAlign = Paint.Align.RIGHT }
+        val etiqueta = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = GRIS; textSize = 8.5f; typeface = Typeface.SANS_SERIF }
+        val dato = Paint(etiqueta).apply { color = TINTA }
+        c.drawText("DMujeres", MARGEN, MARGEN + 10f, marca)
+        c.drawText(r.titulo, ANCHO - MARGEN, MARGEN + 10f, titulo)
+        c.drawRect(MARGEN, MARGEN + 17f, ANCHO - MARGEN, MARGEN + 18f, Paint().apply { color = AZUL })
+        var x = MARGEN
+        for ((k, v) in listOf("Nombre:" to r.nombre, "Período:" to r.rango.replaceFirstChar { it.lowercase() })) {
+            c.drawText(k, x, MARGEN + 33f, etiqueta)
+            x += etiqueta.measureText(k) + 4f
+            c.drawText(v, x, MARGEN + 33f, dato)
+            x += dato.measureText(v) + 28f
+        }
     }
 
     private fun pie(c: Canvas, numero: Int, generado: String) {
         val gris = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = GRIS; textSize = 7.5f; typeface = Typeface.SANS_SERIF }
-        c.drawLine(MARGEN, ALTO - MARGEN + 2f, ANCHO - MARGEN, ALTO - MARGEN + 2f, Paint().apply { color = LINEA; strokeWidth = 0.5f })
-        c.drawText("Generado el $generado desde la app DMujeres Tracking", MARGEN, ALTO - MARGEN + 13f, gris)
+        c.drawText("Generado el $generado", MARGEN, ALTO - MARGEN + 13f, gris)
         c.drawText("Página $numero", ANCHO - MARGEN, ALTO - MARGEN + 13f, Paint(gris).apply { textAlign = Paint.Align.RIGHT })
     }
 }

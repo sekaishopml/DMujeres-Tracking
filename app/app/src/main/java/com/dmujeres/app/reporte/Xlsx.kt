@@ -12,9 +12,10 @@ import java.util.zip.ZipOutputStream
  */
 object Xlsx {
 
-    /** Cómo se ve una celda: una sola letra (Calibri 11), negrita o no, color de fondo y borde. */
+    /** Cómo se ve una celda: una sola letra (Calibri 11), negrita o no, color de fondo y borde; [titulo] es el nombre de la empresa arriba. */
     data class Estilo(
         val negrita: Boolean = false,
+        val titulo: Boolean = false,
         val relleno: String? = null,
         val borde: Boolean = true,
         val centrado: Boolean = false,
@@ -68,6 +69,8 @@ object Xlsx {
     private fun hojaXml(filas: List<List<Celda>>, anchos: List<Double>, combinadas: List<String>, encabezado: Int?, estilos: List<Estilo>): String = buildString {
         append(XML_DECL)
         append("<worksheet xmlns=\"$NS_MAIN\" xmlns:r=\"$NS_REL\">")
+        // Al imprimir, todo el ancho en una hoja.
+        append("<sheetPr><pageSetUpPr fitToPage=\"1\"/></sheetPr>")
         if (encabezado != null) {
             append("<sheetViews><sheetView workbookViewId=\"0\"><pane ySplit=\"$encabezado\" topLeftCell=\"A${encabezado + 1}\" activePane=\"bottomLeft\" state=\"frozen\"/></sheetView></sheetViews>")
         }
@@ -97,7 +100,7 @@ object Xlsx {
             append("</mergeCells>")
         }
         append("<pageMargins left=\"0.5\" right=\"0.5\" top=\"0.6\" bottom=\"0.6\" header=\"0.3\" footer=\"0.3\"/>")
-        append("<pageSetup orientation=\"landscape\"/>")
+        append("<pageSetup paperSize=\"9\" orientation=\"landscape\" fitToWidth=\"1\" fitToHeight=\"0\"/>")
         append("</worksheet>")
     }
 
@@ -130,25 +133,26 @@ object Xlsx {
         "<Relationship Id=\"rId2\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles\" Target=\"styles.xml\"/>" +
         "</Relationships>"
 
-    /** Una sola fuente (Calibri 11, normal o negrita), los rellenos que se usen y un borde fino gris. */
+    /** Una sola fuente (Calibri: 11 normal o negrita, 14 para el nombre de la empresa), los rellenos que se usen y un borde fino gris. */
     private fun estilosXml(estilos: List<Estilo>): String {
         val colores = estilos.mapNotNull { it.relleno }.distinct()
         return buildString {
             append(XML_DECL)
             append("<styleSheet xmlns=\"$NS_MAIN\">")
-            append("<fonts count=\"2\"><font><sz val=\"11\"/><name val=\"Calibri\"/></font><font><b/><sz val=\"11\"/><name val=\"Calibri\"/></font></fonts>")
+            append("<fonts count=\"3\"><font><sz val=\"11\"/><name val=\"Calibri\"/></font><font><b/><sz val=\"11\"/><name val=\"Calibri\"/></font>")
+            append("<font><b/><sz val=\"14\"/><color rgb=\"FF17365D\"/><name val=\"Calibri\"/></font></fonts>")
             append("<fills count=\"${colores.size + 2}\"><fill><patternFill patternType=\"none\"/></fill><fill><patternFill patternType=\"gray125\"/></fill>")
             colores.forEach { append("<fill><patternFill patternType=\"solid\"><fgColor rgb=\"FF$it\"/><bgColor indexed=\"64\"/></patternFill></fill>") }
             append("</fills>")
             append("<borders count=\"2\"><border><left/><right/><top/><bottom/><diagonal/></border>")
             append("<border>")
-            for (lado in listOf("left", "right", "top", "bottom")) append("<$lado style=\"thin\"><color rgb=\"FFBFC7D3\"/></$lado>")
+            for (lado in listOf("left", "right", "top", "bottom")) append("<$lado style=\"thin\"><color rgb=\"FFA6A6A6\"/></$lado>")
             append("<diagonal/></border></borders>")
             append("<cellStyleXfs count=\"1\"><xf numFmtId=\"0\" fontId=\"0\" fillId=\"0\" borderId=\"0\"/></cellStyleXfs>")
             append("<cellXfs count=\"${estilos.size}\">")
             for (e in estilos) {
                 val relleno = e.relleno?.let { colores.indexOf(it) + 2 } ?: 0
-                append("<xf numFmtId=\"0\" fontId=\"${if (e.negrita) 1 else 0}\" fillId=\"$relleno\" borderId=\"${if (e.borde) 1 else 0}\" xfId=\"0\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\">")
+                append("<xf numFmtId=\"0\" fontId=\"${if (e.titulo) 2 else if (e.negrita) 1 else 0}\" fillId=\"$relleno\" borderId=\"${if (e.borde) 1 else 0}\" xfId=\"0\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\">")
                 append("<alignment vertical=\"top\" wrapText=\"1\"${if (e.centrado) " horizontal=\"center\"" else ""}/></xf>")
             }
             append("</cellXfs><cellStyles count=\"1\"><cellStyle name=\"Normal\" xfId=\"0\" builtinId=\"0\"/></cellStyles></styleSheet>")

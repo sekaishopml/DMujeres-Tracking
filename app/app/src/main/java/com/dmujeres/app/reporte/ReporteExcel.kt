@@ -9,7 +9,7 @@ import java.io.ByteArrayOutputStream
  * El reporte en Excel con la forma de la planilla del panel: por cada semana
  * una fila con los días (combinados de a dos columnas, con su color), HORA |
  * PLANIFICACIÓN, el inicio de jornada, las actividades y el fin. Una sola
- * letra en todo; solo los encabezados en negrita.
+ * letra en todo; negrita solo en encabezados y el nombre de la empresa.
  */
 object ReporteExcel {
 
@@ -24,18 +24,25 @@ object ReporteExcel {
         fun combinar(fila: Int, desde: Int, hasta: Int) {
             combinadas += "${Xlsx.columna(desde)}$fila:${Xlsx.columna(hasta)}$fila"
         }
-        filas += listOf(Celda("${r.titulo} · ${r.nombre} · ${r.rango} · generado el $generado", Estilo(negrita = true, borde = false)))
+        // Arriba, como en la planilla de la oficina: empresa, reporte y los datos de la persona.
+        filas += listOf(Celda("DMujeres", Estilo(titulo = true, borde = false)))
         combinar(1, 0, columnas - 1)
+        filas += listOf(Celda(r.titulo, Estilo(negrita = true, borde = false)))
+        combinar(2, 0, columnas - 1)
+        for ((k, v) in listOf("Nombre:" to r.nombre, "Período:" to r.rango.replaceFirstChar { it.lowercase() }, "Generado:" to generado)) {
+            filas += listOf(Celda(k, Estilo(negrita = true, borde = false)), Celda(v, Estilo(borde = false)))
+            if (columnas > 2) combinar(filas.size, 1, columnas - 1)
+        }
         for (bloque in bloques) {
             filas += emptyList<Celda>()
             filas += bloque.columnas.flatMap { c ->
-                listOf(Celda(c.titulo, Estilo(negrita = true, relleno = tinte(c.color, 70), centrado = true)), Celda("", Estilo(relleno = tinte(c.color, 70))))
+                listOf(Celda(c.titulo, Estilo(negrita = true, relleno = c.color, centrado = true)), Celda("", Estilo(relleno = c.color)))
             }
             bloque.columnas.indices.forEach { combinar(filas.size, 2 * it, 2 * it + 1) }
             filas += bloque.columnas.flatMap { c ->
                 listOf(
                     Celda("HORA", Estilo(negrita = true, relleno = tinte(c.color, 45), centrado = true)),
-                    Celda("PLANIFICACIÓN", Estilo(negrita = true, relleno = tinte(c.color, 25), centrado = true)),
+                    Celda("PLANIFICACIÓN", Estilo(negrita = true, relleno = tinte(c.color, 45), centrado = true)),
                 )
             }
             for (i in 0 until bloque.filas) {
@@ -44,7 +51,7 @@ object ReporteExcel {
                 filas += bloque.columnas.flatMap { c ->
                     val celda = c.filas[i]
                     listOf(
-                        Celda(celda.hora, Estilo(relleno = tinte(c.color, 40), centrado = true)),
+                        Celda(celda.hora, Estilo(relleno = tinte(c.color, 30), centrado = true)),
                         Celda(celda.plan, Estilo(relleno = if (jornada) tinte(c.color, 12) else null)),
                     )
                 }

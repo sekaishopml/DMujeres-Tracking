@@ -49,29 +49,35 @@ async function claveResend() {
 
 const escaparHtml = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 
-// Correo con la cabecera de la marca (franja azul), el resumen del reporte y
-// un pie. Estilos en línea y tablas: así lo muestran bien Outlook y Gmail.
-export function correoHtml({ titulo, nombre, rango, archivos }) {
-  const fila = (etiqueta, valor) =>
-    `<tr><td style="padding:6px 0;color:#5f6b7a;width:110px">${etiqueta}</td><td style="padding:6px 0;color:#17202a;font-weight:bold">${escaparHtml(valor)}</td></tr>`;
-  return `<!doctype html><html lang="es"><body style="margin:0;padding:24px 12px;background:#f3f5f9">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;margin:0 auto;background:#ffffff;border:1px solid #e1e6ee;border-radius:10px;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.5">
-<tr><td style="background:#17365D;border-radius:10px 10px 0 0;padding:22px 28px">
-<div style="color:#ffffff;font-size:20px;font-weight:bold">DMujeres Tracking</div>
-<div style="color:#c9d4e3;font-size:13px">Auditoría de jornadas en campo</div>
-</td></tr>
-<tr><td style="padding:28px">
-<div style="font-size:17px;font-weight:bold;color:#17365D;margin-bottom:6px">${escaparHtml(titulo)}</div>
-<div style="color:#17202a;margin-bottom:18px">Adjuntamos el reporte solicitado desde la app.</div>
-<table role="presentation" cellpadding="0" cellspacing="0" style="border-top:1px solid #e1e6ee;border-bottom:1px solid #e1e6ee;width:100%;margin-bottom:18px">
-${fila('Persona', nombre)}${fila('Período', rango)}${fila('Archivos', archivos.join(', '))}
+const FORMATOS = { xlsx: 'Excel', pdf: 'PDF', png: 'imagen' };
+
+// La frase principal sale de los datos para que el HTML y el texto plano digan lo mismo.
+export function frasesCorreo({ titulo, nombre, rango, archivos }) {
+  const formatos = [...new Set(archivos.map((a) => FORMATOS[a.split('.').pop().toLowerCase()]).filter(Boolean))];
+  const en = formatos.length ? ` en ${formatos.length > 1 ? `${formatos.slice(0, -1).join(', ')} y ${formatos.at(-1)}` : formatos[0]}` : '';
+  const de = nombre ? ` de ${nombre}` : '';
+  const periodo = rango ? `, ${rango.charAt(0).toLowerCase()}${rango.slice(1)}` : '';
+  return {
+    asunto: `${titulo}${de}${periodo}`,
+    cuerpo: `Adjunto encontrará el ${titulo.charAt(0).toLowerCase()}${titulo.slice(1)}${de}${periodo}${periodo && en ? ',' : ''}${en}.`,
+    nota: 'Lo recibe porque lo solicitó desde la app. Esta dirección solo envía reportes; si necesita algo, comuníquese con su supervisor.',
+  };
+}
+
+// Correo sobrio, como carta: nombre de la empresa, una línea, el texto y la firma.
+// Tablas y estilos en línea para que Outlook de escritorio y Gmail lo muestren igual.
+export function correoHtml(datos) {
+  const { cuerpo, nota } = frasesCorreo(datos);
+  const letra = 'font-family:Arial,Helvetica,sans-serif;';
+  return `<!doctype html><html lang="es"><head><meta charset="utf-8"></head><body style="margin:0;padding:0;background:#ffffff">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#ffffff"><tr><td style="padding:24px 16px">
+<table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:600px;${letra}font-size:14px;line-height:21px;color:#1f2933">
+<tr><td style="padding:0 0 10px 0;border-bottom:2px solid #0B2545;${letra}font-size:18px;font-weight:bold;color:#0B2545">DMujeres</td></tr>
+<tr><td style="padding:20px 0 0 0;${letra}font-size:14px;line-height:21px;color:#1f2933">${escaparHtml(cuerpo)}</td></tr>
+<tr><td style="padding:20px 0 0 0;${letra}font-size:14px;line-height:21px;color:#1f2933">Saludos cordiales,<br>DMujeres</td></tr>
+<tr><td style="padding:28px 0 0 0;${letra}font-size:12px;line-height:18px;color:#6b7580">${escaparHtml(nota)}</td></tr>
 </table>
-<div style="color:#5f6b7a;font-size:12px">El PDF se lee mejor para revisar e imprimir; el Excel, para filtrar y sumar.</div>
-</td></tr>
-<tr><td style="padding:16px 28px;border-top:1px solid #e1e6ee;color:#8a95a5;font-size:11px">
-Mensaje automático de DMujeres Tracking. No responda a este correo.
-</td></tr>
-</table></body></html>`;
+</td></tr></table></body></html>`;
 }
 
 export async function atenderJornadasConsulta(req, res, ctx) {
@@ -126,7 +132,14 @@ export async function atenderReporteCorreo(req, res, ctx, enviar = globalThis.fe
   const clave = await claveResend();
   if (!clave) return responderJson(res, 503, { error: 'correo_no_configurado' });
   if (!puedeEnviar(String(dispositivo.id))) return responderJson(res, 429, { error: 'demasiados_envios' });
-  const titulo = typeof cuerpo.asunto === 'string' && cuerpo.asunto.trim() ? cuerpo.asunto.trim().slice(0, 120) : 'Reporte';
+  const texto = (v) => (typeof v === 'string' ? v.trim().slice(0, 80) : '');
+  const datos = {
+    titulo: texto(cuerpo.titulo) || texto(cuerpo.asunto) || 'Reporte',
+    nombre: texto(cuerpo.nombre),
+    rango: texto(cuerpo.rango),
+    archivos: archivos.map((a) => a.nombre),
+  };
+  const frases = frasesCorreo(datos);
   try {
     const r = await enviar('https://api.resend.com/emails', {
       method: 'POST',
@@ -134,14 +147,9 @@ export async function atenderReporteCorreo(req, res, ctx, enviar = globalThis.fe
       body: JSON.stringify({
         from: REMITENTE,
         to: [correo],
-        subject: titulo,
-        html: correoHtml({
-          titulo: typeof cuerpo.titulo === 'string' && cuerpo.titulo.trim() ? cuerpo.titulo.trim().slice(0, 80) : titulo,
-          nombre: typeof cuerpo.nombre === 'string' && cuerpo.nombre.trim() ? cuerpo.nombre.trim().slice(0, 80) : '—',
-          rango: typeof cuerpo.rango === 'string' && cuerpo.rango.trim() ? cuerpo.rango.trim().slice(0, 80) : '—',
-          archivos: archivos.map((a) => a.nombre),
-        }),
-        text: `${titulo}\n\nAdjuntamos el reporte solicitado desde la app DMujeres Tracking.\nMensaje automático: no responda a este correo.`,
+        subject: frases.asunto,
+        html: correoHtml(datos),
+        text: `${frases.cuerpo}\n\nSaludos cordiales,\nDMujeres\n\n${frases.nota}`,
         attachments: archivos.map((a) => ({ filename: a.nombre, content: a.base64 })),
       }),
       signal: AbortSignal.timeout(20_000),

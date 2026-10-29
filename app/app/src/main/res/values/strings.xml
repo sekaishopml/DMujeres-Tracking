@@ -542,12 +542,12 @@ Se registrará el cierre en el panel.</string>
   <string name="rep_correo_hint">nombre@empresa.com</string>
   <string name="rep_correo_invalido">Revise el correo: no parece válido</string>
   <string name="rep_correo_guardado">Correo guardado</string>
-  <string name="rep_excel">Excel</string>
-  <string name="rep_imagen">PDF</string>
+  <string name="rep_excel">Descargar Excel</string>
+  <string name="rep_imagen">Descargar PDF</string>
   <string name="rep_enviar">Enviar a mi correo</string>
   <string name="rep_cargando">Cargando…</string>
   <string name="rep_sin_conexion_jornadas">Sin conexión: la jornada se muestra con «—»</string>
-  <string name="rep_guardado_fmt">Guardado en Descargas/DMujeres · toque aquí para abrir</string>
+  <string name="rep_guardado_fmt">Guardado en Descargas/DMujeres. Toque aquí para abrirlo.</string>
   <string name="rep_no_guardado">No se pudo guardar el archivo</string>
   <string name="rep_sin_app">El archivo quedó en Descargas/DMujeres; no hay una app para abrirlo</string>
   <string name="rep_enviando">Enviando…</string>
@@ -558,16 +558,8 @@ Se registrará el cierre en el panel.</string>
   <string name="rep_envio_fallo">No se pudo enviar: intente de nuevo</string>
   <string name="rep_anterior_desc">Período anterior</string>
   <string name="rep_siguiente_desc">Período siguiente</string>
-  <string name="rep_res_jornada">Días con jornada</string>
-  <string name="rep_res_actividades">Actividades</string>
-  <string name="rep_res_dias_act">Días con actividad</string>
   <string name="rep_col_hora">HORA</string>
   <string name="rep_col_plan">PLANIFICACIÓN</string>
   <string name="rep_fin_jornada">Fin de jornada</string>
   <string name="rep_sin_actividades">Sin actividades registradas</string>
-  <string name="rep_hasta_fmt">hasta %1$s</string>
-  <plurals name="rep_n_actividades">
-    <item quantity="one">%1$d actividad</item>
-    <item quantity="other">%1$d actividades</item>
-  </plurals>
 </resources>

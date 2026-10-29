@@ -88,7 +88,7 @@ class ReporteActivity : AppCompatActivity() {
         val (desde, hasta) = DatosReporte.rango(periodo, fecha)
         if (periodo == Periodo.DIA) elegido = fecha
         findViewById<TextView>(R.id.rep_rango).text =
-            if (desde == hasta) DatosReporte.etiquetaDia(desde) else "${DatosReporte.corta(desde)} – ${DatosReporte.corta(hasta)}"
+            if (desde == hasta) DatosReporte.etiquetaDia(desde) else "Del ${DatosReporte.corta(desde)} al ${DatosReporte.corta(hasta)}"
         // Primero lo que ya hay en el teléfono; después, con el servidor.
         pintar(armar(null))
         mostrarEstado(getString(R.string.rep_cargando))
@@ -124,7 +124,7 @@ class ReporteActivity : AppCompatActivity() {
         }, jornadas).also { reporte = it }
     }
 
-    /** Resumen, días y la planilla del día elegido: los mismos datos que el Excel y el PDF. */
+    /** Días y la planilla del día elegido: los mismos datos que el Excel y el PDF. */
     private fun pintar(r: Reporte) {
         if (r.dias.none { it.fecha == elegido }) {
             // Al cambiar de período: hoy si está dentro; si no, el primer día con actividades.
@@ -133,7 +133,7 @@ class ReporteActivity : AppCompatActivity() {
                 ?: r.dias.firstOrNull { it.actividades.isNotEmpty() }?.fecha
                 ?: r.dias.first().fecha
         }
-        findViewById<TextView>(R.id.rep_subtitulo).text = "${r.nombre} · ${r.titulo}"
+        findViewById<TextView>(R.id.rep_subtitulo).text = r.nombre
         VistaReporte.pintar(findViewById<LinearLayout>(R.id.rep_vista), r, elegido) { f ->
             elegido = f
             reporte?.let { pintar(it) }
