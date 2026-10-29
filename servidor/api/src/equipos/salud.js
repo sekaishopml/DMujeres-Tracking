@@ -268,6 +268,7 @@ function aSaludDispositivo(fila, ahoraMs) {
     temperaturaC,
     fgs,
     jornada,
+    jornadaDesde: fila.jornada_desde instanceof Date ? fila.jornada_desde.toISOString() : null,
     red,
     bootId,
     recoveryCount,
@@ -286,6 +287,13 @@ export async function listarSalud(ctx) {
             pa.precision_m,
             bat.porcentaje AS bat_pct, bat.cargando AS bat_cargando, bat.registrado_en AS bat_registrado_en,
             j.estado AS jornada_estado,
+            -- Abierta: desde cuándo de verdad (el corte de medianoche la
+            -- reabre a las 00:00; vale el último inicio que no fue ese).
+            CASE WHEN j.estado = 'abierta' THEN
+              (SELECT max(o.inicio_en) FROM operations.dmt_jornada o
+                WHERE o.dispositivo_id = d.id
+                  AND to_char(o.inicio_en AT TIME ZONE 'America/Guayaquil', 'HH24:MI') <> '00:00')
+            END AS jornada_desde,
             prev.registrado_en AS prev_registrado_en
        FROM tracking.dmt_dispositivo d
        LEFT JOIN tracking.dmt_posicion_actual pa ON pa.dispositivo_id = d.id

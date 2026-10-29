@@ -97,6 +97,9 @@ object DatosReporte {
         return "${DIAS[c.get(Calendar.DAY_OF_WEEK) - 1]} ${formato("dd/MM").format(c.time)}"
     }
 
+    /** Lunes = 0 … domingo = 6. */
+    fun indiceSemana(fecha: String): Int = (calendario(fecha).get(Calendar.DAY_OF_WEEK) + 5) % 7
+
     /** "27/10/2026". */
     fun corta(fecha: String): String = formato("dd/MM/yyyy").format(calendario(fecha).time)
 

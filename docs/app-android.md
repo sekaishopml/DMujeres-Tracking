@@ -149,9 +149,10 @@ El encendido del teléfono se registra con su hora real (ahora menos el
 tiempo desde el arranque) y se revisa también cada vez que arranca la app:
 sin "inicio automático" (Xiaomi y otros) el aviso del sistema no llega.
 
-Una jornada que nadie cerró sigue cada día desde las 00:00; la app y el
-reporte dicen desde cuándo está abierta de verdad ("Sin cerrar desde el
-18/10 11:07").
+Una jornada que nadie cerró sigue cada día desde las 00:00. Desde cuándo
+está abierta de verdad ("Sin cerrar desde 18/10 11:07") lo ven solo los
+supervisores, en el panel (Sistema → Salud y Reportes → Cronograma); la
+persona no lo ve en la app.
 
 ## Mi reporte
 
@@ -159,10 +160,15 @@ Desde el cronograma (ícono de hoja con flecha, arriba) se abre "Mi reporte":
 diario, semanal (lunes a domingo) o mensual, con las actividades y la
 jornada de cada día (y el motivo si se cerró en horario laboral).
 
+- **Forma:** la de la planilla del panel (Reportes → Cronograma): una columna
+  por día (HORA | PLANIFICACIÓN) con su color, inicio de jornada arriba, las
+  actividades y el fin abajo; el mes es una semana debajo de otra
+  (`reporte/PlanillaReporte.kt`). Una sola letra; solo los encabezados en
+  negrita.
 - **Excel:** un .xlsx real escrito por la app (`reporte/Xlsx.kt`, sin
-  librerías): título, encabezado azul congelado, filtro y una fila por
-  actividad (`reporte/ReporteExcel.kt`).
-- **Imagen:** PNG de la misma vista que se ve en pantalla (`VistaReporte`).
+  librerías, `reporte/ReporteExcel.kt`).
+- **Imagen:** PNG dibujado con la misma planilla (`ImagenReporte`); es
+  también lo que se ve en la app.
 - Se guardan en Descargas/DMujeres (Android 10+, sin permisos; antes, en la
   carpeta de la app) y se abren tocando el aviso de abajo.
 - **Correo:** se escribe una vez y queda guardado (en el teléfono y en el

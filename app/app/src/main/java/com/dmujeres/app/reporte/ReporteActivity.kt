@@ -121,10 +121,20 @@ class ReporteActivity : AppCompatActivity() {
         }, jornadas).also { reporte = it }
     }
 
+    /** La misma planilla que el Excel y la imagen; la semana se recorre de lado. */
     private fun pintar(r: Reporte) {
         val contenedor = findViewById<FrameLayout>(R.id.rep_vista)
         contenedor.removeAllViews()
-        contenedor.addView(VistaReporte.crear(this, r))
+        val imagen = ImagenReporte.bitmap(r)
+        val escala = resources.displayMetrics.density / 3f
+        contenedor.addView(android.widget.HorizontalScrollView(this).apply {
+            isHorizontalScrollBarEnabled = false
+            addView(android.widget.ImageView(this@ReporteActivity).apply {
+                setImageBitmap(imagen)
+                scaleType = android.widget.ImageView.ScaleType.FIT_XY
+                layoutParams = android.view.ViewGroup.LayoutParams((imagen.width * escala).toInt(), (imagen.height * escala).toInt())
+            })
+        })
     }
 
     // ── Descargas ───────────────────────────────────────────────────────────
@@ -133,7 +143,7 @@ class ReporteActivity : AppCompatActivity() {
         ReporteExcel.bytes(r, SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.US).apply { timeZone = ZONA }.format(Date()))
 
     private fun png(r: Reporte): ByteArray = ByteArrayOutputStream().also {
-        VistaReporte.imagen(this, r).compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it)
+        ImagenReporte.bitmap(r).compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it)
     }.toByteArray()
 
     private fun descargarExcel() {

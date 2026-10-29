@@ -94,7 +94,6 @@ Se registrará el cierre en el panel.</string>
   <string name="journey_started_toast">Jornada iniciada</string>
   <string name="journey_ended_toast">Jornada finalizada</string>
   <string name="journey_renewed">Nuevo día: la jornada sigue como una nueva desde las 00:00</string>
-  <string name="journey_abierta_desde_fmt">Abierta desde el %1$s, sin cerrar</string>
   <string name="aviso_gps_titulo">Ubicación apagada</string>
   <string name="aviso_gps_texto">Actívela para que se registre su recorrido.</string>
   <string name="aviso_permiso_titulo">Falta el permiso de ubicación</string>
@@ -174,8 +173,8 @@ Se registrará el cierre en el panel.</string>
   <string name="aviso_ok_ahorro">Ahorro de batería desactivado</string>
   <string name="pill_none">Sin jornada</string>
   <string name="refresh_button">Actualizar</string>
-  <string name="ota_actualizada_titulo">App actualizada a la versión %1$s</string>
-  <string name="ota_actualizada_texto">Toque para abrirla.</string>
+  <string name="ota_disponible_titulo">Nueva versión %1$s disponible</string>
+  <string name="ota_disponible_texto">Toque para actualizar la app.</string>
   <string name="refresh_cooldown_fmt">Recién actualizado · podrá repetirlo en %1$d s</string>
   <string name="version_footer_fmt">Versión %1$s · código %2$d</string>
   <string name="update_installing">Instalando</string>

@@ -56,6 +56,17 @@ const SIGNIFICADO: Record<'proceso' | 'baseDatos' | 'tracking', Record<EstadoSer
   },
 };
 
+// Abierta desde otro día = nunca la cerró (el corte de medianoche la sigue).
+function textoJornada(jornada: string | null, desde?: string | null): string {
+  if (jornada !== 'abierta') return jornada === 'cerrada' ? 'Cerrada' : jornada === 'ninguna' ? 'Sin jornada' : GUION;
+  if (!desde) return 'Abierta';
+  const d = new Date(desde);
+  const zona = { timeZone: 'America/Guayaquil' } as const;
+  const dia = (x: Date) => x.toLocaleDateString('es-EC', { ...zona, day: '2-digit', month: '2-digit' });
+  const hora = d.toLocaleTimeString('es-EC', { ...zona, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+  return dia(d) === dia(new Date()) ? `Abierta desde ${hora}` : `Sin cerrar desde ${dia(d)} ${hora}`;
+}
+
 const ETIQUETA_SALUD: Record<EstadoSalud, { texto: string; tono: 'exito' | 'alerta' | 'peligro' | 'marino' | 'neutro' }> = {
   HEALTHY: { texto: 'Saludable', tono: 'exito' },
   DEGRADED: { texto: 'Degradado', tono: 'alerta' },
@@ -211,6 +222,7 @@ export default function Sistema() {
                 <Th>Persona</Th>
                 <Th>Estado</Th>
                 <Th>Causa</Th>
+                <Th>Jornada</Th>
                 <Th>Versión de la app</Th>
                 <Th>Último reporte</Th>
                 <Th numerico>Pendientes</Th>
@@ -227,6 +239,7 @@ export default function Sistema() {
                     <Td><Persona nombre={dispositivo?.nombre} /></Td>
                     <Td><Insignia tono={etiqueta.tono}>{etiqueta.texto}</Insignia></Td>
                     <Td className="min-w-56 text-texto-2">{s.causa || GUION}</Td>
+                    <Td className="whitespace-nowrap">{textoJornada(s.jornada, s.jornadaDesde)}</Td>
                     <Td className="whitespace-nowrap">{s.appVersion ?? dispositivo?.versionApp ?? GUION}</Td>
                     <Td className="whitespace-nowrap">
                       {s.lastFixAgeS != null ? haceSegundos(s.lastFixAgeS) : hace(dispositivo?.ultimaConexion)}

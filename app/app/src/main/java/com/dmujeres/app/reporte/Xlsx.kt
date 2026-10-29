@@ -6,15 +6,21 @@ import java.util.zip.ZipOutputStream
 
 /**
  * Excel (.xlsx) de una hoja, escrito a mano: un .xlsx es un zip con unos
- * pocos XML. Sin librerías (sumaban megas a la app). Textos en línea,
- * estilos fijos (título, encabezado azul, celdas con borde), anchos de
- * columna, encabezado congelado y filtro.
+ * pocos XML. Sin librerías (sumaban megas a la app). Textos en línea, una
+ * sola letra sencilla, colores de fondo, bordes, celdas combinadas y anchos
+ * de columna.
  */
 object Xlsx {
 
-    enum class Estilo(val id: Int) { NORMAL(0), TITULO(1), ENCABEZADO(2), CELDA(3), DIA(4), SUBTITULO(5) }
+    /** Cómo se ve una celda: una sola letra (Calibri 11), negrita o no, color de fondo y borde. */
+    data class Estilo(
+        val negrita: Boolean = false,
+        val relleno: String? = null,
+        val borde: Boolean = true,
+        val centrado: Boolean = false,
+    )
 
-    data class Celda(val texto: String, val estilo: Estilo = Estilo.CELDA)
+    data class Celda(val texto: String, val estilo: Estilo = Estilo())
 
     /**
      * [filaEncabezado] (desde 1): queda congelada y con filtro hasta la última fila.
@@ -38,8 +44,9 @@ object Xlsx {
             parte("_rels/.rels", RELS)
             parte("xl/workbook.xml", workbook(hoja))
             parte("xl/_rels/workbook.xml.rels", WORKBOOK_RELS)
-            parte("xl/styles.xml", STYLES)
-            parte("xl/worksheets/sheet1.xml", hojaXml(filas, anchos, combinadas, filaEncabezado))
+            val estilos = listOf(Estilo(borde = false)) + filas.flatten().map { it.estilo }.distinct().filter { it != Estilo(borde = false) }
+            parte("xl/styles.xml", estilosXml(estilos))
+            parte("xl/worksheets/sheet1.xml", hojaXml(filas, anchos, combinadas, filaEncabezado, estilos))
         }
     }
 
@@ -58,7 +65,7 @@ object Xlsx {
         }
     }
 
-    private fun hojaXml(filas: List<List<Celda>>, anchos: List<Double>, combinadas: List<String>, encabezado: Int?): String = buildString {
+    private fun hojaXml(filas: List<List<Celda>>, anchos: List<Double>, combinadas: List<String>, encabezado: Int?, estilos: List<Estilo>): String = buildString {
         append(XML_DECL)
         append("<worksheet xmlns=\"$NS_MAIN\" xmlns:r=\"$NS_REL\">")
         if (encabezado != null) {
@@ -71,10 +78,11 @@ object Xlsx {
             append("<row r=\"${r + 1}\">")
             fila.forEachIndexed { c, celda ->
                 val ref = "${columna(c)}${r + 1}"
+                val s = estilos.indexOf(celda.estilo)
                 if (celda.texto.isEmpty()) {
-                    append("<c r=\"$ref\" s=\"${celda.estilo.id}\"/>")
+                    append("<c r=\"$ref\" s=\"$s\"/>")
                 } else {
-                    append("<c r=\"$ref\" t=\"inlineStr\" s=\"${celda.estilo.id}\"><is><t xml:space=\"preserve\">${escapar(celda.texto)}</t></is></c>")
+                    append("<c r=\"$ref\" t=\"inlineStr\" s=\"$s\"><is><t xml:space=\"preserve\">${escapar(celda.texto)}</t></is></c>")
                 }
             }
             append("</row>")
@@ -122,38 +130,28 @@ object Xlsx {
         "<Relationship Id=\"rId2\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles\" Target=\"styles.xml\"/>" +
         "</Relationships>"
 
-    // Estilos en el orden de [Estilo]: normal, título, encabezado (blanco sobre
-    // azul de la marca), celda con borde, día (negrita sobre gris azulado) y
-    // subtítulo (gris).
-    private const val STYLES = XML_DECL +
-        "<styleSheet xmlns=\"$NS_MAIN\">" +
-        "<fonts count=\"5\">" +
-        "<font><sz val=\"11\"/><name val=\"Calibri\"/></font>" +
-        "<font><b/><sz val=\"11\"/><name val=\"Calibri\"/></font>" +
-        "<font><b/><sz val=\"15\"/><color rgb=\"FF17365D\"/><name val=\"Calibri\"/></font>" +
-        "<font><b/><sz val=\"11\"/><color rgb=\"FFFFFFFF\"/><name val=\"Calibri\"/></font>" +
-        "<font><sz val=\"10\"/><color rgb=\"FF5F6B7A\"/><name val=\"Calibri\"/></font>" +
-        "</fonts>" +
-        "<fills count=\"4\">" +
-        "<fill><patternFill patternType=\"none\"/></fill>" +
-        "<fill><patternFill patternType=\"gray125\"/></fill>" +
-        "<fill><patternFill patternType=\"solid\"><fgColor rgb=\"FF17365D\"/><bgColor indexed=\"64\"/></patternFill></fill>" +
-        "<fill><patternFill patternType=\"solid\"><fgColor rgb=\"FFEEF2F8\"/><bgColor indexed=\"64\"/></patternFill></fill>" +
-        "</fills>" +
-        "<borders count=\"2\">" +
-        "<border><left/><right/><top/><bottom/><diagonal/></border>" +
-        "<border><left style=\"thin\"><color rgb=\"FFD0D7E2\"/></left><right style=\"thin\"><color rgb=\"FFD0D7E2\"/></right>" +
-        "<top style=\"thin\"><color rgb=\"FFD0D7E2\"/></top><bottom style=\"thin\"><color rgb=\"FFD0D7E2\"/></bottom><diagonal/></border>" +
-        "</borders>" +
-        "<cellStyleXfs count=\"1\"><xf numFmtId=\"0\" fontId=\"0\" fillId=\"0\" borderId=\"0\"/></cellStyleXfs>" +
-        "<cellXfs count=\"6\">" +
-        "<xf numFmtId=\"0\" fontId=\"0\" fillId=\"0\" borderId=\"0\" xfId=\"0\"/>" +
-        "<xf numFmtId=\"0\" fontId=\"2\" fillId=\"0\" borderId=\"0\" xfId=\"0\" applyFont=\"1\"/>" +
-        "<xf numFmtId=\"0\" fontId=\"3\" fillId=\"2\" borderId=\"1\" xfId=\"0\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment horizontal=\"center\" vertical=\"center\"/></xf>" +
-        "<xf numFmtId=\"0\" fontId=\"0\" fillId=\"0\" borderId=\"1\" xfId=\"0\" applyBorder=\"1\" applyAlignment=\"1\"><alignment vertical=\"top\" wrapText=\"1\"/></xf>" +
-        "<xf numFmtId=\"0\" fontId=\"1\" fillId=\"3\" borderId=\"1\" xfId=\"0\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\"><alignment vertical=\"top\"/></xf>" +
-        "<xf numFmtId=\"0\" fontId=\"4\" fillId=\"0\" borderId=\"0\" xfId=\"0\" applyFont=\"1\"/>" +
-        "</cellXfs>" +
-        "<cellStyles count=\"1\"><cellStyle name=\"Normal\" xfId=\"0\" builtinId=\"0\"/></cellStyles>" +
-        "</styleSheet>"
+    /** Una sola fuente (Calibri 11, normal o negrita), los rellenos que se usen y un borde fino gris. */
+    private fun estilosXml(estilos: List<Estilo>): String {
+        val colores = estilos.mapNotNull { it.relleno }.distinct()
+        return buildString {
+            append(XML_DECL)
+            append("<styleSheet xmlns=\"$NS_MAIN\">")
+            append("<fonts count=\"2\"><font><sz val=\"11\"/><name val=\"Calibri\"/></font><font><b/><sz val=\"11\"/><name val=\"Calibri\"/></font></fonts>")
+            append("<fills count=\"${colores.size + 2}\"><fill><patternFill patternType=\"none\"/></fill><fill><patternFill patternType=\"gray125\"/></fill>")
+            colores.forEach { append("<fill><patternFill patternType=\"solid\"><fgColor rgb=\"FF$it\"/><bgColor indexed=\"64\"/></patternFill></fill>") }
+            append("</fills>")
+            append("<borders count=\"2\"><border><left/><right/><top/><bottom/><diagonal/></border>")
+            append("<border>")
+            for (lado in listOf("left", "right", "top", "bottom")) append("<$lado style=\"thin\"><color rgb=\"FFBFC7D3\"/></$lado>")
+            append("<diagonal/></border></borders>")
+            append("<cellStyleXfs count=\"1\"><xf numFmtId=\"0\" fontId=\"0\" fillId=\"0\" borderId=\"0\"/></cellStyleXfs>")
+            append("<cellXfs count=\"${estilos.size}\">")
+            for (e in estilos) {
+                val relleno = e.relleno?.let { colores.indexOf(it) + 2 } ?: 0
+                append("<xf numFmtId=\"0\" fontId=\"${if (e.negrita) 1 else 0}\" fillId=\"$relleno\" borderId=\"${if (e.borde) 1 else 0}\" xfId=\"0\" applyFont=\"1\" applyFill=\"1\" applyBorder=\"1\" applyAlignment=\"1\">")
+                append("<alignment vertical=\"top\" wrapText=\"1\"${if (e.centrado) " horizontal=\"center\"" else ""}/></xf>")
+            }
+            append("</cellXfs><cellStyles count=\"1\"><cellStyle name=\"Normal\" xfId=\"0\" builtinId=\"0\"/></cellStyles></styleSheet>")
+        }
+    }
 }

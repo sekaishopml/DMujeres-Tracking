@@ -538,6 +538,7 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         com.dmujeres.app.actualizacion.OtaNotifier.pantallaAbierta = true
+        com.dmujeres.app.actualizacion.OtaNotifier.quitarAvisoActualizada(this)
         // Refresco inmediato + vivo cada 5 s mientras la pantalla esté abierta.
         runCatching { refreshLockedHome() }
         // Los avisos se miran cada 1,5 s: el rojo sale al instante.
@@ -740,16 +741,6 @@ class MainActivity : AppCompatActivity() {
             .getLong(DmujeresApi.KEY_JOURNEY_STARTED_AT, 0L)
         if (startedAt <= 0L) {
             text.text = getString(R.string.journey_none_banner)
-            return
-        }
-        // Abierta de otro día (nunca la cerró): se dice desde cuándo, no
-        // "desde las 00:00", que parecía un inicio de hoy.
-        val origen = PreferenceManager.getDefaultSharedPreferences(this).getLong(DmujeresApi.KEY_JOURNEY_ORIGEN, 0L)
-        if (origen in 1 until DmujeresApi.inicioDelDia(System.currentTimeMillis())) {
-            text.text = getString(
-                R.string.journey_abierta_desde_fmt,
-                java.text.SimpleDateFormat("dd/MM HH:mm", java.util.Locale.US).format(java.util.Date(origen)),
-            )
             return
         }
         val minutes = ((System.currentTimeMillis() - startedAt) / 60_000L).toInt()

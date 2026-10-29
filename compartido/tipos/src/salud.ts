@@ -31,6 +31,8 @@ export interface SaludDispositivo {
   temperaturaC: number | null;
   fgs: string | null;
   jornada: string | null;
+  /** Abierta: cuándo se inició de verdad (puede ser de días atrás si nunca la cerró). */
+  jornadaDesde?: string | null;
   red: string | null;
   bootId: string | null;
   recoveryCount: number | null;

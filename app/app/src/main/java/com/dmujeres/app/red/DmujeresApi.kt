@@ -38,9 +38,6 @@ object DmujeresApi {
     private val ZONA_JORNADA = java.util.TimeZone.getTimeZone("America/Guayaquil")
     const val KEY_PASSWORD = "password"
     const val KEY_JOURNEY_STARTED_AT = "journeyStartedAt"
-
-    /** Cuándo se inició de verdad (el corte de medianoche no lo cambia). */
-    const val KEY_JOURNEY_ORIGEN = "journeyOrigen"
     const val KEY_JOURNEY_CONFIRMED_ID = "journeyConfirmedId"
     const val KEY_JOURNEY_CONFIRMED_AT = "journeyConfirmedAt"
     const val KEY_JOURNEY_OPEN = "journeyOpen"
@@ -211,7 +208,6 @@ object DmujeresApi {
         prefs(context).edit()
             .putLong(KEY_JOURNEY_ID, journeyId)
             .putLong(KEY_JOURNEY_STARTED_AT, now)
-            .putLong(KEY_JOURNEY_ORIGEN, now)
             .putBoolean(KEY_JOURNEY_OPEN, true)
             .apply()
         Pasos.reiniciar(context)
@@ -263,7 +259,6 @@ object DmujeresApi {
         val inicio = p.getLong(KEY_JOURNEY_STARTED_AT, 0L).takeIf { it > 0L } ?: idGuardado
         if (inicio <= 0L || inicio >= hoy) return
         val anterior = if (idGuardado > 0L) idGuardado else inicio
-        if (p.getLong(KEY_JOURNEY_ORIGEN, 0L) <= 0L) p.edit().putLong(KEY_JOURNEY_ORIGEN, inicio).apply()
         p.edit()
             .putLong(KEY_JOURNEY_ID, hoy)
             .putLong(KEY_JOURNEY_STARTED_AT, hoy)
