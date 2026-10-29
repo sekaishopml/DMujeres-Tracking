@@ -52,32 +52,41 @@ const escaparHtml = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;',
 const FORMATOS = { xlsx: 'Excel', pdf: 'PDF', png: 'imagen' };
 
 // La frase principal sale de los datos para que el HTML y el texto plano digan lo mismo.
-export function frasesCorreo({ titulo, nombre, rango, archivos }) {
+// Saludo según la hora en Ecuador, como escribe el equipo ("Buenas tardes,").
+export function saludo(ahoraMs = Date.now()) {
+  const hora = Number(new Intl.DateTimeFormat('en-US', { timeZone: 'America/Guayaquil', hour: 'numeric', hourCycle: 'h23' }).format(ahoraMs));
+  return hora < 12 ? 'Buenos días,' : hora < 19 ? 'Buenas tardes,' : 'Buenas noches,';
+}
+
+export function frasesCorreo({ titulo, nombre, rango, archivos }, ahoraMs = Date.now()) {
   const formatos = [...new Set(archivos.map((a) => FORMATOS[a.split('.').pop().toLowerCase()]).filter(Boolean))];
   const en = formatos.length ? ` en ${formatos.length > 1 ? `${formatos.slice(0, -1).join(', ')} y ${formatos.at(-1)}` : formatos[0]}` : '';
   const de = nombre ? ` de ${nombre}` : '';
   const periodo = rango ? `, ${rango.charAt(0).toLowerCase()}${rango.slice(1)}` : '';
   return {
     asunto: `${titulo}${de}${periodo}`,
-    cuerpo: `Adjunto encontrará el ${titulo.charAt(0).toLowerCase()}${titulo.slice(1)}${de}${periodo}${periodo && en ? ',' : ''}${en}.`,
-    nota: 'Lo recibe porque lo solicitó desde la app. Esta dirección solo envía reportes; si necesita algo, comuníquese con el departamento de CCTV.',
+    saludo: saludo(ahoraMs),
+    cuerpo: `Por medio del presente, se adjunta el ${titulo.charAt(0).toLowerCase()}${titulo.slice(1)}${de}${periodo}${periodo && en ? ',' : ''}${en}.`,
+    nota: 'Cualquier inquietud, comunicarse con el departamento de CCTV.',
+    firma: ['Saludos cordiales,', '', 'Departamento de CCTV', 'DMujeres'],
   };
 }
 
-// Correo sobrio, como carta: nombre de la empresa, una línea, el texto y la firma.
-// Tablas y estilos en línea para que Outlook de escritorio y Gmail lo muestren igual.
-export function correoHtml(datos) {
-  const { cuerpo, nota } = frasesCorreo(datos);
-  const letra = 'font-family:Arial,Helvetica,sans-serif;';
-  return `<!doctype html><html lang="es"><head><meta charset="utf-8"></head><body style="margin:0;padding:0;background:#ffffff">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#ffffff"><tr><td style="padding:24px 16px">
-<table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:600px;${letra}font-size:14px;line-height:21px;color:#1f2933">
-<tr><td style="padding:0 0 10px 0;border-bottom:2px solid #0B2545;${letra}font-size:18px;font-weight:bold;color:#0B2545">DMujeres</td></tr>
-<tr><td style="padding:20px 0 0 0;${letra}font-size:14px;line-height:21px;color:#1f2933">${escaparHtml(cuerpo)}</td></tr>
-<tr><td style="padding:20px 0 0 0;${letra}font-size:14px;line-height:21px;color:#1f2933">Saludos cordiales,<br>DMujeres</td></tr>
-<tr><td style="padding:28px 0 0 0;${letra}font-size:12px;line-height:18px;color:#6b7580">${escaparHtml(nota)}</td></tr>
-</table>
-</td></tr></table></body></html>`;
+// Texto simple, como un correo escrito en Outlook: sin colores, sin líneas ni
+// membrete. Así escribe el equipo y así se lee igual en cualquier programa.
+export function correoHtml(datos, ahoraMs = Date.now()) {
+  const f = frasesCorreo(datos, ahoraMs);
+  const parrafo = (t) => `<p style="margin:0 0 14px 0">${t}</p>`;
+  return `<!doctype html><html lang="es"><head><meta charset="utf-8"></head><body>
+<div style="font-family:Calibri,Arial,Helvetica,sans-serif;font-size:11pt;line-height:1.4;color:#000000">
+${parrafo(escaparHtml(f.saludo))}${parrafo(escaparHtml(f.cuerpo))}${parrafo(escaparHtml(f.nota))}${parrafo(f.firma.map(escaparHtml).join('<br>'))}
+</div></body></html>`;
+}
+
+// La misma carta en texto plano.
+export function correoTexto(datos, ahoraMs = Date.now()) {
+  const f = frasesCorreo(datos, ahoraMs);
+  return [f.saludo, '', f.cuerpo, '', f.nota, '', ...f.firma].join('\n');
 }
 
 export async function atenderJornadasConsulta(req, res, ctx) {
@@ -149,7 +158,7 @@ export async function atenderReporteCorreo(req, res, ctx, enviar = globalThis.fe
         to: [correo],
         subject: frases.asunto,
         html: correoHtml(datos),
-        text: `${frases.cuerpo}\n\nSaludos cordiales,\nDMujeres\n\n${frases.nota}`,
+        text: correoTexto(datos),
         attachments: archivos.map((a) => ({ filename: a.nombre, content: a.base64 })),
       }),
       signal: AbortSignal.timeout(20_000),

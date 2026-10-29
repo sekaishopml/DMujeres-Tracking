@@ -11,14 +11,19 @@ test('como mucho 10 envíos por teléfono por hora', () => {
   assert.equal(puedeEnviar('A', t0 + 3_600_001), true);
 });
 
-test('el correo es una carta corta con el nombre de la empresa y escapa los datos', async () => {
-  const { correoHtml, frasesCorreo } = await import('../src/reporte.js');
+test('el correo es texto simple como los del equipo y escapa los datos', async () => {
+  const { correoHtml, correoTexto, frasesCorreo } = await import('../src/reporte.js');
   const datos = { titulo: 'Reporte semanal', nombre: 'Ana <b>', rango: 'Del 26/10/2026 al 01/11/2026', archivos: ['a.xlsx', 'a.pdf'] };
-  const html = correoHtml(datos);
-  assert.match(html, />DMujeres</);
-  assert.match(html, /Adjunto encontrará el reporte semanal de Ana &lt;b&gt;, del 26\/10\/2026 al 01\/11\/2026, en Excel y PDF\./);
-  assert.doesNotMatch(html, /<b>|Tracking|·/);
+  // 15:00 en Guayaquil.
+  const tarde = Date.parse('2026-10-29T15:00:00-05:00');
+  const html = correoHtml(datos, tarde);
+  assert.match(html, /Buenas tardes,/);
+  assert.match(html, /Por medio del presente, se adjunta el reporte semanal de Ana &lt;b&gt;, del 26\/10\/2026 al 01\/11\/2026, en Excel y PDF\./);
+  assert.match(html, /departamento de CCTV/);
+  // Sin colores de marca, líneas ni membrete.
+  assert.doesNotMatch(html, /<b>|Tracking|·|#0B2545|border|bgcolor/i);
+  assert.match(correoTexto(datos, Date.parse('2026-10-29T08:00:00-05:00')), /^Buenos días,\n\nPor medio del presente/);
   const { asunto } = frasesCorreo({ ...datos, nombre: 'Ana', rango: 'Martes 28/10/2026', archivos: ['a.pdf'] });
   assert.equal(asunto, 'Reporte semanal de Ana, martes 28/10/2026');
-  assert.match(frasesCorreo({ titulo: 'Reporte', nombre: '', rango: '', archivos: [] }).cuerpo, /^Adjunto encontrará el reporte\.$/);
+  assert.match(frasesCorreo({ titulo: 'Reporte', nombre: '', rango: '', archivos: [] }).cuerpo, /^Por medio del presente, se adjunta el reporte\.$/);
 });
