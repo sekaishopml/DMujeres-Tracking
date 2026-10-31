@@ -33,14 +33,14 @@ class UploadPolicyTest {
     }
 
     @Test
-    fun `backoff exponencial con tope de 5 min`() {
+    fun `backoff exponencial con tope de 1 min`() {
         // jitter 0.5 = sin desvío: valores exactos base×2^fallos.
         assertEquals(5_000L, UploadPolicy.backoffMs(0, 0.5))
         assertEquals(10_000L, UploadPolicy.backoffMs(1, 0.5))
         assertEquals(20_000L, UploadPolicy.backoffMs(2, 0.5))
-        // Tope 5 min con jitter ±20 %: entre 240 s y 360 s.
-        assertEquals(240_000L, UploadPolicy.backoffMs(30, 0.0))
-        assertEquals(360_000L, UploadPolicy.backoffMs(30, 1.0))
+        // Tope 1 min con jitter ±20 %: entre 48 s y 72 s.
+        assertEquals(48_000L, UploadPolicy.backoffMs(30, 0.0))
+        assertEquals(72_000L, UploadPolicy.backoffMs(30, 1.0))
     }
 
     @Test

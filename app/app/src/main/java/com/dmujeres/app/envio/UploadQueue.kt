@@ -28,9 +28,9 @@ import kotlin.random.Random
  */
 object UploadPolicy {
 
-    /** Base del backoff exponencial: 5 s, ×2, tope 5 min. */
+    /** Base del backoff exponencial: 5 s, ×2, tope 1 min. */
     const val BASE_BACKOFF_MS = 5_000L
-    const val MAX_BACKOFF_MS = 5 * 60_000L
+    const val MAX_BACKOFF_MS = 60_000L
 
     /** Máximo de puntos por lote. */
     const val MAX_BATCH = 50
