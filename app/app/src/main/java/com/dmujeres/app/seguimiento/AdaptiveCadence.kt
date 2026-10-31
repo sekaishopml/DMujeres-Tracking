@@ -31,6 +31,13 @@ object AdaptiveCadence {
     /** Latido de reporte en quietud, y petición de red sin jornada. */
     const val STATIONARY_INTERVAL_MS = 120_000L
 
+    /**
+     * Filtro de reporte en quietud con jornada abierta: deja pasar una lectura
+     * por minuto. Así el latido de 5 min cae en 5 y no en 6: antes solo pasaba
+     * una lectura cada 120 s, y el primer paso >= 300 s llegaba a los 360 s.
+     */
+    const val QUIETA_REPORTE_INTERVAL_MS = 60_000L
+
     /** Desplazamiento mínimo entre fixes sin jornada (m). */
     const val MIN_DISTANCE_M = 10f
 

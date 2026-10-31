@@ -73,11 +73,11 @@ abstract class PositionProvider(
     abstract fun applyMotionState(moving: Boolean, gpsContinuous: Boolean)
 
     /** Alinea el filtro temporal del reporte con la cadencia del estado. */
-    protected fun updateReportInterval(moving: Boolean) {
-        reportIntervalMs = if (moving) {
-            AdaptiveCadence.movingIntervalMs(configuredIntervalSeconds())
-        } else {
-            AdaptiveCadence.STATIONARY_INTERVAL_MS
+    protected fun updateReportInterval(moving: Boolean, journeyOpen: Boolean) {
+        reportIntervalMs = when {
+            moving -> AdaptiveCadence.movingIntervalMs(configuredIntervalSeconds())
+            journeyOpen -> AdaptiveCadence.QUIETA_REPORTE_INTERVAL_MS
+            else -> AdaptiveCadence.STATIONARY_INTERVAL_MS
         }
     }
 

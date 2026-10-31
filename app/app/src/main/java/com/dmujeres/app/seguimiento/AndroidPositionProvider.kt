@@ -52,7 +52,7 @@ class AndroidPositionProvider(
 
     override fun startUpdates() {
         started = true
-        updateReportInterval(moving)
+        updateReportInterval(moving, gpsContinuous)
         requestUpdates()
     }
 
@@ -64,7 +64,7 @@ class AndroidPositionProvider(
     override fun applyMotionState(moving: Boolean, gpsContinuous: Boolean) {
         val cambiaPedido = this.gpsContinuous != gpsContinuous || (gpsContinuous && this.moving != moving)
         this.moving = moving
-        updateReportInterval(moving)
+        updateReportInterval(moving, gpsContinuous)
         if (!cambiaPedido) return
         this.gpsContinuous = gpsContinuous
         if (started) {

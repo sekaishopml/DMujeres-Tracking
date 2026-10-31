@@ -42,7 +42,7 @@ class GooglePositionProvider(context: Context, listener: PositionListener) : Pos
 
     override fun startUpdates() {
         started = true
-        updateReportInterval(moving)
+        updateReportInterval(moving, gpsContinuous)
         requestUpdates()
     }
 
@@ -55,7 +55,7 @@ class GooglePositionProvider(context: Context, listener: PositionListener) : Pos
         // Quieta con jornada el GPS sigue, pero más espaciado: cambia el pedido.
         val cambiaPedido = this.gpsContinuous != gpsContinuous || (gpsContinuous && this.moving != moving)
         this.moving = moving
-        updateReportInterval(moving)
+        updateReportInterval(moving, gpsContinuous)
         if (!cambiaPedido) return
         this.gpsContinuous = gpsContinuous
         if (started) requestUpdates()
