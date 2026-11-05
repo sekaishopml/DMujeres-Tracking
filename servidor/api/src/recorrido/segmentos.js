@@ -67,6 +67,8 @@ export function sqlSegmentos() {
         AND p.registrado_en >= $2 AND p.registrado_en < $3
         AND ${PREDICADO_PERMISO}
         AND ($4::bigint IS NULL OR p.dispositivo_id = $4)
+        -- La ubicación simulada (GPS falso) no suma kilómetros ni viajes.
+        AND p.valida
       WINDOW wp AS (PARTITION BY p.dispositivo_id ORDER BY p.registrado_en)
     ),
     -- Velocidad efectiva: la mayor entre la reportada y la del desplazamiento

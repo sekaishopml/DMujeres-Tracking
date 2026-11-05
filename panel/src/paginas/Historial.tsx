@@ -68,14 +68,19 @@ function horasCortas(minutos: number): string {
 }
 
 interface Celda {
+  // Minutos de jornadas que la persona abrió y cerró.
   minutos: number;
+  // Minutos que no se pueden afirmar: la jornada venía del día anterior o
+  // nadie la cerró (corte de medianoche o recorte al último punto).
+  minutosSinCerrar: number;
   // Primera entrada del día (null si la jornada venía del día anterior).
   entrada: string | null;
-  // Última salida del día (null si siguió después o sigue en curso).
+  // Última salida del día (null si siguió después, sigue en curso o no la cerró).
   salida: string | null;
   enCurso: boolean;
   abiertaLarga: boolean;
   continua: boolean;
+  sinCerrar: boolean;
 }
 
 // Reparte cada jornada en los días que cubre, con los minutos de cada día.
@@ -94,11 +99,20 @@ function celdasPorPersona(jornadas: JornadaFlota[], ahora: number): Map<string, 
       const a = Math.max(inicio, desdeDia);
       const b = Math.min(fin, hastaDia);
       if (b > a) {
-        const celda = porDia.get(dia) ?? { minutos: 0, entrada: null, salida: null, enCurso: false, abiertaLarga: false, continua: false };
-        celda.minutos += (b - a) / 60_000;
-        if (inicio >= desdeDia && (!celda.entrada || j.inicioEn < celda.entrada)) celda.entrada = j.inicioEn;
-        if (inicio < desdeDia) celda.continua = true;
-        if (j.finEn && fin <= hastaDia && (!celda.salida || j.finEn > celda.salida)) celda.salida = j.finEn;
+        const celda = porDia.get(dia) ?? {
+          minutos: 0, minutosSinCerrar: 0, entrada: null, salida: null, enCurso: false, abiertaLarga: false, continua: false, sinCerrar: false,
+        };
+        // El tramo que sigue la jornada de otro día (pasó la medianoche) no
+        // es una entrada ni un día trabajado; tampoco lo es una jornada que
+        // nadie cerró.
+        const continua = inicio < desdeDia || j.continua === true;
+        const sinCerrar = continua || j.cierreAutomatico === true || abiertaLarga;
+        if (sinCerrar) celda.minutosSinCerrar += (b - a) / 60_000;
+        else celda.minutos += (b - a) / 60_000;
+        if (!continua && (!celda.entrada || j.inicioEn < celda.entrada)) celda.entrada = j.inicioEn;
+        if (continua) celda.continua = true;
+        if (j.cierreAutomatico || abiertaLarga) celda.sinCerrar = true;
+        if (j.finEn && !j.cierreAutomatico && fin <= hastaDia && (!celda.salida || j.finEn > celda.salida)) celda.salida = j.finEn;
         if (!j.finEn && ahora <= hastaDia) celda.enCurso = true;
         if (abiertaLarga) celda.abiertaLarga = true;
         porDia.set(dia, celda);
@@ -268,6 +282,10 @@ function FilaAsistencia({
 }) {
   const delPeriodo = dias.map((d) => porDia?.get(d)).filter((c): c is Celda => Boolean(c));
   const minutos = delPeriodo.reduce((suma, c) => suma + c.minutos, 0);
+  const sinCerrar = delPeriodo.reduce((suma, c) => suma + c.minutosSinCerrar, 0);
+  // Día trabajado: el que tuvo una entrada; el tramo que sigue a la
+  // medianoche no lo es.
+  const diasTrabajados = delPeriodo.filter((c) => c.entrada).length;
   const entradas = delPeriodo
     .filter((c) => c.entrada)
     .map((c) => {
@@ -288,8 +306,15 @@ function FilaAsistencia({
           <CeldaDia celda={porDia?.get(dia) ?? null} dia={dia} hoy={hoy} persona={persona} compacta={compacta} />
         </td>
       ))}
-      <td className="px-3 py-2 text-right font-semibold text-marino-900 cifras">{delPeriodo.length}</td>
-      <td className="px-3 py-2 text-right text-marino-900 cifras">{minutos > 0 ? horasTexto(minutos) : GUION}</td>
+      <td className="px-3 py-2 text-right font-semibold text-marino-900 cifras">{diasTrabajados}</td>
+      <td className="px-3 py-2 text-right text-marino-900 cifras">
+        {minutos > 0 ? horasTexto(minutos) : GUION}
+        {sinCerrar > 0 && (
+          <span className="block text-[11px] font-semibold text-sin-senal" title="Horas de jornadas que nadie cerró: no se cuentan como trabajadas.">
+            + {horasTexto(sinCerrar)} sin cerrar
+          </span>
+        )}
+      </td>
       <td className="px-3 py-2 text-right text-texto-2 cifras">
         {media == null ? GUION : `${String(Math.floor(media / 60)).padStart(2, '0')}:${String(media % 60).padStart(2, '0')}`}
       </td>
@@ -311,12 +336,15 @@ function CeldaDia({
   compacta: boolean;
 }) {
   if (!celda) return <span className="text-texto-3">{dia > hoy ? '' : GUION}</span>;
-  const tono = celda.abiertaLarga ? 'bg-sin-senal-suave' : celda.enCurso ? 'bg-movimiento-suave' : 'bg-marino-50';
+  const alerta = celda.sinCerrar || celda.minutosSinCerrar > 0;
+  const tono = alerta ? 'bg-sin-senal-suave' : celda.enCurso ? 'bg-movimiento-suave' : 'bg-marino-50';
   const entrada = celda.entrada ? HORA.format(new Date(celda.entrada)) : 'continúa';
-  const salida = celda.salida ? HORA.format(new Date(celda.salida)) : celda.enCurso ? 'en curso' : 'sigue';
-  const detalle = `${persona.nombre} · ${dia}: ${entrada} – ${salida}, ${horasTexto(celda.minutos)}${
-    celda.abiertaLarga ? ' (jornada sin cerrar)' : ''
-  }. Abrir la repetición de ruta.`;
+  const salida = celda.salida ? HORA.format(new Date(celda.salida)) : celda.enCurso ? 'en curso' : celda.sinCerrar ? 'no cerró' : 'sigue';
+  const horas = [
+    celda.minutos > 0 ? horasTexto(celda.minutos) : '',
+    celda.minutosSinCerrar > 0 ? `Sin cerrar · ${horasTexto(celda.minutosSinCerrar)}` : '',
+  ].filter(Boolean).join(' + ');
+  const detalle = `${persona.nombre} · ${dia}: ${entrada} – ${salida}, ${horas}. Abrir la repetición de ruta.`;
   return (
     <Link
       to={`/replay${consulta({ dispositivo: persona.idPublico, desde: dia, hasta: dia })}`}
@@ -325,16 +353,16 @@ function CeldaDia({
       className={cn('block rounded-[8px] px-1 py-1 leading-tight transition-colors hover:bg-marino-100/70', tono)}
     >
       {compacta ? (
-        <span className={cn('block text-[11.5px] font-semibold cifras', celda.abiertaLarga ? 'text-sin-senal' : 'text-marino-900')}>
-          {horasCortas(celda.minutos)}
+        <span className={cn('block text-[11.5px] font-semibold cifras', alerta ? 'text-sin-senal' : 'text-marino-900')}>
+          {celda.minutos > 0 ? horasCortas(celda.minutos) : 'Sin cerrar'}
         </span>
       ) : (
         <>
           <span className="block font-semibold text-marino-900 cifras">
             {entrada} – {salida}
           </span>
-          <span className={cn('block text-[11px] cifras', celda.abiertaLarga ? 'font-semibold text-sin-senal' : 'text-texto-3')}>
-            {celda.abiertaLarga ? `Sin cerrar · ${horasTexto(celda.minutos)}` : horasTexto(celda.minutos)}
+          <span className={cn('block text-[11px] cifras', alerta ? 'font-semibold text-sin-senal' : 'text-texto-3')}>
+            {horas}
           </span>
         </>
       )}

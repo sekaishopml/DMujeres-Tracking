@@ -90,3 +90,28 @@ test('dos paradas en el mismo lugar sin pasos entre ellas son una', () => {
   const viaje = Array.from({ length: 13 }, (_, i) => punto(10, i * 5, 480 + i * 40, i > 2 && i < 10));
   assert.equal(unirParadasSinSalir(paradas, [], [...manana, ...viaje]).length, 2);
 });
+
+// David, 01/11: sale caminando de la oficina a un local a 130 m y se queda
+// 1 h 26 min con buena precisión. Son dos lugares, no una estadía con rebote.
+test('salir caminando a otro sitio a 130 m y quedarse ahí no se une con la oficina', () => {
+  const t = (h, m, s = 0) => new Date(Date.UTC(2026, 10, 1, h + 5, m, s)).toISOString();
+  const oficina = { latitud: -2.227414, longitud: -79.888453 };
+  const local = { latitud: -2.226661, longitud: -79.889349 }; // ~130 m
+  const punto = (h, m, lugar, pasos, s = 0) => ({ registradoEn: t(h, m, s), ...lugar, precisionM: 4, pasos });
+  // El contador funciona ese día.
+  const manana = Array.from({ length: 30 }, (_, i) => punto(9, 20 + i, oficina, i * 10));
+  const tarde = Array.from({ length: 41 }, (_, i) => punto(18, i, oficina, 1000 + i));
+  // Caminata: unos 480 pasos en 3 min hasta el local.
+  const caminata = [punto(18, 40, { latitud: -2.22721, longitud: -79.88866 }, 1362, 50), punto(18, 41, { latitud: -2.22713, longitud: -79.88891 }, 1400, 8), punto(18, 41, { latitud: -2.22695, longitud: -79.88926 }, 1462, 44)];
+  const enLocal = Array.from({ length: 80 }, (_, i) => punto(18, 42 + i, local, 1522));
+  const paradas = [
+    { inicio: t(9, 20), fin: t(18, 40, 45), duracionMin: 0, ...oficina, direccion: null },
+    { inicio: t(18, 41, 50), fin: t(20, 2), duracionMin: 0, ...local, direccion: null },
+  ];
+  const unidas = unirParadasSinSalir(paradas, [], [...manana, ...tarde, ...caminata, ...enLocal]);
+  assert.equal(unidas.length, 2);
+  assert.ok(Date.parse(unidas[0].fin) <= Date.parse(t(18, 41, 50)));
+  // Sin pasos entre las dos (rebote bajo techo), sigue siendo una sola.
+  const quieto = [...manana, ...tarde, ...caminata.map((p) => ({ ...p, pasos: 1039 })), ...enLocal.map((p) => ({ ...p, pasos: 1039 }))];
+  assert.equal(unirParadasSinSalir(paradas, [], quieto).length, 1);
+});

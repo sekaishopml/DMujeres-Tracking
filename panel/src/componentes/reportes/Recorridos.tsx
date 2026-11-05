@@ -37,7 +37,8 @@ const PERIODOS = [
 
 
 function rangoDePeriodo(periodo: Periodo): { desde: string; hasta: string } {
-  const dias = periodo === 'hoy' ? 0 : Number(periodo);
+  // "7 días" son hoy y los 6 anteriores (antes se pedían 8).
+  const dias = periodo === 'hoy' ? 0 : Number(periodo) - 1;
   return { desde: fechaHaceDias(dias), hasta: fechaHoyLocal() };
 }
 
@@ -260,7 +261,6 @@ export default function Recorridos({ pestanas }: { pestanas?: ReactNode }) {
                       <Th numerico>Distancia</Th>
                       <Th numerico>Vel. promedio</Th>
                       <Th numerico>Vel. máxima</Th>
-                      <Th numerico>Paradas</Th>
                     </tr>
                   </thead>
                   <tbody>
@@ -273,7 +273,6 @@ export default function Recorridos({ pestanas }: { pestanas?: ReactNode }) {
                         <Td numerico>{kilometros(v.distanciaKm * 1000)}</Td>
                         <Td numerico>{velocidad(v.velocidadPromedioKmh)}</Td>
                         <Td numerico>{velocidad(v.velocidadMaximaKmh)}</Td>
-                        <Td numerico>{v.paradas}</Td>
                       </Fila>
                     ))}
                   </tbody>

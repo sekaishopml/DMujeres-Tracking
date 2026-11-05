@@ -30,6 +30,9 @@ export const ESTILO_EVENTO: Record<TipoEvento, Estilo> = {
   jornadaFin: { icono: Flag, punto: 'bg-marino-700', color: '#17365d' },
   salida: { icono: ArrowUpRight, punto: 'bg-movimiento', color: '#16a34a' },
   llegada: { icono: MapPin, punto: 'bg-detenido', color: '#2563eb' },
+  // Sin hora registrada: gris, para que no se lea como una hora cierta.
+  salidaSinHora: { icono: ArrowUpRight, punto: 'bg-deshabilitado', color: '#94a3b8' },
+  llegadaSinHora: { icono: MapPin, punto: 'bg-deshabilitado', color: '#94a3b8' },
   sinSenal: { icono: WifiOff, punto: 'bg-sin-senal', color: '#d97706' },
   sinBateria: { icono: BatteryWarning, punto: 'bg-peligro', color: '#dc2626' },
   retomo: { icono: RotateCcw, punto: 'bg-movimiento', color: '#16a34a' },

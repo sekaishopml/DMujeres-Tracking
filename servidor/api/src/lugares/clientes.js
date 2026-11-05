@@ -4,6 +4,7 @@
 //   POST  /api/v1/clientes              {clientes:[{nombre, direccion, lat, lon}]}
 //                                       agrega uno o varios (pegados de Excel)
 //   PATCH /api/v1/clientes/:id          {nombre, direccion, lat, lon, activo}
+//                                       (guardar lat/lon confirma la ubicación)
 
 import { consultar } from '../base/db.js';
 import { datosInvalidos, noEncontrado } from '../base/errores.js';
@@ -23,6 +24,8 @@ function aCliente(f) {
     activo: f.activo === true,
     visitas: Number(f.visitas ?? 0),
     creadoEnApp: f.creado_por_dispositivo !== null,
+    // La fijó una persona en el panel; la aprendida de la app no está confirmada.
+    ubicacionConfirmada: f.ubicacion_confirmada === true,
   };
 }
 
@@ -69,8 +72,8 @@ export async function crearClientes(ctx) {
   let creados = 0;
   for (const c of nuevos) {
     const { rowCount } = await ctx.pool.query(
-      `INSERT INTO operations.dmt_cliente (nombre, direccion, latitud, longitud)
-       SELECT $1, $2, $3, $4
+      `INSERT INTO operations.dmt_cliente (nombre, direccion, latitud, longitud, ubicacion_confirmada)
+       SELECT $1, $2, $3, $4, $3::float8 IS NOT NULL
         WHERE NOT EXISTS (SELECT 1 FROM operations.dmt_cliente WHERE activo AND lower(nombre) = lower($1))`,
       [c.nombre, c.direccion, c.ubicacion?.lat ?? null, c.ubicacion?.lon ?? null],
     );
@@ -104,6 +107,8 @@ export async function actualizarCliente(ctx) {
     const ubicacion = coordenadas(cuerpo.lat, cuerpo.lon);
     poner('latitud', ubicacion?.lat ?? null);
     poner('longitud', ubicacion?.lon ?? null);
+    // Guardarla desde el panel es confirmarla.
+    poner('ubicacion_confirmada', ubicacion !== null);
   }
   if (typeof cuerpo.activo === 'boolean') poner('activo', cuerpo.activo);
   if (campos.length === 0) throw datosInvalidos('No hay nada que cambiar.');

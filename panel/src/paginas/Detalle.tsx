@@ -292,24 +292,48 @@ export default function Detalle() {
           {esHoy && ' · hoy'}
         </div>
         <dl className="grid grid-cols-2 divide-borde bg-fondo/60 sm:grid-cols-3 sm:divide-x xl:grid-cols-6">
-          <Hito etiqueta={esIphone ? 'App activada' : 'Inició jornada'} icono={Play} valor={hora(resumen.inicioJornada?.instante)} />
-          <Hito etiqueta="Primera salida" icono={ArrowUpRight} valor={hora(resumen.primeraSalida?.instante)} tono="text-movimiento" />
-          <Hito etiqueta="Primera llegada" icono={MapPin} valor={hora(resumen.primeraLlegada?.instante)} tono="text-detenido" />
+          {/* Solo horas con respaldo: el corte de medianoche no es una entrada
+              y una salida o llegada sin registro no tiene hora. */}
+          <Hito
+            etiqueta={esIphone ? 'App activada' : 'Inició jornada'}
+            icono={Play}
+            valor={resumen.inicioJornada ? hora(resumen.inicioJornada.instante) : resumen.continuaJornada ? 'Del día anterior' : GUION}
+          />
+          <Hito
+            etiqueta="Primera salida"
+            icono={ArrowUpRight}
+            valor={resumen.primeraSalida?.tipo === 'salidaSinHora' ? 'Sin hora registrada' : hora(resumen.primeraSalida?.instante)}
+            tono="text-movimiento"
+          />
+          <Hito
+            etiqueta="Primera llegada"
+            icono={MapPin}
+            valor={resumen.primeraLlegada?.tipo === 'llegadaSinHora' ? 'Sin hora registrada' : hora(resumen.primeraLlegada?.instante)}
+            tono="text-detenido"
+          />
           <Hito
             etiqueta={esIphone ? 'App sin cobertura' : 'Finalizó jornada'}
             icono={Flag}
-            valor={resumen.finJornada ? hora(resumen.finJornada.instante) : resumen.inicioJornada ? 'En curso' : GUION}
+            valor={
+              resumen.finJornada
+                ? resumen.finJornada.automatico
+                  ? 'No la cerró'
+                  : hora(resumen.finJornada.instante)
+                : resumen.inicioJornada || resumen.continuaJornada
+                  ? 'En curso'
+                  : GUION
+            }
           />
           <Hito
             etiqueta="Sin registro"
             icono={TimerOff}
-            valor={resumen.cortes > 0 ? duracion(resumen.sinRegistroS) : GUION}
+            valor={replay.data && resumen.cortes > 0 ? duracion(resumen.sinRegistroS) : GUION}
             tono={resumen.sinRegistroS > 0 ? 'text-sin-senal' : undefined}
           />
           <Hito
             etiqueta="Cortes / sin batería"
             icono={TriangleAlert}
-            valor={`${resumen.cortes} / ${resumen.sinBateria}`}
+            valor={replay.data ? `${resumen.cortes} / ${resumen.sinBateria}` : GUION}
             tono={resumen.sinBateria > 0 ? 'text-peligro' : undefined}
           />
         </dl>

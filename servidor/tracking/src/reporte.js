@@ -101,10 +101,23 @@ export async function atenderJornadasConsulta(req, res, ctx) {
   const dispositivo = await buscarOFallar(ctx, res, identificador, 404);
   if (!dispositivo) return;
   try {
+    // El corte de medianoche no es un inicio ("continúa") ni un fin de la
+    // persona ("sin cerrar"), y tampoco lo es el fin que el servidor llevó al
+    // último punto (finApp). Un fin de otro día lleva la fecha: "07:59 a
+    // 07:53" sin fecha parecía una jornada al revés.
     const { rows } = await ctx.almacen.pool.query(
       `SELECT to_char(inicio_en AT TIME ZONE 'America/Guayaquil', 'YYYY-MM-DD') AS fecha,
-              to_char(inicio_en AT TIME ZONE 'America/Guayaquil', 'HH24:MI') AS inicio,
-              to_char(fin_en AT TIME ZONE 'America/Guayaquil', 'HH24:MI') AS fin,
+              CASE WHEN atributos->>'inicio' = 'medianoche'
+                     OR to_char(inicio_en AT TIME ZONE 'America/Guayaquil', 'HH24:MI:SS.MS') = '00:00:00.000'
+                   THEN 'continúa'
+                   ELSE to_char(inicio_en AT TIME ZONE 'America/Guayaquil', 'HH24:MI') END AS inicio,
+              CASE WHEN fin_en IS NULL THEN NULL
+                   WHEN atributos->>'fin' = 'medianoche' OR atributos ? 'finApp'
+                     OR to_char(fin_en AT TIME ZONE 'America/Guayaquil', 'HH24:MI:SS.MS') = '23:59:59.999'
+                   THEN 'sin cerrar'
+                   WHEN (fin_en AT TIME ZONE 'America/Guayaquil')::date <> (inicio_en AT TIME ZONE 'America/Guayaquil')::date
+                   THEN to_char(fin_en AT TIME ZONE 'America/Guayaquil', 'DD/MM HH24:MI')
+                   ELSE to_char(fin_en AT TIME ZONE 'America/Guayaquil', 'HH24:MI') END AS fin,
               estado = 'abierta' AS abierta, atributos->>'notaFin' AS nota_fin
          FROM operations.dmt_jornada
         WHERE dispositivo_id = $1
@@ -113,8 +126,11 @@ export async function atenderJornadasConsulta(req, res, ctx) {
         ORDER BY inicio_en`,
       [Number(dispositivo.id), desde, hasta],
     );
+    // El tramo que continúa de ayer sobra si ese día también hubo un inicio.
+    const conInicio = new Set(rows.filter((f) => f.inicio !== 'continúa').map((f) => f.fecha));
+    const propias = rows.filter((f) => f.inicio !== 'continúa' || !conInicio.has(f.fecha));
     return responderJson(res, 200, {
-      jornadas: rows.map((f) => ({ fecha: f.fecha, inicio: f.inicio, fin: f.fin, abierta: f.abierta, notaFin: f.nota_fin })),
+      jornadas: propias.map((f) => ({ fecha: f.fecha, inicio: f.inicio, fin: f.fin, abierta: f.abierta, notaFin: f.nota_fin })),
       correo: typeof dispositivo.atributos?.['mobile.correoReporte'] === 'string' ? dispositivo.atributos['mobile.correoReporte'] : null,
     });
   } catch (error) {

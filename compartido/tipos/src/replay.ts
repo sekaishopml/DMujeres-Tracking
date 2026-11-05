@@ -9,6 +9,7 @@ export type MotivoHueco =
   | "SIN_DATOS"
   | "PAUSA"
   | "APAGADO"
+  | "REINICIO_SIN_APP"
   | "GPS_APAGADO"
   | "SIN_PERMISO"
   | "SIN_CONTACTO"

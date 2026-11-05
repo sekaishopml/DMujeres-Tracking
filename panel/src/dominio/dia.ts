@@ -43,8 +43,10 @@ export interface Cobertura {
   mayorCorteSegundos: number;
 }
 
-// Dos paradas seguidas a menos de esto cuentan como la misma visita.
-export const RADIO_MISMA_VISITA_M = 150;
+// Dos paradas seguidas a menos de esto cuentan como la misma visita. El mismo
+// radio con que la bitácora decide que sigue en el lugar: con 150 m la oficina
+// y el local de al lado (130 m) salían como la misma visita (David 01/11).
+export const RADIO_MISMA_VISITA_M = 100;
 
 const ms = (iso: string) => new Date(iso).getTime();
 

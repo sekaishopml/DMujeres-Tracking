@@ -44,7 +44,16 @@ export interface Actividad {
   respaldo?: { estado: EstadoRespaldo; distanciaM: number | null };
 }
 
-export type EstadoRespaldo = 'GPS' | 'LEJOS' | 'EN_CAMINO' | 'SIN_RECORRIDO' | 'NO_APLICA';
+export type EstadoRespaldo =
+  | 'GPS'
+  | 'LEJOS'
+  // Lejos de una ubicación de cliente que nadie confirmó: no prueba nada.
+  | 'LUGAR_SIN_CONFIRMAR'
+  // A esa hora solo hay ubicación simulada (GPS falso).
+  | 'SIMULADA'
+  | 'EN_CAMINO'
+  | 'SIN_RECORRIDO'
+  | 'NO_APLICA';
 
 export const TIPOS: Record<TipoActividad, { etiqueta: string; clase: string }> = {
   visita: { etiqueta: 'Visita', clase: 'bg-marino-100 text-marino-800' },

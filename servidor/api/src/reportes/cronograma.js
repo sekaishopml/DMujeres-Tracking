@@ -70,17 +70,23 @@ function metros(a, b) {
 
 // Qué dice el recorrido de lo declarado:
 //  - GPS: estuvo detenido en ese horario (y en el cliente, si tiene ubicación);
-//  - LEJOS: estuvo detenido, pero lejos del cliente declarado;
+//  - LEJOS: estuvo detenido, pero lejos del cliente declarado (solo si una
+//    persona confirmó la ubicación del cliente);
+//  - LUGAR_SIN_CONFIRMAR: lejos de una ubicación que el sistema aprendió del
+//    primer registro (en camino, otra ciudad o el mismo nombre en dos sitios):
+//    no prueba nada (Silvia, Mariam y Melina en octubre);
+//  - SIMULADA: a esa hora solo hay ubicación simulada (GPS falso);
 //  - EN_CAMINO: había puntos, pero estaba en movimiento;
 //  - SIN_RECORRIDO: no hay puntos a esa hora (no inició jornada o sin señal);
 //  - NO_APLICA: vacaciones y permisos no se comprueban con el recorrido.
-export function respaldoDe({ tipo, enHora, cliente }) {
+export function respaldoDe({ tipo, enHora, cliente, simulada = false }) {
   if (SIN_VERIFICAR.has(tipo)) return { estado: 'NO_APLICA', distanciaM: null };
-  if (!enHora) return { estado: 'SIN_RECORRIDO', distanciaM: null };
+  if (!enHora) return { estado: simulada ? 'SIMULADA' : 'SIN_RECORRIDO', distanciaM: null };
   if (!enHora.detenida) return { estado: 'EN_CAMINO', distanciaM: null };
   if (cliente && Number.isFinite(cliente.lat) && Number.isFinite(cliente.lon)) {
     const distanciaM = Math.round(metros({ lat: enHora.latitud, lon: enHora.longitud }, cliente));
-    return { estado: distanciaM <= RADIO_CLIENTE_M ? 'GPS' : 'LEJOS', distanciaM };
+    if (distanciaM <= RADIO_CLIENTE_M) return { estado: 'GPS', distanciaM };
+    return { estado: cliente.confirmada ? 'LEJOS' : 'LUGAR_SIN_CONFIRMAR', distanciaM };
   }
   return { estado: 'GPS', distanciaM: null };
 }
@@ -101,7 +107,7 @@ export async function listarCronograma(ctx) {
             to_char(a.fecha, 'YYYY-MM-DD') AS fecha, a.hora, a.hora_fin, a.tipo, a.lugar, a.nota,
             a.registrado_en, a.con_jornada, a.latitud, a.longitud, a.precision_m,
             c.id AS cliente_id_lista, c.nombre AS cliente_nombre, c.direccion AS cliente_direccion,
-            c.latitud AS cliente_lat, c.longitud AS cliente_lon
+            c.latitud AS cliente_lat, c.longitud AS cliente_lon, c.ubicacion_confirmada AS cliente_confirmada
        FROM operations.dmt_actividad a
        JOIN tracking.dmt_dispositivo d ON d.id = a.dispositivo_id
        LEFT JOIN operations.dmt_cliente c ON c.id = a.cliente_lugar_id
@@ -117,10 +123,12 @@ export async function listarCronograma(ctx) {
   // Recorrido de los equipos con actividades, una sola consulta para el rango.
   const equipos = [...new Set(rows.map((f) => Number(f.dispositivo_id)))];
   const porEquipo = new Map();
+  const simuladosPorEquipo = new Map();
   if (equipos.length > 0) {
     const pos = await consultar(
       ctx.pool,
-      `SELECT dispositivo_id, registrado_en, latitud, longitud, precision_m
+      `SELECT dispositivo_id, registrado_en, latitud, longitud, precision_m, valida,
+              CASE WHEN (atributos->>'steps') ~ '^[0-9]+$' THEN (atributos->>'steps')::bigint END AS pasos
          FROM tracking.dmt_posicion
         WHERE dispositivo_id = ANY($1::bigint[])
           AND registrado_en >= ($2::date::timestamp AT TIME ZONE 'America/Guayaquil') - interval '1 hour'
@@ -131,12 +139,20 @@ export async function listarCronograma(ctx) {
     );
     for (const p of pos.rows) {
       const id = Number(p.dispositivo_id);
+      // La ubicación simulada (GPS falso) no respalda nada: se guarda aparte
+      // para decir que a esa hora solo había eso.
+      if (p.valida !== true) {
+        if (!simuladosPorEquipo.has(id)) simuladosPorEquipo.set(id, []);
+        simuladosPorEquipo.get(id).push(new Date(p.registrado_en).getTime());
+        continue;
+      }
       if (!porEquipo.has(id)) porEquipo.set(id, []);
       porEquipo.get(id).push({
         registradoEn: p.registrado_en,
         latitud: Number(p.latitud),
         longitud: Number(p.longitud),
         precisionM: p.precision_m === null ? null : Number(p.precision_m),
+        pasos: p.pasos === null ? null : Number(p.pasos),
       });
     }
   }
@@ -158,7 +174,14 @@ export async function listarCronograma(ctx) {
     }
     const tFin = f.hora_fin ? instanteDeclarado(f.fecha, f.hora_fin) : null;
     const { parada, porRango, coberturaPct } = paradaDeActividad(paradasPorEquipo.get(id) ?? [], t, tFin);
-    const conFix = cercano !== null && mejor <= VENTANA_HORA_MS;
+    // Con horario declarado tiene que haber algún punto dentro: un punto en
+    // marcha 12 min antes no dice nada de una franja de 3 h sin datos
+    // (Silvia 28/10, "Oficina 11:00-14:07").
+    const enFranja = (instante) => tFin === null || tFin <= t || (instante >= t && instante <= tFin);
+    const hayEnFranja = puntos.some((p) => enFranja(new Date(p.registradoEn).getTime()));
+    const conFix = cercano !== null && mejor <= VENTANA_HORA_MS && hayEnFranja;
+    const simulada = (simuladosPorEquipo.get(id) ?? []).some((instante) =>
+      tFin !== null && tFin > t ? enFranja(instante) : Math.abs(instante - t) <= VENTANA_HORA_MS);
     const enHora = conFix || porRango
       ? {
           latitud: parada ? parada.latitud : cercano.latitud,
@@ -181,6 +204,7 @@ export async function listarCronograma(ctx) {
           direccion: f.cliente_direccion ?? null,
           lat: f.cliente_lat === null ? null : Number(f.cliente_lat),
           lon: f.cliente_lon === null ? null : Number(f.cliente_lon),
+          confirmada: f.cliente_confirmada === true,
         };
     const lat = f.latitud === null ? null : Number(f.latitud);
     const lon = f.longitud === null ? null : Number(f.longitud);
@@ -203,7 +227,7 @@ export async function listarCronograma(ctx) {
       },
       enHora,
       cliente,
-      respaldo: respaldoDe({ tipo: f.tipo, enHora, cliente }),
+      respaldo: respaldoDe({ tipo: f.tipo, enHora, cliente, simulada }),
     };
   });
   // Inicio y fin de jornada de cada día: cómo empezó (a mano, al iniciar una

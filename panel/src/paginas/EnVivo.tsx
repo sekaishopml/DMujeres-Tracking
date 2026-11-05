@@ -470,12 +470,18 @@ function FichaPersona({
   // empezó hoy. El tiempo corre mientras está abierta y se congela al cerrar.
   const jornada = useMemo(() => {
     const lista = [...(jornadas.data?.jornadas ?? [])].sort((a, b) => b.inicioEn.localeCompare(a.inicioEn));
-    return lista.find((j) => !j.finEn) ?? lista.find((j) => j.inicioEn >= desde) ?? null;
+    return (
+      lista.find((j) => !j.finEn) ??
+      lista.find((j) => j.inicioEn >= desde && !j.continua) ??
+      lista.find((j) => j.inicioEn >= desde) ??
+      null
+    );
   }, [jornadas.data, desde]);
   const ahora = useReloj(jornada && !jornada.finEn ? 1000 : null);
   // Cada día cuenta desde las 00:00: una jornada que quedó abierta desde
   // ayer (el teléfono no mandó el corte de medianoche) no suma horas de ayer.
-  const desdeHoy = jornada != null && new Date(jornada.inicioEn).getTime() < new Date(desde).getTime();
+  // El corte de medianoche tampoco es una entrada: la jornada sigue la de ayer.
+  const desdeHoy = jornada != null && (new Date(jornada.inicioEn).getTime() < new Date(desde).getTime() || jornada.continua === true);
   const inicioMs = jornada ? Math.max(new Date(jornada.inicioEn).getTime(), new Date(desde).getTime()) : null;
   const finMs = jornada?.finEn ? new Date(jornada.finEn).getTime() : ahora;
   const tiempoJornada = inicioMs != null && finMs > inicioMs ? reloj((finMs - inicioMs) / 1000) : GUION;
@@ -484,14 +490,18 @@ function FichaPersona({
   const hitos: { etiqueta: string; valor: string; detalle?: string; vivo?: boolean; titulo?: string }[] = [
     {
       etiqueta: 'Inició jornada',
-      valor: jornada ? (desdeHoy ? '00:00' : hora(jornada.inicioEn)) : GUION,
-      detalle: desdeHoy && diaInicio ? `viene del ${diaInicio.slice(8, 10)}/${diaInicio.slice(5, 7)}` : undefined,
-      titulo: desdeHoy ? `La jornada empezó el ${diaInicio} a las ${hora(jornada.inicioEn)}` : undefined,
+      valor: jornada ? (desdeHoy ? 'Continúa' : hora(jornada.inicioEn)) : GUION,
+      detalle: desdeHoy ? 'viene de ayer' : undefined,
+      titulo: desdeHoy
+        ? jornada.continua
+          ? 'La jornada pasó la medianoche sin cerrarse: no hay hora de entrada de hoy.'
+          : `La jornada empezó el ${diaInicio} a las ${hora(jornada.inicioEn)}`
+        : undefined,
     },
     {
       etiqueta: jornada?.finEn ? 'Jornada' : 'Tiempo de jornada',
       valor: tiempoJornada,
-      detalle: jornada?.finEn ? `finalizó ${hora(jornada.finEn)}` : undefined,
+      detalle: jornada?.finEn ? (jornada.cierreAutomatico ? 'no la cerró' : `finalizó ${hora(jornada.finEn)}`) : undefined,
       vivo: Boolean(jornada && !jornada.finEn),
     },
   ];

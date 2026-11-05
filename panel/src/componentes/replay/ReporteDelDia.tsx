@@ -7,6 +7,7 @@ import type { Actividad } from '@/dominio/cronograma';
 // Qué dice el recorrido de lo declarado, solo cuando hay algo que revisar.
 const AVISO_RESPALDO: Record<string, string> = {
   LEJOS: 'Lejos del cliente',
+  SIMULADA: 'Solo ubicación simulada a esa hora',
   SIN_RECORRIDO: 'Sin recorrido a esa hora',
 };
 

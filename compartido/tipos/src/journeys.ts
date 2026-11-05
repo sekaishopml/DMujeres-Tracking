@@ -10,6 +10,12 @@ export interface Jornada {
   abierta: boolean;
   /** iPhone: no es una jornada marcada, es del primer al último punto del día. */
   soloApp?: boolean;
+  /** Sigue la jornada del día anterior: el inicio es el corte de medianoche, no una entrada. */
+  continua?: boolean;
+  /** No la cerró la persona: la cortó la app a medianoche o el servidor en el último punto. */
+  cierreAutomatico?: boolean;
+  /** Motivo que escribió la persona al cerrar antes de las 17:00. */
+  notaFin?: string;
 }
 
 /** Respuesta de GET /api/v1/fleet/{id}/journeys. */

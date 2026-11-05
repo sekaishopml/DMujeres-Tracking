@@ -13,11 +13,12 @@ import { consultar } from '../base/db.js';
 import { datosInvalidos } from '../base/errores.js';
 import { rangoHoy } from '../base/http.js';
 import { PREDICADO_PERMISO, permisoDe } from '../equipos/flota.js';
+import { aJornada } from '../recorrido/jornadas.js';
 
 const ejecutar = promisify(execFile);
 const PLANTILLA = fileURLToPath(new URL('../../plantillas/Reporte_Marketing.xlsm', import.meta.url));
 const HOJA = 'RESUMEN';
-const SIN_DATO = '-';
+const SIN_DATO = '—';
 const DIAS = ['DOMINGO', 'LUNES', 'MARTES', 'MIERCOLES', 'JUEVES', 'VIERNES', 'SABADO'];
 const MESES = ['ENERO', 'FEBRERO', 'MARZO', 'ABRIL', 'MAYO', 'JUNIO', 'JULIO', 'AGOSTO', 'SEPTIEMBRE', 'OCTUBRE', 'NOVIEMBRE', 'DICIEMBRE'];
 
@@ -65,21 +66,24 @@ export function buscarPersona(nombre, personas) {
 }
 
 // Encendido y apagado de un equipo en el día [desde, hasta). El apagado es la
-// hora del último punto del día, igual que en el replay al llegar al final de
-// la línea (sea por GPS apagado, sin señal o fin de jornada). Si el día no
-// tiene puntos, la hora de fin de la última jornada. El encendido es el inicio
-// de la primera jornada; si empezó el día anterior, 0:00. iPhone (no marca
+// hora del último punto válido dentro de una jornada, igual que en el replay
+// al llegar al final de la línea (sea por GPS apagado, sin señal o fin de
+// jornada); los puntos simulados y los de fuera de jornada no cuentan. Si el
+// día no tiene puntos, la hora de fin de la última jornada. El encendido es el
+// primer inicio de la persona; la jornada que viene del día anterior (o el
+// corte de medianoche) no es un encendido: "Continúa". iPhone (no marca
 // jornada): primer y último punto del día.
+export const CONTINUA = 'Continúa';
 export function horasDelDia({ ios, jornadas, primerPunto, ultimoPunto }, desde, hasta, zona) {
   const hora = (t) => horaCorta(t, zona);
   if (ios) {
     return primerPunto ? { encendido: hora(primerPunto), apagado: hora(ultimoPunto) } : { encendido: SIN_DATO, apagado: SIN_DATO };
   }
   if (jornadas.length === 0) return { encendido: SIN_DATO, apagado: SIN_DATO };
-  const inicio = jornadas[0].inicio < desde ? desde : jornadas[0].inicio;
+  const propia = jornadas.find((j) => j.inicio >= desde && !j.continua);
   const ultima = jornadas[jornadas.length - 1];
   const apagado = ultimoPunto ? hora(ultimoPunto) : ultima.fin ? hora(ultima.fin) : SIN_DATO;
-  return { encendido: hora(inicio), apagado };
+  return { encendido: propia ? hora(propia.inicio) : CONTINUA, apagado };
 }
 
 const escapar = (texto) => texto.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -116,7 +120,7 @@ export function filasDePersonas(hoja, compartidos) {
   return filas;
 }
 
-async function leerEquipos(ctx, desde, hasta) {
+async function leerEquipos(ctx, desde, hasta, zona) {
   const { rows: personas } = await consultar(
     ctx.pool,
     `SELECT DISTINCT ON (u.id) u.nombre, d.id AS dispositivo_id, d.atributos->>'plataforma' = 'ios' AS ios
@@ -131,20 +135,26 @@ async function leerEquipos(ctx, desde, hasta) {
   const ids = personas.map((p) => Number(p.dispositivo_id));
   const { rows: jornadas } = await consultar(
     ctx.pool,
-    `SELECT dispositivo_id, inicio_en, fin_en FROM operations.dmt_jornada
+    `SELECT id, dispositivo_id, inicio_en, fin_en, atributos, 0 AS duracion_min FROM operations.dmt_jornada
      WHERE dispositivo_id = ANY($1) AND inicio_en < $3 AND (fin_en IS NULL OR fin_en >= $2)
      ORDER BY inicio_en`,
     [ids, desde, hasta],
     { signal: ctx.signal },
   );
-  // Primer y último punto del día: el replay usa los mismos.
+  // Primer y último punto válido del día (sin simulados) y, en Android,
+  // dentro de una jornada: el replay usa los mismos.
+  const ios = personas.filter((p) => p.ios === true).map((p) => Number(p.dispositivo_id));
   const { rows: puntos } = await consultar(
     ctx.pool,
-    `SELECT dispositivo_id, min(registrado_en) AS primero, max(registrado_en) AS ultimo
-     FROM tracking.dmt_posicion
-     WHERE dispositivo_id = ANY($1) AND registrado_en >= $2 AND registrado_en < $3
-     GROUP BY dispositivo_id`,
-    [ids, desde, hasta],
+    `SELECT p.dispositivo_id, min(p.registrado_en) AS primero, max(p.registrado_en) AS ultimo
+     FROM tracking.dmt_posicion p
+     WHERE p.dispositivo_id = ANY($1) AND p.registrado_en >= $2 AND p.registrado_en < $3 AND p.valida
+       AND (p.dispositivo_id = ANY($4) OR EXISTS (
+         SELECT 1 FROM operations.dmt_jornada j
+         WHERE j.dispositivo_id = p.dispositivo_id AND p.registrado_en >= j.inicio_en
+           AND p.registrado_en <= coalesce(j.fin_en, now())))
+     GROUP BY p.dispositivo_id`,
+    [ids, desde, hasta, ios],
     { signal: ctx.signal },
   );
   return personas.map((p) => {
@@ -153,7 +163,9 @@ async function leerEquipos(ctx, desde, hasta) {
     return {
       nombre: p.nombre,
       ios: p.ios === true,
-      jornadas: jornadas.filter((j) => Number(j.dispositivo_id) === id).map((j) => ({ inicio: j.inicio_en, fin: j.fin_en })),
+      jornadas: jornadas
+        .filter((j) => Number(j.dispositivo_id) === id)
+        .map((j) => ({ inicio: j.inicio_en, fin: j.fin_en, continua: aJornada(j, zona).continua === true })),
       primerPunto: punto?.primero ?? null,
       ultimoPunto: punto?.ultimo ?? null,
     };
@@ -199,7 +211,7 @@ export async function descargarReporteMarketing(ctx) {
   const zona = ctx.entorno.zonaHoraria;
   // Día local de la fecha: el mediodía UTC cae en ese día en cualquier zona de América.
   const { desde, hasta } = rangoHoy(zona, new Date(`${fecha}T12:00:00Z`));
-  const equipos = await leerEquipos(ctx, desde, hasta);
+  const equipos = await leerEquipos(ctx, desde, hasta, zona);
   const libro = await armarLibro(fechaTitulo(fecha), (nombre) => {
     const persona = buscarPersona(nombre, equipos);
     return persona ? horasDelDia(persona, desde, hasta, zona) : { encendido: SIN_DATO, apagado: SIN_DATO };

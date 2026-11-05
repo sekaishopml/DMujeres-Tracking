@@ -57,6 +57,7 @@ function duracion(segundos: number): string {
 
 const QUE_PASO: Record<string, string> = {
   APAGADO: 'Apagó el teléfono',
+  REINICIO_SIN_APP: 'Reinició el teléfono y la app no volvió',
   GPS_APAGADO: 'Apagó la ubicación',
   SIN_PERMISO: 'Quitó el permiso de ubicación',
   SIN_CONTACTO: 'App detenida o sin datos',
@@ -66,6 +67,7 @@ const QUE_PASO: Record<string, string> = {
 // Al iniciar la jornada no "apagó": ya estaba así.
 const QUE_PASO_AL_INICIO: Record<string, string> = {
   APAGADO: 'teléfono apagado',
+  REINICIO_SIN_APP: 'app sin volver tras reiniciar',
   GPS_APAGADO: 'ubicación apagada',
   SIN_PERMISO: 'sin permiso de ubicación',
   SIN_CONTACTO: 'app detenida o sin datos',

@@ -52,7 +52,10 @@ Además, según los sensores del teléfono:
 
 **Unir y cortar:**
 
-- Dos paradas a 150 m o menos se unen si no salió.
+- Dos paradas a 150 m o menos se unen si no salió. Excepción
+  (`cambioDeSitio`): si entre ellas caminó (pasos a ritmo de marcha) y en la
+  segunda casi todas las lecturas precisas quedan a más de 80 m durante 10 min
+  o más, son dos lugares (David 01/11: oficina y un local a 130 m).
 - Se quitan las paradas cortas entre dos estancias en el mismo lugar si en
   todo ese rato no hubo pasos ni movimiento (`sinIntercaladas`, hasta 3
   paradas y 60 min). Es el GPS clavado en otro sitio bajo techo.
@@ -90,6 +93,32 @@ Además, según los sensores del teléfono:
   de una parada en su centro; si no, sobre la línea.
 - Dentro de una parada el estado es "Detenido".
 - "Descargar recorrido" exporta el GPS tal como llegó, sin depurar.
+
+## Horas de salida y llegada: solo con prueba
+
+Lo que se usa para auditar no puede afirmar nada que los datos no prueben.
+
+- **Servidor** (`servidor/api/src/recorrido/paradas.js`): un punto de antena
+  lejano no corta la estancia si el siguiente punto preciso vuelve al mismo
+  sitio en 10 min (`vuelveAlCentro`). Dos paradas cercanas no se funden si
+  caminó entre ellas y la segunda es claramente otro sitio (`cambioDeSitio`).
+- **Bitácora del Detalle** (`panel/src/dominio/bitacora.ts`):
+  - "Salió" con hora solo si hay un punto de 50 m o mejor a más de 80 m del
+    lugar en los 15 min siguientes, sin pausas de más de 5 min, o si caminó
+    a otro sitio cercano. Si no, "Último punto preciso en…" sin hora.
+  - Lo mismo para "llegó" hacia atrás; si no, "primer punto preciso en…".
+  - Dos paradas en el mismo lugar (100 m) sin prueba de salida entre ellas
+    son una sola estancia: un apagón o un rato sin señal no es una salida.
+  - Si tras un rato sin registro vuelve a aparecer en el lugar, la estancia
+    llega hasta ese punto (`bordeTrasHueco`).
+  - La ubicación simulada no prueba nada y sale como aviso propio.
+- **Jornadas:** el inicio de las 00:00 que sigue la jornada de ayer
+  (`continua`) no es una entrada, y un cierre que no hizo la persona
+  (`cierreAutomatico`: medianoche o recorte al último punto) no es un
+  "Finalizó". Asistencia separa esas horas como "sin cerrar".
+- **Cronograma:** "Lejos del cliente" solo con una ubicación de cliente
+  confirmada por una persona en Clientes; la que aprendió la app queda "sin
+  confirmar" y no cuenta en contra.
 
 ## Dónde cambiar qué
 

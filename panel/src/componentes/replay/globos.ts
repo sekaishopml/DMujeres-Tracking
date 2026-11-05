@@ -58,6 +58,7 @@ export const ETIQUETA_CORTE: Record<string, string> = {
   GPS_APAGADO: 'GPS apagado',
   SIN_PERMISO: 'Sin permiso de ubicación',
   APAGADO: 'Teléfono apagado',
+  REINICIO_SIN_APP: 'Reinició; la app tardó en volver',
   SIN_CONTACTO: 'App detenida o sin datos',
   FUERA_DE_JORNADA: 'Fuera de jornada',
 };

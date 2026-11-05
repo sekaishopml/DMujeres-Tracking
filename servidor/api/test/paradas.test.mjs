@@ -181,3 +181,38 @@ test('con recorridos al azar las paradas son válidas y no se solapan', () => {
     });
   }
 });
+
+// Puntos cada 20 s desde una hora UTC del 28/10/2026.
+const serie = (desdeMin, cuantos, lugar, extra = () => ({})) =>
+  Array.from({ length: cuantos }, (_, k) => ({
+    registradoEn: new Date(Date.UTC(2026, 9, 28, 14, 0, 0) + (desdeMin * 60 + k * 20) * 1000).toISOString(),
+    latitud: lugar[0],
+    longitud: lugar[1],
+    precisionM: 12,
+    ...extra(k),
+  }));
+
+test('un salto de antena lejano no corta la estancia si el GPS vuelve al mismo sitio', () => {
+  // Joselyn 28/10 09:24: un fix de 100 m de error a 165 m y enseguida otra vez adentro.
+  const oficina = [-0.1841, -78.4921];
+  const puntos = [
+    ...serie(0, 30, oficina),
+    { registradoEn: '2026-10-28T14:10:05Z', latitud: -0.18262, longitud: -78.4921, precisionM: 100 },
+    ...serie(10.5, 30, oficina),
+  ];
+  assert.equal(detectarParadas(puntos).length, 1);
+});
+
+test('caminar a un sitio vecino separa las estancias; sin pasos es la misma', () => {
+  // Ana Troya 22/10: sale de la oficina a pie y se queda al lado, a ~75 m.
+  const oficina = [-0.1841, -78.4921];
+  const vecino = [-0.18342, -78.4921];
+  const conPasos = [
+    ...serie(0, 60, oficina, () => ({ pasos: 500 })),
+    ...serie(20, 6, [-0.18376, -78.4921], (k) => ({ pasos: 500 + (k + 1) * 40, precisionM: 30 })),
+    ...serie(22, 60, vecino, () => ({ pasos: 740 })),
+  ];
+  assert.equal(detectarParadas(conPasos).length, 2);
+  const sinPasos = conPasos.map(({ pasos, ...p }) => p);
+  assert.equal(detectarParadas(sinPasos).length, 1);
+});

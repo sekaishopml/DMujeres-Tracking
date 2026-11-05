@@ -172,8 +172,17 @@ export default function Inicio() {
   // Últimos 7 días: una jornada que sigue abierta (aunque haya empezado antes)
   // es la de hoy, y se muestra desde cuándo está abierta.
   const desdeJornadas = sumarDias(hoy, -7);
+  // Quién está en jornada según la flota (se refresca cada 15 s). Si cambia,
+  // se vuelven a pedir las jornadas: la columna de jornada y el estado nunca
+  // se contradicen ("Fuera de jornada" junto a "En curso").
+  const firmaJornadas = (flota.data?.datos ?? [])
+    .filter((e) => e.jornadaActiva)
+    .map((e) => e.idPublico)
+    .sort()
+    .join(',');
   const jornadas = useQuery({
-    queryKey: ['inicio', 'jornadas', hoy],
+    queryKey: ['inicio', 'jornadas', hoy, firmaJornadas],
+    placeholderData: (previa) => previa,
     queryFn: () => traerJornadasFlota(inicioDeDia(desdeJornadas), finDeDia(hoy), undefined, { redirigir401: false }),
     refetchInterval: () => (document.hidden ? false : REFRESCO_DIA_MS),
   });
@@ -227,7 +236,7 @@ export default function Inicio() {
 
 
   const jornadaPorPersona = useMemo(() => {
-    const mapa = new Map<string, { inicioEn: string; finEn: string | null; duracionMin: number | null; soloApp?: boolean }>();
+    const mapa = new Map<string, JornadaFila>();
     const lista = [...(jornadas.data?.datos ?? [])].sort((a, b) => b.inicioEn.localeCompare(a.inicioEn));
     // La más reciente de cada persona, si sigue abierta o se cerró hoy.
     const inicioHoy = new Date(inicioDeDia(hoy)).getTime();
@@ -436,6 +445,7 @@ export default function Inicio() {
                             ausencia={ausenciaPorPersona.get(e.idPublico) ?? null}
                             nuevas={nuevasPorPersona.get(e.idPublico) ?? 0}
                             versionMasNueva={versionMasNueva}
+                            ahora={flota.dataUpdatedAt}
                           />
                         ))}
                       </Fragment>
@@ -454,6 +464,15 @@ export default function Inicio() {
 }
 
 
+type JornadaFila = {
+  inicioEn: string;
+  finEn: string | null;
+  duracionMin: number | null;
+  soloApp?: boolean;
+  continua?: boolean;
+  cierreAutomatico?: boolean;
+};
+
 function FilaPersona({
   equipo,
   hoy,
@@ -463,11 +482,15 @@ function FilaPersona({
   ausencia,
   nuevas,
   versionMasNueva,
+  ahora,
 }: {
   equipo: Dispositivo;
   hoy: string;
   // undefined: las jornadas aún no llegan o fallaron (no es "sin jornada").
-  jornada: { inicioEn: string; finEn: string | null; duracionMin: number | null } | null | undefined;
+  jornada: JornadaFila | null | undefined;
+  // Hora de los datos de la flota: la duración de una jornada abierta se
+  // mide a la misma hora que el estado.
+  ahora: number;
   recorrido: { distanciaKm: number; paradas: number } | null;
   actividades: number;
   ausencia: Actividad | null;
@@ -503,11 +526,11 @@ function FilaPersona({
         {jornada ? (
           <>
             <span className="text-marino-900">
-              {inicioJornada(jornada.inicioEn, hoy)} –{' '}
-              {jornada.finEn ? hora(jornada.finEn) : 'En curso'}
+              {jornada.continua ? 'Desde ayer' : inicioJornada(jornada.inicioEn, hoy)} –{' '}
+              {jornada.finEn ? (jornada.cierreAutomatico ? 'no la cerró' : hora(jornada.finEn)) : 'En curso'}
             </span>
             <span className="block text-[11px] text-texto-3">
-              {jornada.duracionMin != null ? duracion(jornada.duracionMin * 60) : 'En curso'}
+              {duracion(((jornada.finEn ? new Date(jornada.finEn).getTime() : ahora) - new Date(jornada.inicioEn).getTime()) / 1000)}
             </span>
           </>
         ) : jornada === undefined ? (

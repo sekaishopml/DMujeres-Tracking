@@ -34,7 +34,19 @@ function mediana(valores) {
 const bueno = (p) => p.precisionM == null || p.precisionM <= PRECISION_BUENA_M;
 const ms = (p) => (p.registradoEn instanceof Date ? p.registradoEn.getTime() : new Date(p.registradoEn).getTime());
 
-// puntos: [{ registradoEn, latitud, longitud, precisionM }] de UN equipo,
+// Plazo para que un fix preciso desmienta a uno aproximado lejano.
+export const MAX_REBOTE_ANTENA_S = 10 * 60;
+
+// El primer fix preciso después de j cae en el radio y llega a tiempo.
+function vuelveAlCentro(puntos, j, centro) {
+  for (let k = j + 1; k < puntos.length; k += 1) {
+    if ((ms(puntos[k]) - ms(puntos[j])) / 1000 > MAX_REBOTE_ANTENA_S) return false;
+    if (bueno(puntos[k])) return metros(centro, puntos[k]) <= RADIO_M;
+  }
+  return false;
+}
+
+// puntos: [{ registradoEn, latitud, longitud, precisionM, pasos? }] de UN equipo,
 // ordenados por hora. Devuelve [{ inicio, fin, segundos, latitud, longitud,
 // precisionM, fixes }] con inicio/fin como Date.
 export function detectarParadas(puntos) {
@@ -68,8 +80,10 @@ export function detectarParadas(puntos) {
         }
         ultimo = j;
         ultimoVisto = j;
-      } else if (d > RADIO_M + Math.min(p.precisionM ?? 0, 150)) {
-        // Un fix aproximado lejísimos sí indica que se fue.
+      } else if (d > RADIO_M + Math.min(p.precisionM ?? 0, 150) && !vuelveAlCentro(puntos, j, centro)) {
+        // Un fix aproximado lejísimos indica que se fue, salvo que el
+        // siguiente fix preciso lo devuelva al mismo sitio: bajo techo la
+        // antena salta 150-200 m (Joselyn 28/10 09:24, "salió" sin moverse).
         break;
       } else {
         ultimoVisto = j;
@@ -144,9 +158,40 @@ function salidaSostenida(puntos, centro, desdeMs, hastaMs) {
   return false;
 }
 
+// Cambió de sitio a pie aunque sea cerca (Ana Troya 22/10: salió de la
+// oficina, 188 pasos, y se quedó una hora al lado). Hacen falta las dos
+// cosas: en la pausa el contador de pasos sube a ritmo de marcha, y en la
+// segunda parada casi todas las lecturas precisas quedan fuera del radio de la
+// primera durante CAMBIO_MIN_S. Sin contador de pasos no cambia nada: el
+// rebote bajo techo no camina.
+export const CAMINATA_PASOS_MIN = 60;
+const CAMBIO_MIN_S = 5 * 60;
+const CAMBIO_FRACCION = 0.9;
+const PRECISION_CAMBIO_M = 30;
+function caminoEntre(puntos, desdeMs, hastaMs) {
+  const conPasos = puntos.filter((p) => p.pasos != null && ms(p) >= desdeMs - 30_000 && ms(p) <= hastaMs + 30_000);
+  if (conPasos.length < 2) return false;
+  const duracion = Math.max(60_000, ms(conPasos[conPasos.length - 1]) - ms(conPasos[0]));
+  if (duracion > 10 * 60_000) return false;
+  // Solo lo que sube: al empezar otra jornada el contador vuelve a cero.
+  let pasos = 0;
+  for (let k = 1; k < conPasos.length; k += 1) pasos += Math.max(0, conPasos[k].pasos - conPasos[k - 1].pasos);
+  return pasos / (duracion / 60_000) >= CAMINATA_PASOS_MIN;
+}
+
+function cambioDeSitio(previa, parada, puntos) {
+  if (!caminoEntre(puntos, previa.fin.getTime(), parada.inicio.getTime())) return false;
+  const lecturas = puntos.filter((p) => ms(p) >= parada.inicio.getTime() && ms(p) <= parada.fin.getTime()
+    && p.precisionM != null && p.precisionM <= PRECISION_CAMBIO_M);
+  if (lecturas.length < MIN_FIXES_BORDE) return false;
+  if ((ms(lecturas[lecturas.length - 1]) - ms(lecturas[0])) / 1000 < CAMBIO_MIN_S) return false;
+  return lecturas.filter((p) => metros(previa, p) > RADIO_M).length >= CAMBIO_FRACCION * lecturas.length;
+}
+
 function mismaEstancia(previa, parada, puntos) {
   const pausaS = (parada.inicio.getTime() - previa.fin.getTime()) / 1000;
   const distancia = metros(previa, parada);
+  if (distancia > RADIO_M && cambioDeSitio(previa, parada, puntos ?? [])) return false;
   if (pausaS <= MAX_PAUSA_FUSION_S && distancia <= RADIO_M) return true;
   if (pausaS > MAX_PAUSA_ESTANCIA_S || distancia > RADIO_FUSION_M) return false;
   return !salidaSostenida(puntos ?? [], previa, previa.fin.getTime(), parada.inicio.getTime());

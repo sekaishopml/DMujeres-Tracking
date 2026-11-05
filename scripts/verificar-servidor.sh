@@ -46,8 +46,10 @@ if [ -n "$EQUIPO" ]; then
 else
   echo "  —      canal de la app: no hay equipos habilitados para probarlo"
 fi
-VERSION="$(python3 -c "import json;print(json.load(open('$RAIZ/ota/latest.json'))['version'])" 2>/dev/null)"
-[ "$(http "https://tracking.sekaidevec.com/DMujeres-Tracking-$VERSION.apk")" = 200 ] \
+# La dirección del manifiesto: varias compilaciones comparten el nombre 2.10.
+VERSION="$(python3 -c "import json;m=json.load(open('$RAIZ/ota/latest.json'));print(m['version'], m['versionCode'])" 2>/dev/null)"
+URL_APK="$(python3 -c "import json;print(json.load(open('$RAIZ/ota/latest.json'))['url'])" 2>/dev/null)"
+[ "$(http "$URL_APK")" = 200 ] \
   && ok "APK de la versión $VERSION" || falla "no se descarga el APK de la versión $VERSION"
 
 echo "Base de datos"

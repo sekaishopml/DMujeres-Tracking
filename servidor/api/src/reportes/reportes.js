@@ -141,7 +141,8 @@ async function paradasDelRango(ctx, dispositivoId) {
   const { valores, rango } = parametrosSegmentos(ctx, { dispositivoId });
   const { rows } = await consultar(
     ctx.pool,
-    `SELECT p.id, p.id_publico, p.dispositivo_id, p.registrado_en, p.latitud, p.longitud, p.precision_m
+    `SELECT p.id, p.id_publico, p.dispositivo_id, p.registrado_en, p.latitud, p.longitud, p.precision_m,
+            CASE WHEN (p.atributos->>'steps') ~ '^[0-9]+$' THEN (p.atributos->>'steps')::bigint END AS pasos
      FROM tracking.dmt_posicion p
      JOIN tracking.dmt_dispositivo d ON d.id = p.dispositivo_id
      WHERE d.habilitado
@@ -170,6 +171,7 @@ async function paradasDelRango(ctx, dispositivoId) {
       latitud: Number(fila.latitud),
       longitud: Number(fila.longitud),
       precisionM: fila.precision_m === null ? null : Number(fila.precision_m),
+      pasos: fila.pasos === null ? null : Number(fila.pasos),
     });
   }
   const filas = [];

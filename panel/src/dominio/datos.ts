@@ -70,6 +70,12 @@ export interface Jornada {
   abierta: boolean;
   // iPhone: del primer al último punto del día, no una jornada marcada.
   soloApp?: boolean;
+  // Sigue la del día anterior: su inicio es el corte de medianoche, no una entrada.
+  continua?: boolean;
+  // No la cerró la persona (corte de medianoche o recorte al último punto).
+  cierreAutomatico?: boolean;
+  // Motivo que escribió al cerrar antes de las 17:00.
+  notaFin?: string;
 }
 
 export interface RespuestaJornadas {

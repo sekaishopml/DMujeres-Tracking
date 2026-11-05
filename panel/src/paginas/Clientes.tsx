@@ -31,6 +31,8 @@ interface Cliente {
   activo: boolean;
   visitas: number;
   creadoEnApp: boolean;
+  // La guardó una persona; la aprendida de la app no sirve para decir "lejos".
+  ubicacionConfirmada: boolean;
 }
 
 const CLAVE = ['clientes'] as const;
@@ -164,9 +166,16 @@ export default function Clientes() {
                       >
                         <MapPin className="size-3.5" /> Ver en el mapa
                       </a>
-                    ) : (
-                      <span className="text-sin-senal">Sin ubicación</span>
+                    ) : null}
+                    {c.lat != null && c.lon != null && !c.ubicacionConfirmada && (
+                      <p
+                        className="text-[11.5px] text-sin-senal"
+                        title="La app la tomó del primer registro, que pudo hacerse en camino o en otra ciudad. Mientras no se confirme, el cronograma no marca a nadie como lejos de este cliente. Para confirmarla, edite el cliente y guarde la ubicación correcta."
+                      >
+                        Aprendida por la app · sin confirmar
+                      </p>
                     )}
+                    {(c.lat == null || c.lon == null) && <span className="text-sin-senal">Sin ubicación</span>}
                   </Td>
                   <Td className="text-right tabular-nums">{c.visitas}</Td>
                   <Td>{c.activo ? <Insignia tono="exito">Activo</Insignia> : <Insignia tono="neutro">Retirado</Insignia>}</Td>

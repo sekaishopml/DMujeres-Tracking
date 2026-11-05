@@ -32,10 +32,22 @@ test('el respaldo sale del recorrido a esa hora, no de cuándo se cargó', () =>
   const detenida = { detenida: true, latitud: -2.2, longitud: -79.9 };
   assert.equal(respaldoDe({ tipo: 'visita', enHora: detenida, cliente: null }).estado, 'GPS');
   assert.equal(respaldoDe({ tipo: 'visita', enHora: detenida, cliente: { lat: -2.2005, lon: -79.9 } }).estado, 'GPS');
-  const lejos = respaldoDe({ tipo: 'visita', enHora: detenida, cliente: { lat: -2.22, lon: -79.9 } });
+  const lejos = respaldoDe({ tipo: 'visita', enHora: detenida, cliente: { lat: -2.22, lon: -79.9, confirmada: true } });
   assert.equal(lejos.estado, 'LEJOS');
   assert.ok(lejos.distanciaM > 2000);
   assert.equal(respaldoDe({ tipo: 'visita', enHora: { detenida: false }, cliente: null }).estado, 'EN_CAMINO');
   assert.equal(respaldoDe({ tipo: 'visita', enHora: null, cliente: null }).estado, 'SIN_RECORRIDO');
   assert.equal(respaldoDe({ tipo: 'vacaciones', enHora: null, cliente: null }).estado, 'NO_APLICA');
+});
+
+test('una ubicación de cliente aprendida por la app no acusa "lejos"', () => {
+  // Mariam 28/10: en Guayaquil, con un cliente que la app aprendió en Quito.
+  const detenida = { detenida: true, latitud: -2.2274, longitud: -79.8885 };
+  const r = respaldoDe({ tipo: 'visita', enHora: detenida, cliente: { lat: -0.1549, lon: -78.4864, confirmada: false } });
+  assert.equal(r.estado, 'LUGAR_SIN_CONFIRMAR');
+  assert.ok(r.distanciaM > 200_000);
+});
+
+test('solo ubicación simulada a esa hora no es "sin recorrido" ni respaldo', () => {
+  assert.equal(respaldoDe({ tipo: 'visita', enHora: null, cliente: null, simulada: true }).estado, 'SIMULADA');
 });

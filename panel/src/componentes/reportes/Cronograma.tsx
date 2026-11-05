@@ -102,7 +102,8 @@ export default function Cronograma({ pestanas }: { pestanas?: ReactNode }) {
   const novedades = datos.filter((a) => a.tipo === 'novedad').length;
   const conRespaldo = datos.filter((a) => a.respaldo?.estado === 'GPS').length;
   const verificables = datos.filter((a) => a.respaldo && a.respaldo.estado !== 'NO_APLICA').length;
-  const sinRespaldo = datos.filter((a) => a.respaldo?.estado === 'LEJOS' || a.respaldo?.estado === 'SIN_RECORRIDO').length;
+  // Una ubicación de cliente sin confirmar no cuenta en contra de nadie.
+  const sinRespaldo = datos.filter((a) => ['LEJOS', 'SIN_RECORRIDO', 'SIMULADA'].includes(a.respaldo?.estado ?? '')).length;
 
   return (
     <div className="space-y-4">
@@ -476,6 +477,8 @@ const RESPALDO: Record<string, { texto: string; clase: string }> = {
   // Respaldada por GPS no se escribe: el recorrido de la línea de abajo ya lo muestra.
   GPS: { texto: '', clase: 'text-movimiento' },
   LEJOS: { texto: 'Lejos del cliente', clase: 'text-sin-senal' },
+  LUGAR_SIN_CONFIRMAR: { texto: 'Ubicación del cliente sin confirmar', clase: 'text-texto-3' },
+  SIMULADA: { texto: 'Solo ubicación simulada a esa hora', clase: 'text-peligro' },
   EN_CAMINO: { texto: 'En movimiento a esa hora', clase: 'text-texto-3' },
   SIN_RECORRIDO: { texto: 'Sin recorrido a esa hora', clase: 'text-sin-senal' },
   NO_APLICA: { texto: '', clase: 'text-texto-3' },
@@ -485,6 +488,9 @@ function textoRespaldo(a: Actividad): string {
   const r = a.respaldo;
   if (!r) return '';
   const base = RESPALDO[r.estado]?.texto ?? '';
+  if (r.estado === 'LUGAR_SIN_CONFIRMAR' && r.distanciaM != null) {
+    return `${base}: detenida a ${kmOm(r.distanciaM)} de la que aprendió la app`;
+  }
   return r.estado === 'LEJOS' && r.distanciaM != null ? `${base} (${kmOm(r.distanciaM)})` : base;
 }
 
@@ -507,7 +513,7 @@ function AuditoriaCorta({ actividad: a }: { actividad: Actividad }) {
     <div className="mt-1 space-y-0.5 text-[10.5px] leading-tight">
       {respaldo && (
         <p className={cn('flex items-center gap-1 font-semibold', estilo.clase)} title={texto}>
-          {a.respaldo?.estado !== 'GPS' && a.respaldo?.estado !== 'EN_CAMINO' && <TriangleAlert className="size-3 flex-none" />}
+          {!['GPS', 'EN_CAMINO', 'LUGAR_SIN_CONFIRMAR'].includes(a.respaldo?.estado ?? '') && <TriangleAlert className="size-3 flex-none" />}
           {respaldo}
         </p>
       )}
@@ -623,7 +629,7 @@ function exportarCsv(datos: Actividad[], desde: string, hasta: string) {
       TIPOS[a.tipo].etiqueta,
       a.cliente?.nombre ?? a.lugar,
       a.nota,
-      textoRespaldo(a) || 'No aplica',
+      textoRespaldo(a) || (a.respaldo?.estado === 'GPS' ? 'Respaldada por GPS' : 'No aplica'),
       a.enHora ? (a.enHora.detenida ? 'Detenida' : 'En camino') : 'Sin recorrido',
       a.enHora?.direccion,
     ]),

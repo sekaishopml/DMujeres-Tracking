@@ -21,6 +21,7 @@ import {
   indicePorInstante,
   milisegundos,
   puntoEnInstante,
+  UMBRAL_CAMINATA_KMH,
 } from '@/dominio/replay';
 import type { Microparada, Parada, TramoReconstruido } from '@/dominio/replay';
 import {
@@ -264,9 +265,12 @@ export default function ReproductorReplay({ mapa, posiciones, huecos, avisos = S
     () => {
       const estado = estadoDePunto(posiciones, huecos, indiceAcotado, Date.now(), finRangoMs);
       // Dentro de una parada el marcador está en su centro: el temblor del
-      // GPS no es "En movimiento".
-      const t = posiciones[indiceAcotado] ? milisegundos(posiciones[indiceAcotado].registradoEn) : NaN;
-      return estado === 'movimiento' && paradas.some((p) => t >= milisegundos(p.inicio) && t <= milisegundos(p.fin)) ? 'detencion' : estado;
+      // GPS no es "En movimiento". Un punto preciso a velocidad de vehículo
+      // sí lo es (no se muestra "Detenido" con 10 km/h al lado).
+      const actual = posiciones[indiceAcotado];
+      const t = actual ? milisegundos(actual.registradoEn) : NaN;
+      const avanza = actual != null && (actual.velocidadKmh ?? 0) >= UMBRAL_CAMINATA_KMH && (actual.precisionM ?? Infinity) <= 20;
+      return estado === 'movimiento' && !avanza && paradas.some((p) => t >= milisegundos(p.inicio) && t <= milisegundos(p.fin)) ? 'detencion' : estado;
     },
     [posiciones, huecos, indiceAcotado, finRangoMs, paradas],
   );

@@ -42,7 +42,7 @@ test('encendido y apagado de una jornada de Android', () => {
   const base = { ios: false, primerPunto: null, ultimoPunto: null, siguioDespues: false };
   const dia = (datos) => horasDelDia({ ...base, ...datos }, desde, hasta, ZONA);
   // Sin jornada: guion en los dos.
-  assert.deepEqual(dia({ jornadas: [] }), { encendido: '-', apagado: '-' });
+  assert.deepEqual(dia({ jornadas: [] }), { encendido: '—', apagado: '—' });
   // Cerrada el mismo día; con dos jornadas manda la primera y la última.
   assert.deepEqual(
     dia({ jornadas: [{ inicio: h('7:52'), fin: h('12:00') }, { inicio: h('13:00'), fin: h('18:30') }] }),
@@ -58,10 +58,27 @@ test('encendido y apagado de una jornada de Android', () => {
     encendido: '8:00',
     apagado: '23:54',
   });
-  // Empezada el día anterior: 0:00.
+  // Empezada el día anterior: no hay encendido ese día.
   assert.deepEqual(dia({ jornadas: [{ inicio: h('22:00', 13), fin: h('9:00', 15) }], ultimoPunto: h('8:55') }), {
-    encendido: '0:00',
+    encendido: 'Continúa',
     apagado: '8:55',
+  });
+  // Corte de medianoche y después un inicio de verdad: manda el de la persona
+  // (Josselyn 30/10: el Excel decía 0:00 y empezó a las 7:21).
+  assert.deepEqual(
+    dia({
+      jornadas: [
+        { inicio: h('0:00'), fin: h('0:24'), continua: true },
+        { inicio: h('7:21'), fin: h('22:31') },
+      ],
+      ultimoPunto: h('22:31'),
+    }),
+    { encendido: '7:21', apagado: '22:31' },
+  );
+  // Solo el corte de medianoche: continúa, no encendió a las 0:00.
+  assert.deepEqual(dia({ jornadas: [{ inicio: h('0:00'), fin: h('5:36'), continua: true }], ultimoPunto: h('5:30') }), {
+    encendido: 'Continúa',
+    apagado: '5:30',
   });
 });
 
@@ -72,8 +89,8 @@ test('iPhone: primer y último punto del día', () => {
     apagado: '16:10',
   });
   assert.deepEqual(horasDelDia({ ...ios, primerPunto: null, ultimoPunto: null }, desde, hasta, ZONA), {
-    encendido: '-',
-    apagado: '-',
+    encendido: '—',
+    apagado: '—',
   });
 });
 

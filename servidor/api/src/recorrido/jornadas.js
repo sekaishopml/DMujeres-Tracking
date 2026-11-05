@@ -7,7 +7,26 @@ import { noEncontrado } from '../base/errores.js';
 import { leerPaginacion, leerRango, respuestaJson } from '../base/http.js';
 import { PREDICADO_PERMISO, buscarDispositivo, permisoDe } from '../equipos/flota.js';
 
-function aJornada(fila) {
+// La app parte a las 23:59:59.999 una jornada que pasa la medianoche y abre la
+// siguiente a las 00:00:00.000. Ese inicio no es una entrada de la persona
+// (continua) y ese fin no es un cierre suyo; tampoco lo es el fin que el
+// servidor llevó al último punto (finApp). Los datos viejos no traen las
+// marcas: se reconocen por la hora exacta.
+const relojes = new Map();
+function horaExacta(fecha, zona) {
+  if (!relojes.has(zona)) {
+    relojes.set(zona, new Intl.DateTimeFormat('en-GB', {
+      timeZone: zona, hour: '2-digit', minute: '2-digit', second: '2-digit', fractionalSecondDigits: 3, hourCycle: 'h23',
+    }));
+  }
+  return relojes.get(zona).format(fecha);
+}
+
+export function aJornada(fila, zona = 'America/Guayaquil') {
+  const atributos = fila.atributos ?? {};
+  const continua = !fila.solo_app && (atributos.inicio === 'medianoche' || horaExacta(fila.inicio_en, zona) === '00:00:00.000');
+  const cierreAutomatico = !fila.solo_app && fila.fin_en !== null
+    && (atributos.fin === 'medianoche' || atributos.finApp != null || horaExacta(fila.fin_en, zona) === '23:59:59.999');
   return {
     id: Number(fila.id),
     inicioEn: fila.inicio_en.toISOString(),
@@ -15,6 +34,10 @@ function aJornada(fila) {
     duracionMin: Number(fila.duracion_min),
     abierta: fila.fin_en === null,
     ...(fila.solo_app ? { soloApp: true } : {}),
+    ...(continua ? { continua: true } : {}),
+    ...(cierreAutomatico ? { cierreAutomatico: true } : {}),
+    // Motivo que la app pide para cerrar antes de las 17:00.
+    ...(typeof atributos.notaFin === 'string' && atributos.notaFin.trim() ? { notaFin: atributos.notaFin.trim() } : {}),
   };
 }
 
@@ -27,7 +50,8 @@ const VENTANAS_IPHONE = `
          min(p.registrado_en) AS inicio_en,
          CASE WHEN max(p.registrado_en) > now() - interval '15 minutes' THEN NULL
               ELSE max(p.registrado_en) END AS fin_en,
-         true AS solo_app
+         true AS solo_app,
+         '{}'::jsonb AS atributos
   FROM tracking.dmt_posicion p`;
 const DIA_LOCAL = (zona) => `(p.registrado_en AT TIME ZONE ${zona})::date`;
 const DURACION = "round(extract(epoch FROM (coalesce(j.fin_en, now()) - j.inicio_en)) / 60, 1)::float8 AS duracion_min";
@@ -50,7 +74,7 @@ export async function listarJornadas(ctx) {
     : 'operations.dmt_jornada';
   const { rows } = await consultar(
     ctx.pool,
-    `SELECT j.id, j.inicio_en, j.fin_en, ${DURACION}${ios ? ', true AS solo_app' : ''}
+    `SELECT j.id, j.inicio_en, j.fin_en, j.atributos, ${DURACION}${ios ? ', true AS solo_app' : ''}
      FROM ${origen} j
      WHERE j.dispositivo_id = $1
        AND j.inicio_en >= $2
@@ -61,7 +85,7 @@ export async function listarJornadas(ctx) {
       : [Number(dispositivo.id), rango.desde, rango.hasta],
     { signal: ctx.signal },
   );
-  respuestaJson(ctx.res, 200, { jornadas: rows.map(aJornada), total: rows.length });
+  respuestaJson(ctx.res, 200, { jornadas: rows.map((fila) => aJornada(fila, ctx.entorno.zonaHoraria)), total: rows.length });
 }
 
 // GET /journeys: jornadas de los equipos que la cuenta puede ver (el
@@ -95,10 +119,11 @@ export async function listarJornadasFlota(ctx) {
             j.inicio_en,
             j.fin_en,
             j.solo_app,
+            j.atributos,
             ${DURACION},
             count(*) OVER() AS total_filas
      FROM (
-       SELECT id, dispositivo_id, inicio_en, fin_en, false AS solo_app
+       SELECT id, dispositivo_id, inicio_en, fin_en, false AS solo_app, atributos
        FROM operations.dmt_jornada
        WHERE inicio_en >= $2 AND inicio_en < $3
        UNION ALL
@@ -117,7 +142,7 @@ export async function listarJornadasFlota(ctx) {
   );
   respuestaJson(ctx.res, 200, {
     datos: rows.map((fila) => ({
-      ...aJornada(fila),
+      ...aJornada(fila, ctx.entorno.zonaHoraria),
       dispositivoId: Number(fila.dispositivo_id),
       idPublico: fila.id_publico,
       nombre: fila.nombre,

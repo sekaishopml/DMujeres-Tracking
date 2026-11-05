@@ -109,10 +109,27 @@ function seQuedo(previa: Parada, parada: Parada, huecos: Hueco[], posiciones: Pu
   if (huecos.some((h) => h.motivo === 'FUERA_DE_JORNADA' && Date.parse(h.hasta) > desde && Date.parse(h.desde) < hasta)) return false;
   const distancia = distanciaM(previa, parada);
   if (distancia > MISMO_LUGAR_M) return false;
+  if (distancia > DISTANCIA_MISMO_LUGAR_M && cambioDeSitio(previa, parada, posiciones)) return false;
   const entre = posiciones.filter((p) => Date.parse(p.registradoEn) > desde && Date.parse(p.registradoEn) < hasta);
   if (salioDeVerdad(entre, previa, desde, hasta, { todas: posiciones, pasosFiables, actividadFiable, aPie: true, bordesEnLugar: true })) return false;
   if (distancia <= DISTANCIA_MISMO_LUGAR_M && sinSalida(previa, parada, huecos)) return true;
   return observado(entre, desde, hasta, pasosFiables ? huecos : []);
+}
+
+// Cambió de sitio a pie: entre las dos caminó (pasos a ritmo de marcha, ver
+// caminando) y en la segunda hay CAMBIO_MIN_MS de lecturas precisas, casi
+// todas a más de BORDE_M de la primera. El rebote bajo techo no camina ni se
+// queda quieto lejos (David 01/11: oficina hasta las 18:40 y un local a 130 m
+// hasta las 20:08; unidas, la salida de la oficina salía a las 20:08).
+const CAMBIO_MIN_MS = 10 * 60_000;
+const CAMBIO_FRACCION = 0.9;
+function cambioDeSitio(previa: Parada, parada: Parada, posiciones: Punto[]): boolean {
+  const en = (a: number, b: number) => posiciones.filter((p) => Date.parse(p.registradoEn) >= a && Date.parse(p.registradoEn) <= b);
+  if (!caminando(en(Date.parse(previa.fin) - 60_000, Date.parse(parada.inicio) + 60_000))) return false;
+  const lecturas = en(Date.parse(parada.inicio), Date.parse(parada.fin)).filter((p) => (p.precisionM ?? 0) <= PRECISION_SALIDA_M);
+  if (lecturas.length < SALIDA_MIN_PUNTOS) return false;
+  if (Date.parse(lecturas[lecturas.length - 1].registradoEn) - Date.parse(lecturas[0].registradoEn) < CAMBIO_MIN_MS) return false;
+  return lecturas.filter((p) => distanciaM(previa, p) > BORDE_M).length >= CAMBIO_FRACCION * lecturas.length;
 }
 
 function sinSalida(previa: Parada, parada: Parada, huecos: Hueco[]): boolean {
