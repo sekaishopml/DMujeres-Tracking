@@ -254,7 +254,7 @@ export default function Detalle() {
               )}
               {!dispositivo.habilitado && (
                 <span className="rounded-full bg-deshabilitado-suave px-2 py-0.5 text-[11px] font-semibold text-deshabilitado">
-                  Cuenta dada de baja
+                  Usuario deshabilitado
                 </span>
               )}
             </div>

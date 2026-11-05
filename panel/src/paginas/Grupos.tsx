@@ -236,7 +236,7 @@ function ListaMiembros({
           <span>
             {usuario.nombre}
             {usuario.usuario ? ` (${usuario.usuario})` : ''}
-            {usuario.habilitado === false ? ' · dada de baja' : ''}
+            {usuario.habilitado === false ? ' · deshabilitado' : ''}
           </span>
         }
         checked={elegidos.includes(claveUsuario(usuario))}

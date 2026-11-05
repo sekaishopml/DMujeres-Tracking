@@ -79,14 +79,13 @@ export interface JornadaDia {
   abiertaDesde?: string | null;
 }
 
+// Iniciar o cerrar a mano es lo normal: no lleva etiqueta.
 const COMO_INICIO: Record<string, string> = {
-  manual: 'A mano',
   actividad: 'Al iniciar una actividad',
   cronograma: 'Automática por el cronograma',
   medianoche: 'Seguía abierta del día anterior',
 };
 const COMO_FIN: Record<string, string> = {
-  manual: 'A mano',
   medianoche: 'No la cerró (corte de medianoche)',
   sesion: 'Al cerrar la sesión',
   sinDatos: 'La cerró el servidor (sin datos)',
@@ -103,13 +102,13 @@ export function comoInicio(j: JornadaDia): string | null {
     const dia = new Intl.DateTimeFormat('es-EC', { timeZone: 'America/Guayaquil', day: '2-digit', month: '2-digit' }).format(d);
     return `Sin cerrar desde el ${dia} ${horaLocal(j.abiertaDesde)}`;
   }
-  return como ? COMO_INICIO[como] : null;
+  return (como && COMO_INICIO[como]) || null;
 }
 
 export function comoFin(j: JornadaDia): string | null {
   if (j.abierta) return 'En curso';
   const como = j.comoFin ?? (j.fin && horaLocal(j.fin) === '23:59' ? 'medianoche' : null);
-  return como ? COMO_FIN[como] : null;
+  return (como && COMO_FIN[como]) || null;
 }
 
 export async function traerCronograma(desde: string, hasta: string, dispositivoId?: string) {

@@ -1,7 +1,7 @@
 import { cn } from '@/lib/cn';
 import { useCallback, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Archive, Eye, EyeOff, LockOpen, Pencil, Plus, SlidersHorizontal, Smartphone, Trash2, Users } from 'lucide-react';
+import { Archive, Eye, EyeOff, LockOpen, Pencil, Plus, SlidersHorizontal, Smartphone, Trash2, UserX, Users } from 'lucide-react';
 import { toast } from 'sonner';
 import type {
   ActualizacionUsuarioPlataforma,
@@ -680,7 +680,7 @@ export default function Usuarios() {
     mutationFn: (usuario: UsuarioPlataforma) => api.borrar<void>(`/api/v1/usuarios/${idEnUrl(usuario)}`),
     onSuccess: () => {
       invalidar();
-      toast.success('Cuenta dada de baja. Puedes reactivarla cuando la necesites.');
+      toast.success('Usuario deshabilitado. Ya no aparece en Inicio; puedes habilitarlo cuando lo necesites.');
       setModal(null);
     },
   });
@@ -707,7 +707,7 @@ export default function Usuarios() {
       api.patch<{ usuario: UsuarioPlataforma }>(`/api/v1/usuarios/${idEnUrl(usuario)}`, { habilitado: true }),
     onSuccess: () => {
       invalidar();
-      toast.success('Cuenta reactivada.');
+      toast.success('Usuario habilitado. Vuelve a aparecer en Inicio.');
     },
     onError: (error) => toast.error(mensajeError(error)),
   });
@@ -847,7 +847,7 @@ export default function Usuarios() {
                     <Td className="max-w-56 max-lg:hidden">{textoEquipos(usuario, listaEquipos)}</Td>
                     <Td>
                       {!usuario.habilitado ? (
-                        <Insignia tono="neutro">Dada de baja</Insignia>
+                        <Insignia tono="neutro">Deshabilitada</Insignia>
                       ) : usuario.bloqueadaHasta ? (
                         <Insignia tono="peligro">Bloqueada hasta {hora(usuario.bloqueadaHasta)}</Insignia>
                       ) : (
@@ -887,9 +887,8 @@ export default function Usuarios() {
                         )}
                         {usuario.habilitado ? (
                           <BotonIcono
-                            icono={Trash2}
-                            peligro
-                            etiqueta={`Dar de baja a ${usuario.nombre}`}
+                            icono={UserX}
+                            etiqueta={`Deshabilitar a ${usuario.nombre}`}
                             onClick={() => abrirBaja(usuario)}
                           />
                         ) : (
@@ -904,12 +903,12 @@ export default function Usuarios() {
                           )}
                           <Boton
                             tamano="sm"
-                            title="Reactivar la cuenta"
-                            aria-label={`Reactivar la cuenta de ${usuario.nombre}`}
+                            title="Habilitar la cuenta"
+                            aria-label={`Habilitar la cuenta de ${usuario.nombre}`}
                             onClick={() => reactivar.mutate(usuario)}
                             disabled={reactivar.isPending}
                           >
-                            {reactivar.isPending && reactivar.variables === usuario ? 'Reactivando…' : 'Reactivar'}
+                            {reactivar.isPending && reactivar.variables === usuario ? 'Habilitando…' : 'Habilitar'}
                           </Boton>
                           </>
                         )}
@@ -952,17 +951,17 @@ export default function Usuarios() {
 
       {modal?.modo === 'baja' && (
         <DialogoConfirmar
-          titulo="Dar de baja la cuenta"
+          titulo="Deshabilitar usuario"
           alCerrar={cerrarModal}
           alConfirmar={() => darDeBaja.mutate(modal.usuario)}
           trabajando={darDeBaja.isPending}
-          etiqueta="Dar de baja"
-          etiquetaTrabajando="Dando de baja…"
+          etiqueta="Deshabilitar"
+          etiquetaTrabajando="Deshabilitando…"
         >
           <p>
-            ¿Dar de baja a <b className="text-marino-900">{modal.usuario.nombre}</b> ({modal.usuario.usuario})? La
-            persona dejará de poder entrar; sus datos y su equipo se conservan, y puedes reactivar la cuenta cuando la
-            necesites.
+            ¿Deshabilitar a <b className="text-marino-900">{modal.usuario.nombre}</b> ({modal.usuario.usuario})? No
+            podrá entrar a la app y su equipo deja de aparecer en Inicio, Seguimiento y Repetición de ruta. Sus datos se
+            conservan y puedes habilitarla de nuevo cuando la necesites.
           </p>
           {darDeBaja.error != null && <AvisoError>{mensajeError(darDeBaja.error)}</AvisoError>}
         </DialogoConfirmar>
