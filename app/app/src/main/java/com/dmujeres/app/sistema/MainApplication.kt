@@ -17,19 +17,19 @@ package com.dmujeres.app.sistema
 
 import android.annotation.TargetApi
 import android.app.Activity
+import android.app.Application
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.graphics.Color
 import android.os.Build
-import androidx.multidex.MultiDexApplication
 import com.dmujeres.app.R
 import com.dmujeres.app.datos.DatabaseHelper
 import com.dmujeres.app.datos.Prefs
 import com.dmujeres.app.pantallas.Responsivo
 import com.dmujeres.app.pantallas.StatusActivity
 
-open class MainApplication : MultiDexApplication() {
+open class MainApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
@@ -86,8 +86,6 @@ open class MainApplication : MultiDexApplication() {
         channel.lockscreenVisibility = Notification.VISIBILITY_SECRET
         (getSystemService(NOTIFICATION_SERVICE) as NotificationManager).createNotificationChannel(channel)
     }
-
-    open fun handleRatingFlow(activity: Activity) {}
 
     companion object {
         private const val DIRECCION_VIEJA = "http://68.168.20.219"

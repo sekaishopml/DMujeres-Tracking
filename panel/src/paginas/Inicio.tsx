@@ -222,17 +222,15 @@ export default function Inicio() {
 
   const equipos = useMemo(() => equiposHabilitados(flota.data?.datos ?? []), [flota.data]);
 
-  // Versión de app más nueva vista en la flota: quien tenga una menor no
-  // recibió la actualización.
-  const versionMasNueva = useMemo(
-    () =>
-      equipos
-        .map((e) => e.versionApp)
-        .filter((v): v is string => Boolean(v))
-        .sort(compararVersion)
-        .at(-1) ?? null,
-    [equipos],
-  );
+  // Versión publicada para todos: quien tenga una menor no recibió la
+  // actualización. No se toma la más nueva de la flota, porque una versión a
+  // prueba en pocos teléfonos marcaría a todos los demás.
+  const version = useQuery({
+    queryKey: ['sistema', 'version'],
+    queryFn: () => api.get<{ versionApp?: string | null }>('/api/v1/version', { redirigir401: false }),
+    staleTime: 10 * 60_000,
+  });
+  const versionMasNueva = version.data?.versionApp ?? null;
 
 
   const jornadaPorPersona = useMemo(() => {
@@ -581,7 +579,7 @@ function FilaPersona({
       <td className="px-3 py-2 whitespace-nowrap">
         <span
           className={cn('cifras', appVieja ? 'font-semibold text-sin-senal' : 'text-texto-2')}
-          title={appVieja ? `Desactualizada: la más reciente en la flota es ${versionMasNueva}` : undefined}
+          title={appVieja ? `Desactualizada: la versión publicada es ${versionMasNueva}` : undefined}
         >
           {equipo.plataforma === 'ios' ? (
             <span className="inline-flex items-center gap-1">

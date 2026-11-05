@@ -2,7 +2,6 @@ plugins {
     id 'com.android.application'
     id 'kotlin-android'
     id 'com.google.gms.google-services'
-    id 'com.google.firebase.crashlytics'
 }
 
 // Las claves de firma y la configuración privada viven fuera del repositorio,
@@ -34,9 +33,8 @@ android {
         applicationId 'com.dmujeres.tracking'
         minSdkVersion 21
         targetSdkVersion 35
-        versionCode 405
-        versionName '2.10'
-        multiDexEnabled true
+        versionCode 406
+        versionName '2.15'
         buildConfigField "String", "MOBILE_HTTP_API_KEY", "\"${mobileApiKey}\""
         manifestPlaceholders = [appLabel: "Dmujeres Tracking"]
     }
@@ -55,7 +53,6 @@ android {
     productFlavors {
         regular {
             isDefault = true
-            ext.enableCrashlytics = false
             // Desarrollo: app APARTE (com.dmujeres.tracking.dev) para poder
             // instalar en un teléfono que ya tiene la app de flota, sin
             // desinstalarla ni chocar de firma.
@@ -83,6 +80,11 @@ android {
     buildTypes {
         release {
             signingConfig signingConfigs.release
+            // Recorta lo que no se usa de las librerías: la app pesa menos en
+            // el teléfono. El código propio queda entero (proguard-rules.pro).
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
 
@@ -107,24 +109,17 @@ android {
 
 dependencies {
     implementation 'com.google.android.material:material:1.12.0'
-    implementation 'androidx.multidex:multidex:2.0.1'
     implementation 'androidx.preference:preference-ktx:1.2.1'
     implementation 'androidx.core:core-ktx:1.16.0'
     implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3"
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
     implementation 'com.github.judemanutd:autostarter:1.1.0'
-    implementation('dev.doubledot.doki:library:0.0.1@aar') {
-        transitive = true
-    }
     testImplementation 'androidx.test:core:1.6.1'
     testImplementation 'junit:junit:4.13.2'
     testImplementation 'org.robolectric:robolectric:4.14.1'
     googleImplementation platform('com.google.firebase:firebase-bom:33.12.0')
-    googleImplementation 'com.google.firebase:firebase-analytics'
-    googleImplementation 'com.google.firebase:firebase-crashlytics'
     googleImplementation 'com.google.firebase:firebase-messaging'
     googleImplementation 'com.google.android.gms:play-services-location:21.3.0'
-    googleImplementation 'com.google.android.play:review:2.0.2'
 }
 
 // El flavor `regular` no usa Firebase (solo el `google`). Sin esto, Gradle

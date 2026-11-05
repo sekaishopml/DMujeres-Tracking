@@ -42,7 +42,9 @@ import com.dmujeres.app.datos.Prefs
 import com.dmujeres.app.datos.RefreshOutcome
 import com.dmujeres.app.datos.RefreshSummary
 import com.dmujeres.app.sistema.AjustesPermisos
+import com.dmujeres.app.sistema.CierreDelSistema
 import com.dmujeres.app.sistema.EstadoTelefono
+import com.dmujeres.app.sistema.OemAutostart
 import com.dmujeres.app.sistema.ServiceHeartbeat
 import com.dmujeres.app.datos.RemoteConfig
 import com.dmujeres.app.red.ConnectionState
@@ -1150,6 +1152,41 @@ class MainActivity : AppCompatActivity() {
             if (EstadoTelefono.ahorroDeBateria(ctx)) add(Aviso(R.string.aviso_ahorro_bateria, R.string.aviso_ok_ahorro) {
                 startActivity(Intent(android.provider.Settings.ACTION_BATTERY_SAVER_SETTINGS))
             })
+            // Xiaomi deja leer estos dos ajustes: sin ellos la app no vuelve sola.
+            if (OemAutostart.inicioAutomaticoXiaomi(ctx) == false) add(Aviso(R.string.aviso_inicio_automatico, R.string.aviso_ok_inicio_automatico) {
+                OemAutostart.open(ctx)
+            })
+            if (OemAutostart.sinRestriccionXiaomi(ctx) == false) add(Aviso(R.string.aviso_xiaomi_ahorro, R.string.aviso_ok_xiaomi_ahorro) {
+                OemAutostart.abrirAhorroXiaomi(ctx)
+            })
+            // En las demás marcas el ajuste no se puede leer: se pide cuando el
+            // teléfono cerró la app y no la dejó volver (ver CierreDelSistema).
+            val ajuste = ajusteDeCierre()
+            val cierre = ajuste?.let { CierreDelSistema.pendiente(ctx) }
+            if (ajuste != null && cierre != null) add(Aviso(ajuste.first, R.string.aviso_ok_cierre) {
+                CierreDelSistema.atender(ctx, cierre)
+                ajuste.second()
+            })
+        }
+    }
+
+    /** Texto y pantalla del ajuste que evita los cierres en cada marca; Xiaomi va arriba. */
+    private fun ajusteDeCierre(): Pair<Int, () -> Unit>? {
+        val ficha = {
+            runCatching {
+                startActivity(Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, android.net.Uri.parse("package:$packageName")))
+            }
+            Unit
+        }
+        return when (OemAutostart.marca()) {
+            OemAutostart.Marca.HUAWEI, OemAutostart.Marca.HONOR ->
+                R.string.aviso_cierre_inicio_apps to { OemAutostart.abrirInicioDeApps(this); Unit }
+            OemAutostart.Marca.SAMSUNG ->
+                R.string.aviso_cierre_nunca_suspender to { OemAutostart.abrirNuncaSuspender(this); Unit }
+            OemAutostart.Marca.TRANSSION ->
+                R.string.aviso_cierre_inicio_automatico to { if (!OemAutostart.open(this)) ficha() }
+            OemAutostart.Marca.OTRA -> R.string.aviso_cierre_bateria to ficha
+            OemAutostart.Marca.XIAOMI -> null
         }
     }
 

@@ -58,9 +58,6 @@
         android:name=".sistema.MainApplication"
         tools:ignore="GoogleAppIndexingWarning,UnusedAttribute">
 
-        <meta-data
-            android:name="google_analytics_adid_collection_enabled"
-            android:value="false" />
 
         <activity
             android:name=".pantallas.MainActivity"

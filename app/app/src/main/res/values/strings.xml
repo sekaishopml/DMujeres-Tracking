@@ -171,6 +171,15 @@ Se registrará el cierre en el panel.</string>
   <string name="aviso_ok_notificaciones">Notificaciones activadas</string>
   <string name="aviso_ok_actividad">Permiso de actividad física activado</string>
   <string name="aviso_ok_ahorro">Ahorro de batería desactivado</string>
+  <string name="aviso_inicio_automatico">Falta activar el inicio automático. Toque aquí para activarlo.</string>
+  <string name="aviso_ok_inicio_automatico">Inicio automático activado</string>
+  <string name="aviso_xiaomi_ahorro">Falta elegir “Sin restricciones” en la batería de la app. Toque aquí para cambiarlo.</string>
+  <string name="aviso_ok_xiaomi_ahorro">Batería de la app sin restricciones</string>
+  <string name="aviso_cierre_inicio_apps">El teléfono cerró la app durante la jornada. Toque aquí, desactive “Gestionar automáticamente” y deje encendidas las tres opciones.</string>
+  <string name="aviso_cierre_nunca_suspender">El teléfono cerró la app durante la jornada. Toque aquí y agregue la app a “Apps que nunca se suspenden”.</string>
+  <string name="aviso_cierre_inicio_automatico">El teléfono cerró la app durante la jornada. Toque aquí y permita el inicio automático de la app.</string>
+  <string name="aviso_cierre_bateria">El teléfono cerró la app durante la jornada. Toque aquí, entre a Batería y elija “Sin restricciones”.</string>
+  <string name="aviso_ok_cierre">Gracias. Si vuelve a pasar, comuníquese con el departamento de CCTV.</string>
   <string name="pill_none">Sin jornada</string>
   <string name="refresh_button">Actualizar</string>
   <string name="ota_disponible_titulo">Nueva versión %1$s disponible</string>

@@ -15,58 +15,14 @@
  */
 package com.dmujeres.app.sistema
 
-import android.app.Activity
-import android.content.IntentFilter
-import android.os.Build
-import androidx.annotation.RequiresApi
-import androidx.core.content.ContextCompat
-import androidx.preference.PreferenceManager
 import com.dmujeres.app.red.DmujeresApi
-import com.dmujeres.app.seguimiento.ServiceReceiver
-import com.dmujeres.app.seguimiento.TrackingService
-import com.google.android.gms.tasks.Task
-import com.google.android.play.core.review.ReviewInfo
-import com.google.android.play.core.review.ReviewManagerFactory
-import com.google.firebase.analytics.FirebaseAnalytics
 
 class GoogleMainApplication : MainApplication() {
 
-    private var firebaseAnalytics: FirebaseAnalytics? = null
-
     override fun onCreate() {
         super.onCreate()
-        firebaseAnalytics = FirebaseAnalytics.getInstance(this)
         // Token FCM para el canal de recuperación (se re-registra si rota).
         com.google.firebase.messaging.FirebaseMessaging.getInstance().token
             .addOnSuccessListener { token -> DmujeresApi.registerFcmToken(this, token) }
-        val filter = IntentFilter()
-        filter.addAction(TrackingService.ACTION_STARTED)
-        filter.addAction(TrackingService.ACTION_STOPPED)
-        ContextCompat.registerReceiver(this, ServiceReceiver(), filter, ContextCompat.RECEIVER_EXPORTED)
-    }
-
-    @RequiresApi(api = Build.VERSION_CODES.LOLLIPOP_MR1)
-    override fun handleRatingFlow(activity: Activity) {
-        val preferences = PreferenceManager.getDefaultSharedPreferences(this)
-        val ratingShown = preferences.getBoolean(KEY_RATING_SHOWN, false)
-        val totalDuration = preferences.getLong(ServiceReceiver.KEY_DURATION, 0)
-        if (!ratingShown && totalDuration > RATING_THRESHOLD) {
-            val reviewManager = ReviewManagerFactory.create(activity)
-            reviewManager.requestReviewFlow().addOnCompleteListener { infoTask: Task<ReviewInfo?> ->
-                if (infoTask.isSuccessful) {
-                    val reviewInfo = infoTask.result
-                    if (reviewInfo != null) {
-                        reviewManager.launchReviewFlow(activity, reviewInfo).addOnCompleteListener {
-                            preferences.edit().putBoolean(KEY_RATING_SHOWN, true).apply()
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    companion object {
-        private const val KEY_RATING_SHOWN = "ratingShown"
-        private const val RATING_THRESHOLD = -24 * 60 * 60 * 1000L
     }
 }

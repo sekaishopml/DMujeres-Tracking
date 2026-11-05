@@ -41,6 +41,14 @@ export ANDROID_HOME=/opt/android-sdk
 Hay dos variantes: `google`, que es la que se usa y trae ubicación de Google
 y notificaciones, y `regular`, sin servicios de Google.
 
+La versión `release` recorta lo que no se usa de las librerías (R8, desde la
+2.15: el APK pasó de 9,8 a 3,1 MB). El código propio queda entero y con sus
+nombres (`app/proguard-rules.pro`), así los cierres que llegan al panel se
+leen igual. Una librería nueva que use reflexión trae sus reglas; si no, hay
+que agregarlas ahí. La app ya no lleva Firebase Analytics, Crashlytics (los
+cierres los manda `sistema/CrashReporter.kt`), la reseña de Play, doki ni
+multidex.
+
 ## Cómo se actualizan los teléfonos
 
 La app pregunta al servidor (`/api/mobile/v1/ota`) si hay una versión mayor

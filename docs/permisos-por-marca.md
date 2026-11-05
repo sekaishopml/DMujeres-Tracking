@@ -84,6 +84,25 @@ El diagnóstico que llega cada 10 minutos trae, en el bloque `sistema`:
 - `ultimaSalida`: por qué el sistema cerró la app la última vez.
 - `reiniciosPorAlarma`: cuántas veces la app tuvo que levantarse sola.
 
+## Aviso en la pantalla principal (desde 2.15)
+
+Además de los permisos, la franja roja de arriba pide el ajuste de la marca
+(`pantallas/MainActivity.kt`, `avisosPendientes`):
+
+- Xiaomi: "Inicio automático" y "Sin restricciones", porque se pueden leer;
+  se ponen en verde al arreglarlos.
+- Las demás marcas no dejan leer el ajuste. Se pide solo cuando el teléfono
+  cerró la app durante la jornada y tardó más de 4 min en volver
+  (`sistema/CierreDelSistema.kt`): la alarma de supervisión la levanta en 3,
+  así que más que eso es que el teléfono no la dejó. Al tocarlo abre la
+  pantalla de la marca y no se repite hasta otro cierre. Un cierre que vuelve
+  en segundos (Xiaomi con inicio automático) no se avisa.
+
+En la flota (29/10 al 05/11): Honor con "Inicio de apps" en automático
+detiene la app por su cuenta (`PowerGenie smartopt clean`, Joselyn) y
+entonces ni la alarma ni el aviso push la reviven (le llegaron 24 de 894
+avisos); el Honor de joseph, bien configurado, vuelve en segundos.
+
 ## Lo que ninguna app puede hacer
 
 - Activar estos ajustes por su cuenta: el fabricante solo deja que la persona los cambie.
