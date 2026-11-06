@@ -46,6 +46,12 @@ está por tema:
 | `lugares/` | `geocercas`, `geocodigo`, `clientes` | Geocercas, direcciones (Nominatim con caché en `.cache/`), clientes |
 | `reportes/` | `reportes`, `reporteMarketing`, `cronograma` | Viajes, paradas y resumen; Excel de Marketing; cronograma |
 
+Excel de Marketing: llena la plantilla `plantillas/Reporte_Marketing.xlsm`
+(las personas son las filas de la plantilla; para sacar o poner a alguien se
+cambia la plantilla). Encendido = primer inicio de jornada del día; si la
+jornada venía de ayer, la hora del primer punto del día (0:02), o 0:00 si no
+hubo puntos. Apagado = último punto válido en jornada.
+
 Las pruebas están en `servidor/api/test` (`node24 --test test/*.test.mjs`).
 
 ### Rutas

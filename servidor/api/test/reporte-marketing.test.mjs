@@ -58,9 +58,9 @@ test('encendido y apagado de una jornada de Android', () => {
     encendido: '8:00',
     apagado: '23:54',
   });
-  // Empezada el día anterior: no hay encendido ese día.
-  assert.deepEqual(dia({ jornadas: [{ inicio: h('22:00', 13), fin: h('9:00', 15) }], ultimoPunto: h('8:55') }), {
-    encendido: 'Continúa',
+  // Empezada el día anterior: la hora del primer punto del día.
+  assert.deepEqual(dia({ jornadas: [{ inicio: h('22:00', 13), fin: h('9:00', 15) }], primerPunto: h('0:02'), ultimoPunto: h('8:55') }), {
+    encendido: '0:02',
     apagado: '8:55',
   });
   // Corte de medianoche y después un inicio de verdad: manda el de la persona
@@ -75,9 +75,9 @@ test('encendido y apagado de una jornada de Android', () => {
     }),
     { encendido: '7:21', apagado: '22:31' },
   );
-  // Solo el corte de medianoche: continúa, no encendió a las 0:00.
+  // Solo el corte de medianoche y sin puntos guardados: 0:00.
   assert.deepEqual(dia({ jornadas: [{ inicio: h('0:00'), fin: h('5:36'), continua: true }], ultimoPunto: h('5:30') }), {
-    encendido: 'Continúa',
+    encendido: '0:00',
     apagado: '5:30',
   });
 });
@@ -102,9 +102,11 @@ test('la plantilla real: filas de personas y celdas con su estilo', () => {
     [...si[1].matchAll(/<t[^>]*>([\s\S]*?)<\/t>/g)].map((t) => t[1]).join(''),
   );
   const filas = filasDePersonas(hoja, compartidos);
-  assert.equal(filas.length, 21);
+  // Lizbeth Rivera salió de la plantilla el 06/11.
+  assert.equal(filas.length, 20);
+  assert.ok(!filas.some((f) => f.nombre === 'LIZBETH RIVERA'));
   assert.deepEqual(filas[0], { fila: '12', nombre: 'DIEGO DUARTE' });
-  assert.deepEqual(filas.at(-1), { fila: '36', nombre: 'ISRAEL LOPEZ' });
+  assert.deepEqual(filas.at(-1), { fila: '35', nombre: 'ISRAEL LOPEZ' });
   assert.ok(!filas.some((f) => ['MARKETING', 'TECNICOS', 'MERCADERISTAS', 'RETAIL', 'MENSAJERO'].includes(f.nombre)));
   const llena = ponerTexto(hoja, 'C12', '7:52');
   assert.match(llena, /<c r="C12" s="8" t="inlineStr"><is><t>7:52<\/t><\/is><\/c>/);

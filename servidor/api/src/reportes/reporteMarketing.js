@@ -70,10 +70,9 @@ export function buscarPersona(nombre, personas) {
 // al llegar al final de la línea (sea por GPS apagado, sin señal o fin de
 // jornada); los puntos simulados y los de fuera de jornada no cuentan. Si el
 // día no tiene puntos, la hora de fin de la última jornada. El encendido es el
-// primer inicio de la persona; la jornada que viene del día anterior (o el
-// corte de medianoche) no es un encendido: "Continúa". iPhone (no marca
-// jornada): primer y último punto del día.
-export const CONTINUA = 'Continúa';
+// primer inicio de la persona; si la jornada viene del día anterior (o del
+// corte de medianoche), la hora del primer punto del día (0:02), o 0:00 si
+// no hubo puntos. iPhone (no marca jornada): primer y último punto del día.
 export function horasDelDia({ ios, jornadas, primerPunto, ultimoPunto }, desde, hasta, zona) {
   const hora = (t) => horaCorta(t, zona);
   if (ios) {
@@ -83,7 +82,7 @@ export function horasDelDia({ ios, jornadas, primerPunto, ultimoPunto }, desde, 
   const propia = jornadas.find((j) => j.inicio >= desde && !j.continua);
   const ultima = jornadas[jornadas.length - 1];
   const apagado = ultimoPunto ? hora(ultimoPunto) : ultima.fin ? hora(ultima.fin) : SIN_DATO;
-  return { encendido: propia ? hora(propia.inicio) : CONTINUA, apagado };
+  return { encendido: hora(propia ? propia.inicio : primerPunto ?? desde), apagado };
 }
 
 const escapar = (texto) => texto.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');

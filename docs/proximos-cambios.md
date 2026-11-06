@@ -86,6 +86,32 @@ todos los de Ariel pasaron de 3 min.
 - Jefferson: no apagar la ubicación durante la jornada.
 - Joselyn: inicio automático y batería sin restricciones en su teléfono.
 
+## Versión 2.15 (código 407, lista el 05/11/2026)
+
+Lista y firmada en `ota/DMujeres-Tracking-2.15.407.apk`; todavía no se ofrece
+a ningún teléfono. Trae:
+
+- APK de 3,1 MB (antes 9,8) y sin Analytics, Crashlytics ni reseña de Play.
+- Aviso por marca cuando el sistema del teléfono cerró la app en jornada
+  (`sistema/CierreDelSistema.kt`), con el ajuste exacto que hay que cambiar.
+- En marcha, si Google deja de dar posición, pasa al GPS del teléfono a los
+  20 s (antes 60 a 90 s). Ver [Cómo captura la app](app-captura.md).
+
+Cómo se saca:
+
+1. Instalarla por adb en el ZTE de prueba: arranque, jornada, cierre forzado
+   y el aviso; comparar memoria (`dumpsys meminfo`) contra la 2.10.
+2. Pilotos con `ota/por-equipo/<identificador>.json` (sin tocar
+   `latest.json`). Conviene incluir a Nadia y Joselyn (Honor), que es donde
+   más corta.
+3. Para todos, cuando se dé la orden.
+
+Lo que la 2.15 no puede arreglar: ninguna app vuelve a abrirse sola si el
+sistema la detiene. Joselyn, Nadia, Silvia y Martha necesitan el ajuste de
+inicio de apps en persona; Sofía y Jefferson apagan el GPS a mano; Jimmy,
+Silvia y Estévez usan ubicación simulada. Medición en
+[Calidad de la ruta](calidad-de-ruta.md).
+
 ## Otros pendientes
 
 - Prueba de carga con toda la flota mandando puntos a la vez y cálculo del
