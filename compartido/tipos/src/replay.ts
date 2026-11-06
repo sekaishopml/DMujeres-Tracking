@@ -78,6 +78,11 @@ export interface AvisoTelefono {
   en: string;
 }
 
+export interface TramoImpreciso {
+  desde: string;
+  hasta: string;
+}
+
 export interface Replay {
   dispositivo: Dispositivo;
   desde: string;
@@ -86,6 +91,12 @@ export interface Replay {
   huecos: Hueco[];
   avisos?: AvisoTelefono[];
   reconstruidos: TramoReconstruido[];
+  /**
+   * Pares de puntos precisos entre los que el teléfono dio ubicaciones
+   * imprecisas al menos cada 30 s (apartadas del trazo). Se vio, aunque
+   * impreciso: no es corte.
+   */
+  imprecisos?: TramoImpreciso[];
   resumen: ReplayResumen;
   calidad?: ReplayCalidad;
   /** Cómo terminó cada jornada del recorrido (último punto de cada una). */

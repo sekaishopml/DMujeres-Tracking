@@ -73,6 +73,22 @@ es hueco real de captura. Es decir: el teléfono sí guarda la ruta; lo que
 falla es que tarda en soltarla. Por eso en el panel un equipo "se ve muerto"
 aunque esté trabajando.
 
+## Medición del 29/10 al 05/11 (2.10)
+
+Con el mismo código del replay sobre todos los equipos (24, 4 100 km): 11 %
+de lo dibujado era raya de corte (1 120 rayas, 464 km). De dónde salían:
+
+| Causa | km | Arreglo |
+|---|---|---|
+| Hubo ubicación, pero de 20 a 100 m de error: el servidor la apartaba y el panel unía con raya de corte | ~190 | Ahora va punteada (visto pero impreciso) |
+| Google calla en marcha y la app tardaba 60 a 90 s en pasar al GPS del teléfono, que sí tenía posición | ~96 | 2.15: cambia a los 20 s |
+| App cerrada por el sistema (Honor, Huawei), teléfono apagado, GPS apagado a mano | ~127 | Ajustes del teléfono (aviso por marca de la 2.15) |
+| GPS sin cielo (bus, carretera): ningún proveedor da posición | resto | Ninguno por software |
+
+Con el dibujo nuevo: 454 rayas y 333 km (8 %); 12 de 24 equipos quedan con
+4 % o menos. Lo que queda es sobre todo de Joselyn, Jimmy, Silvia,
+Jefferson, Sofía, Israel y Jeremym (15 % o más).
+
 ## Qué falta, en orden de impacto
 
 1. **Medir la fidelidad por jornada.** Hoy la calidad se adivina mirando el

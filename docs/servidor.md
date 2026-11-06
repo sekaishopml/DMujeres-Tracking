@@ -75,7 +75,9 @@ Todas bajo `/api/v1`, con la cookie de sesión salvo `health`, `ready`,
    - fuera de la zona de operación (latitud −5 a 2, longitud −93 a −74);
    - rachas imprecisas (más de 20 m) entre dos puntos precisos a 5 min o
      menos; hasta 10 min si la racha es de ubicaciones por red (mediana de
-     100 m o más);
+     100 m o más). Si dentro de la racha hubo ubicación al menos cada 30 s,
+     el par de puntos precisos que la rodea va en `imprecisos` de la
+     respuesta: se vio, aunque impreciso, y el panel lo une punteado;
    - excursión: se aleja 25 m o más a más de 3 veces la velocidad que reporta
      el teléfono (+20 km/h) y vuelve en 60 s; o vuelve en hasta 3 min si ese
      regreso tampoco cuadra (caminando, a más de 20 km/h);

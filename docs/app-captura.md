@@ -17,7 +17,8 @@ están en clases sin Android (se prueban en `app/src/test`).
 2. GPS del teléfono (solo satélites; no responde bajo techo).
 3. Red (wifi y antenas; responde bajo techo, 50 a 2000 m de error).
 
-Si el vigente calla (`LocationWatchdog`: 1 min en movimiento, 2 min quieta),
+Si el vigente calla (`LocationWatchdog`: 20 s en movimiento, revisando cada
+10 s, desde la 2.15; 2 min quieta),
 primero se le vuelve a pedir y después se baja un escalón. En marcha no se
 baja a red ni se pide el rescate por red (desde la 2.10.3): se alterna entre
 Google y el GPS, y si arrancó con la red de bajo techo vuelve a Google. A los

@@ -266,7 +266,10 @@ class TrackingController(private val context: Context) :
                 return
             }
             revisar(now)
-            handler.postDelayed(this, WATCHDOG_PERIOD_MS)
+            // En marcha se revisa cada 10 s: si el proveedor calla se cambia a
+            // los 20 s y no al minuto (Joselyn 2.10: 60 a 90 s sin puntos
+            // manejando, y el GPS del teléfono sí tenía posición).
+            handler.postDelayed(this, if (enMarcha()) WATCHDOG_MARCHA_MS else WATCHDOG_PERIOD_MS)
         }
     }
 
@@ -870,6 +873,7 @@ class TrackingController(private val context: Context) :
 
         /** Revisión del vigilante de GPS (re-solicitud y escalera de proveedores). */
         private const val WATCHDOG_PERIOD_MS = 30_000L
+        private const val WATCHDOG_MARCHA_MS = 10_000L
 
         /** En movimiento, Google sin una posición de hasta 50 m por 20 s: se pasa al GPS. */
         private const val GOOGLE_SIN_FIX_BUENO_MS = 20_000L

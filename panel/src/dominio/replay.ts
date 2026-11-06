@@ -1,5 +1,5 @@
 import type { FeatureCollection, LineString, Point } from 'geojson';
-import type { Hueco, MetodoReconstruccion, Posicion, TramoReconstruido } from '@contratos';
+import type { Hueco, MetodoReconstruccion, Posicion, TramoImpreciso, TramoReconstruido } from '@contratos';
 import { GUION } from './formatoBase.ts';
 
 export type { MetodoReconstruccion, TramoReconstruido } from '@contratos';
@@ -18,6 +18,8 @@ export interface SegmentoRecorrido {
   // Instante (ms) en que empieza el tramo: ubica el tramo en su viaje para
   // resaltar un viaje y atenuar el resto del día.
   instante?: number;
+  // Par visto pero impreciso: fuera de una parada se dibuja punteado.
+  dudoso?: boolean;
 }
 
 // Cómo se desplazaba en un punto o par registrado; sale solo de la velocidad.
@@ -428,13 +430,18 @@ export const QUIETO_ANTENA_MS = 0.5;
 // Solo con puntos precisos: el temblor bajo techo también salta así.
 export const RECTA_SEGUIDA_SEGUNDOS = 15;
 export const RECTA_SEGUIDA_PRECISION_M = 15;
+// Con ubicación al menos cada 30 s (aunque imprecisa o quieta) el tramo se vio:
+// va punteado, no con la raya de corte. Igual que VISTO_PAUSA_MAX_MS del servidor.
+export const VISTO_PAUSA_MAX_SEGUNDOS = 30;
 
 export function segmentosDeRecorrido(
   posiciones: Posicion[],
   huecos: Hueco[],
   reconstruidos: TramoReconstruido[],
+  imprecisos: TramoImpreciso[] = [],
 ): SegmentoRecorrido[] {
   const paresReconstruidos = new Map(reconstruidos.map((tramo) => [`${tramo.desde}|${tramo.hasta}`, tramo]));
+  const paresImprecisos = new Set(imprecisos.map((tramo) => `${tramo.desde}|${tramo.hasta}`));
   const paresHueco = new Set(
     huecos
       .filter((hueco) => !paresReconstruidos.has(`${hueco.desde}|${hueco.hasta}`))
@@ -535,13 +542,23 @@ export function segmentosDeRecorrido(
     const avance = distanciaKm(posiciones[previo], posiciones[proximo]) * 1000;
     if (metrosPar < RUMBO_FIABLE_MIN_M && avance < AVANCE_REAL_MIN_M) continue;
     const rectaSinObservar = modo !== 'quieto' && metrosPar > RECTA_SIN_OBSERVAR_M && !seguidos;
+    const par = `${anterior.registradoEn}|${actual.registradoEn}`;
+    // Visto, aunque impreciso: dos lecturas seguidas (15 s o menos) que no
+    // son precisas o quedan lejos, o una racha imprecisa que el servidor
+    // apartó con ubicación al menos cada 30 s. No es lo que no se vio.
+    const dudoso = !paresHueco.has(par) && errorPar < PRECISION_ANTENA_M &&
+      (paresImprecisos.has(par) || segundosPar <= RECTA_SEGUIDA_SEGUNDOS);
     // Lo no observado va como raya de corte, no como recta sólida: une los
     // dos puntos para que la ruta no quede en pedazos, sin afirmar el camino.
-    if (paresHueco.has(`${anterior.registradoEn}|${actual.registradoEn}`) || rectaSinObservar || esSaltoSinObservar(anterior, actual)) {
+    if (paresHueco.has(par) || rectaSinObservar || esSaltoSinObservar(anterior, actual)) {
       // Un salto imposible es GPS errático, no un corte: unirlo dibujaría un
       // viaje que no existió.
       if (metrosPar > 50 && !(segundosPar > 0 && (metrosPar / segundosPar) * 3.6 <= VELOCIDAD_IMPOSIBLE_KMH)) continue;
       if (metrosPar < 1) continue;
+      if (dudoso) {
+        segmentos.push({ tipo: 'ruta', dudoso: true, banda: bandaVelocidad(velocidadEfectivaKmh(actual, anterior)), modo, coordenadas, instante: milisegundos(anterior.registradoEn) });
+        continue;
+      }
       segmentos.push({ tipo: 'hueco', coordenadas, instante: milisegundos(anterior.registradoEn) });
       continue;
     }

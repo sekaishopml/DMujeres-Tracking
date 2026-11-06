@@ -506,6 +506,7 @@ export default function Replay() {
   }, [puntosRecibidos]);
 
   const huecos = useMemo(() => replay.data?.huecos ?? [], [replay.data]);
+  const imprecisos = useMemo(() => replay.data?.imprecisos ?? [], [replay.data]);
   const avisos = useMemo(() => replay.data?.avisos ?? [], [replay.data]);
   const esIphone = replay.data?.dispositivo.plataforma === 'ios';
   // Tramos reconstruidos por el servidor (`reconstruidos`, con método; la
@@ -600,8 +601,8 @@ export default function Replay() {
   // línea, marcador y cursor usan los mismos tramos.
   const tramos = useMemo(() => descartarAjustesLejanos(posiciones, reconstruidos, paradas), [posiciones, reconstruidos, paradas]);
   const segmentos = useMemo(
-    () => segmentosParaDibujar(posiciones, huecos, tramos, paradas),
-    [posiciones, huecos, tramos, paradas],
+    () => segmentosParaDibujar(posiciones, huecos, tramos, paradas, imprecisos),
+    [posiciones, huecos, tramos, paradas, imprecisos],
   );
   // Hora del día de cada trazo (0 = primer fix, 1 = último): da el tono.
   const [primerMs, ultimoMs] = useMemo(

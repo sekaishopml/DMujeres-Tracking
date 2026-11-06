@@ -2132,6 +2132,19 @@
             "items": {
               "$ref": "#/components/schemas/TramoReconstruido"
             }
+          },
+          "imprecisos": {
+            "type": "array",
+            "description": "Pares de puntos precisos entre los que el teléfono dio ubicaciones imprecisas al menos cada 30 s (apartadas del trazo). Se vio: no es corte.",
+            "items": {
+              "type": "object",
+              "required": ["desde", "hasta"],
+              "properties": {
+                "desde": { "type": "string", "format": "date-time" },
+                "hasta": { "type": "string", "format": "date-time" }
+              },
+              "additionalProperties": false
+            }
           }
         },
         "additionalProperties": false

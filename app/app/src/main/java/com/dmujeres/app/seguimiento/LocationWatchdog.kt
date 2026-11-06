@@ -39,8 +39,8 @@ class LocationWatchdog(
     fun isStale(nowMs: Long): Boolean = lastFixAtMs >= 0L && nowMs - lastFixAtMs >= staleAfterMs
 
     /**
-     * En movimiento cada minuto sin posición es ruta perdida: se espera la
-     * mitad y se sube de escalón sin volver a pedir al mismo proveedor.
+     * En movimiento cada segundo sin posición es ruta perdida: a los
+     * [MOVING_STALE_MS] se sube de escalón sin volver a pedir al mismo proveedor.
      */
     fun tick(nowMs: Long, moving: Boolean = false): Action {
         if (lastFixAtMs < 0L) lastFixAtMs = nowMs
@@ -55,7 +55,7 @@ class LocationWatchdog(
         /** Sin fix durante 2 minutos se considera "colgado". */
         const val DEFAULT_STALE_MS = 2 * 60_000L
 
-        /** En movimiento: 1 minuto sin fix y se pasa al siguiente proveedor. */
-        const val MOVING_STALE_MS = 60_000L
+        /** En movimiento: 20 s sin fix y se pasa al siguiente proveedor. */
+        const val MOVING_STALE_MS = 20_000L
     }
 }

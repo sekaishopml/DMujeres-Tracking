@@ -56,6 +56,10 @@ const IMPRECISO_RACHA_MAX_MS = 5 * 60_000;
 // ruta se volvía un zigzag (Jeremy 27/10 07:31-07:35).
 const RED_RACHA_MAX_MS = 10 * 60_000;
 const RED_PRECISION_M = 100;
+// Una racha quitada no es un corte si el teléfono siguió dando ubicación al
+// menos cada 30 s: se vio, aunque impreciso. Se informa el par de puntos
+// precisos que la rodea y el panel lo une punteado, no con la raya de corte.
+const VISTO_PAUSA_MAX_MS = 30_000;
 
 // Excursión: se aleja 25 m o más del último punto bueno, a más de 3 veces la
 // velocidad reportada + 20 km/h, y en 60 s vuelve a quedar cerca de donde
@@ -130,9 +134,10 @@ function esPicoQuieto(anterior, actual, siguiente) {
 
 const ms = (p) => new Date(p.registradoEn).getTime();
 const esPreciso = (p) => !(p.precisionM > IMPRECISO_M);
+const sinPausas = (lista) => lista.every((p, k) => k === 0 || ms(p) - ms(lista[k - 1]) <= VISTO_PAUSA_MAX_MS);
 const metros = (a, b) => distanciaKm(a.latitud, a.longitud, b.latitud, b.longitud) * 1000;
 
-function sinImprecisos(posiciones) {
+function sinImprecisos(posiciones, vistos) {
   const salida = [];
   let i = 0;
   while (i < posiciones.length) {
@@ -150,6 +155,7 @@ function sinImprecisos(posiciones) {
     const deRed = precisiones[Math.floor(precisiones.length / 2)] >= RED_PRECISION_M;
     const corta = lapso <= IMPRECISO_RACHA_MAX_MS || (deRed && lapso <= RED_RACHA_MAX_MS);
     if (!corta) salida.push(...posiciones.slice(i, j));
+    else if (sinPausas([antes, ...posiciones.slice(i, j), despues])) vistos.push({ desde: antes.registradoEn, hasta: despues.registradoEn });
     i = j;
   }
   return salida;
@@ -302,7 +308,8 @@ export function depurarPosiciones(posiciones) {
     if (enZona(p)) dentro.push(p);
     else fueraDeZona += 1;
   }
-  const enArea = sinImprecisos(dentro);
+  const vistos = [];
+  const enArea = sinImprecisos(dentro, vistos);
   const pasosFiables = contadorDePasosFiable(enArea);
   const imprecisas = dentro.length - enArea.length;
   const conservadas = [];
@@ -359,8 +366,10 @@ export function depurarPosiciones(posiciones) {
   const { lista: despiertas, quitadas: enDespertares } = sinDespertaresFalsos(sinEscapadas);
   excursiones += enDespertares;
   const { lista: sinRafagas, quitadas: enRafagas } = sinRafagasQuietas(despiertas);
+  const quedan = new Set(sinRafagas.map((p) => p.registradoEn));
   return {
     conservadas: sinRafagas,
+    imprecisos: vistos.filter((v) => quedan.has(v.desde) && quedan.has(v.hasta)),
     calidad: {
       descartadasFueraDeZona: fueraDeZona,
       descartadasSalto: saltos + enRafagas,

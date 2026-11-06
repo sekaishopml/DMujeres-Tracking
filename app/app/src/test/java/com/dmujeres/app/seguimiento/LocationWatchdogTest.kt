@@ -46,10 +46,10 @@ class LocationWatchdogTest {
     }
 
     @Test
-    fun `en movimiento sube de proveedor al minuto sin reintentar`() {
+    fun `en movimiento sube de proveedor a los 20 s sin reintentar`() {
         val w = LocationWatchdog()
         w.start(0L)
-        assertEquals(LocationWatchdog.Action.NONE, w.tick(59_000L, moving = true))
-        assertEquals(LocationWatchdog.Action.NEXT_PROVIDER, w.tick(60_000L, moving = true))
+        assertEquals(LocationWatchdog.Action.NONE, w.tick(19_000L, moving = true))
+        assertEquals(LocationWatchdog.Action.NEXT_PROVIDER, w.tick(20_000L, moving = true))
     }
 }

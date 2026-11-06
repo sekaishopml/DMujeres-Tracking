@@ -77,11 +77,18 @@ Además, según los sensores del teléfono:
 - Una salida sin pasos ni actividad que la respalden también va punteada.
 - Cada parada se une con su línea de llegada y de salida (`conectarParadas`).
 - `coser`: la ruta nunca queda partida. Unos metros se cierran con la misma
-  línea; más, con la raya naranja de corte.
+  línea; más, con la raya naranja de corte, salvo que en ese rato el teléfono
+  haya seguido dando ubicación al menos cada 30 s (quieta o imprecisa): esa
+  unión va punteada.
+- Visto pero impreciso (desde el 05/11): dos lecturas seguidas (15 s o
+  menos) que no son precisas o quedan a más de 150 m, y el par que rodea una
+  racha imprecisa que el servidor apartó (`imprecisos`), van punteados. La
+  raya de corte queda solo para lo que no se vio: más de 15 s sin ninguna
+  ubicación. Medido del 29/10 al 05/11: de 1120 rayas de corte a 454.
 - Colores: línea sólida = GPS visto; punteado = GPS visto pero dudoso
-  (salto imposible, salida sin pasos ni actividad) o unión corta a pie desde
-  una parada; naranja con rayas = corte (no se vio). Un corte nunca se
-  rellena por calles.
+  (salto imposible, salida sin pasos ni actividad, lecturas imprecisas) o
+  unión corta a pie desde una parada; naranja con rayas = corte (no se vio).
+  Un corte nunca se rellena por calles.
 
 ## Mouse y selección (`componentes/replay/ReproductorReplay.tsx`)
 

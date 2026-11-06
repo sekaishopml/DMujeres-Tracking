@@ -1,6 +1,6 @@
-import type { Hueco, Posicion } from '@contratos';
+import type { Hueco, Posicion, TramoImpreciso } from '@contratos';
 import { actividadReportada, contadorDePasosFiable, salidasDuranteParada } from '../../dominio/paradasUnidas.ts';
-import { milisegundos, RECTA_SEGUIDA_SEGUNDOS, RECTA_SIN_OBSERVAR_M, segmentosDeRecorrido } from '../../dominio/replay.ts';
+import { milisegundos, RECTA_SEGUIDA_SEGUNDOS, RECTA_SIN_OBSERVAR_M, segmentosDeRecorrido, VISTO_PAUSA_MAX_SEGUNDOS } from '../../dominio/replay.ts';
 import type { Parada, SegmentoRecorrido, TramoReconstruido } from '../../dominio/replay.ts';
 
 // Reglas de dibujo del trazo. Solo cambian el dibujo: las posiciones, la
@@ -349,6 +349,7 @@ export function segmentosParaDibujar(
   huecos: Hueco[],
   reconstruidos: TramoReconstruido[],
   paradas: Parada[],
+  imprecisos: TramoImpreciso[] = [],
 ): SegmentoRecorrido[] {
   const ventanasParada = paradas.map((p) => [milisegundos(p.inicio), milisegundos(p.fin), [p.longitud, p.latitud] as [number, number]] as const);
   const finTramo = new Map(reconstruidos.map((tramo) => [milisegundos(tramo.desde), milisegundos(tramo.hasta)]));
@@ -396,7 +397,7 @@ export function segmentosParaDibujar(
     const d = metros(segmento.coordenadas[0], segmento.coordenadas[1]);
     return d >= SALTO_MIN_M && d / 1000 / ((fin - t) / 3_600_000) > SALTO_IMPOSIBLE_KMH;
   };
-  const crudos = segmentosDeRecorrido(trazables, huecos, reconstruidos).flatMap((segmento) => {
+  const crudos = segmentosDeRecorrido(trazables, huecos, reconstruidos, imprecisos).flatMap((segmento) => {
     const t = segmento.instante ?? 0;
     // Dentro de una parada todo trazo es temblor del GPS (bajo techo salta 100
     // a 200 m): no se dibujan líneas ni flechas; la parada se ve con su halo y
@@ -433,25 +434,47 @@ export function segmentosParaDibujar(
     }
     i = j + 1;
   }
-  const cortados = cortarTramosEnParadas(crudos, paradas, trazables, finDe);
+  // Lo visto pero impreciso, fuera de las paradas, va punteado.
+  const marcados = crudos.map((s) => (s.dudoso && s.tipo === 'ruta' && s.modo !== 'quieto' ? { ...s, tipo: 'estimated' as const } : s));
+  const cortados = cortarTramosEnParadas(marcados, paradas, trazables, finDe);
   const recortados = recortarEnParadas(cortados, paradas, finDe);
   // Cada parada se une, desde su centro, con el punto donde empieza la
   // línea al salir y donde termina al llegar.
   const unidos = [...recortados, ...conectarParadas(recortados, paradas, finDe, trazables)];
-  return coser(unirCortes(unidos, paradas, finDe, (t) => siguiente.get(t) ?? t), paradas, finDe);
+  return coser(unirCortes(unidos, paradas, finDe, (t) => siguiente.get(t) ?? t), paradas, finDe, trazables);
 }
 
 // La ruta nunca queda partida: donde un trazo termina y el siguiente empieza
 // en otro sitio, se unen. Si entre los dos hubo una parada, la unión pasa por
 // su centro. Unos metros se cierran con la misma línea; más, con la raya de
-// corte (no se vio por dónde fue).
+// corte (no se vio por dónde fue). Si en ese rato el teléfono siguió dando
+// ubicación al menos cada 30 s (quieta, o imprecisa), la unión se vio: va
+// punteada.
 const COSTURA_MIN_M = 3;
 
 export function coser(
   segmentos: SegmentoRecorrido[],
   paradas: Parada[],
   finDe: (segmento: SegmentoRecorrido) => number,
+  posiciones: Posicion[] = [],
 ): SegmentoRecorrido[] {
+  const tiempos = posiciones.map((p) => milisegundos(p.registradoEn));
+  const vistoEntre = (desde: number, hasta: number) => {
+    if (tiempos.length === 0) return false;
+    let k = 0;
+    let hi = tiempos.length;
+    while (k < hi) {
+      const medio = (k + hi) >> 1;
+      if (tiempos[medio] <= desde) k = medio + 1;
+      else hi = medio;
+    }
+    let previo = desde;
+    for (; k < tiempos.length && tiempos[k] < hasta; k += 1) {
+      if (tiempos[k] - previo > VISTO_PAUSA_MAX_SEGUNDOS * 1000) return false;
+      previo = tiempos[k];
+    }
+    return hasta - previo <= VISTO_PAUSA_MAX_SEGUNDOS * 1000;
+  };
   const visibles = segmentos
     .filter((s) => s.coordenadas.length >= 2 && !(s.tipo === 'ruta' && s.modo === 'quieto'))
     .sort((a, b) => (a.instante ?? 0) - (b.instante ?? 0));
@@ -469,9 +492,10 @@ export function coser(
     const puntos = centro && metros(a, centro) > COSTURA_MIN_M && metros(centro, b) > COSTURA_MIN_M ? [a, centro, b] : [a, b];
     for (let k = 1; k < puntos.length; k += 1) {
       const corta = metros(puntos[k - 1], puntos[k]) <= RECTA_SIN_OBSERVAR_M;
+      const tipo = corta ? 'ruta' : vistoEntre(desde, hasta) ? 'estimated' : 'hueco';
       costuras.push({
-        tipo: corta ? 'ruta' : 'hueco',
-        ...(corta ? { modo: previo.modo === 'caminata' || actual.modo === 'caminata' ? 'caminata' : 'vehiculo' } : {}),
+        tipo,
+        ...(tipo !== 'hueco' ? { modo: previo.modo === 'caminata' || actual.modo === 'caminata' ? 'caminata' : 'vehiculo' } : {}),
         coordenadas: [puntos[k - 1], puntos[k]],
         // Al salir de una parada, la unión va con la salida y no con la llegada.
         instante: centro && metros(puntos[k - 1], centro) <= COSTURA_MIN_M ? hasta - 1000 : desde,

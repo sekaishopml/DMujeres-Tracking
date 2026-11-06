@@ -139,3 +139,14 @@ test('la velocidad máxima es la sostenida, no un pico del GPS', async () => {
   // Sin tres puntos precisos seguidos no hay dato.
   assert.equal(velocidadMaximaSostenidaKmh(lista.map((p) => ({ ...p, precisionM: 100 }))), 0);
 });
+
+test('una racha imprecisa seguida entre dos puntos precisos se informa como vista, no como corte', () => {
+  // Manejando bajo techo: 4 lecturas de 40 m cada 20 s entre dos precisas.
+  const seguida = [pos(0, -2.2000, -79.9000, 5), ...[20, 40, 60, 80].map((s, k) => pos(s, -2.2000 - (k + 1) * 0.0005, -79.9000, 40)), pos(100, -2.2025, -79.9000, 5)];
+  const r = depurarPosiciones(seguida);
+  assert.deepEqual(r.conservadas.map((p) => p.id), [0, 100]);
+  assert.deepEqual(r.imprecisos, [{ desde: seguida[0].registradoEn, hasta: seguida[5].registradoEn }]);
+  // Con una pausa de más de 30 s dentro, lo del medio no se vio: no se informa.
+  const conPausa = [seguida[0], seguida[1], seguida[4], seguida[5]];
+  assert.deepEqual(depurarPosiciones(conPausa).imprecisos, []);
+});

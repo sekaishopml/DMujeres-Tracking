@@ -147,7 +147,7 @@ export async function obtenerReplay(ctx) {
   if (enJornada.length === 0) {
     throw noEncontrado('No hubo jornada en la ventana pedida: sin jornada no se traza recorrido.');
   }
-  const { conservadas: posiciones, calidad } = depurarPosiciones(enJornada.map(aPosicion));
+  const { conservadas: posiciones, calidad, imprecisos } = depurarPosiciones(enJornada.map(aPosicion));
   if (posiciones.length === 0) {
     throw noEncontrado('No hay recorrido válido del dispositivo en la ventana pedida.');
   }
@@ -206,6 +206,8 @@ export async function obtenerReplay(ctx) {
     hasta: rango.hasta.toISOString(),
     posiciones,
     huecos,
+    // Tramos con ubicación imprecisa pero seguida: se vio, no es corte.
+    imprecisos,
     avisos: await avisosDelTelefono(ctx, dispositivo.id, rango),
     reconstruidos,
     resumen,
