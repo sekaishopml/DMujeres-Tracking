@@ -745,12 +745,18 @@ export function validarAjusteMatch(puntos, trazado) {
   }
 }
 
+// Error del GPS que tolera el ajuste (m). Con 20 no sigue el vaivén de 15 a
+// 25 m de los puntos hacia las bocacalles y la otra calzada (ganchos y zigzag:
+// Diego 05/11 en la Atahualpa); si con 20 no pasa la revisión, se pide con 10.
+// Semana 29/10-05/11: ganchos de 529 a 125 sin perder tramos ajustados.
+const SIGMAS_AJUSTE_M = [20, 10];
+
 // Ajuste a la vía con /match usando los puntos del tramo. La precisión
 // mediana se manda como `accuracy` para que el ruteo sepa cuánto confiar en
 // cada punto. Devuelve {trazado, mapaVersion} o null.
-async function trazarPorMatch(puntos, signal) {
+async function trazarPorMatch(puntos, signal, sigma) {
   const accuracy = precisionMedianaM(puntos);
-  const clave = `${claveMatch(puntos)}|a${accuracy === null ? 'na' : Math.round(accuracy)}`;
+  const clave = `${claveMatch(puntos)}|a${accuracy === null ? 'na' : Math.round(accuracy)}|s${sigma}`;
   const enCache = leerCache(clave);
   if (enCache !== undefined) return enCache.trazado ? enCache : null;
   const { signal: senal, liberar } = peticionConLimite(signal);
@@ -761,6 +767,7 @@ async function trazarPorMatch(puntos, signal) {
       body: JSON.stringify({
         points: puntos.map((p) => [p.longitud, p.latitud]),
         ...(accuracy === null ? {} : { accuracy }),
+        sigma,
       }),
       signal: senal,
     });
@@ -813,10 +820,11 @@ export async function reconstruirTramos(todas, signal) {
       const resultados = await Promise.all(
         tanda.map(async (puntos) => {
           try {
-            const porMatch = await trazarPorMatch(puntos, signal);
-            if (!porMatch?.trazado || porMatch.trazado.length < 2) return null;
-            if (!validarAjusteMatch(puntos, porMatch.trazado).valida) return null;
-            return { puntos, ...porMatch };
+            for (const sigma of SIGMAS_AJUSTE_M) {
+              const porMatch = await trazarPorMatch(puntos, signal, sigma);
+              if (porMatch?.trazado?.length >= 2 && validarAjusteMatch(puntos, porMatch.trazado).valida) return { puntos, ...porMatch };
+            }
+            return null;
           } catch {
             return null;
           }

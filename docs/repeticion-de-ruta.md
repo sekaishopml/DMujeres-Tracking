@@ -85,6 +85,13 @@ Además, según los sensores del teléfono:
   racha imprecisa que el servidor apartó (`imprecisos`), van punteados. La
   raya de corte queda solo para lo que no se vio: más de 15 s sin ninguna
   ubicación. Medido del 29/10 al 05/11: de 1120 rayas de corte a 454.
+- Ajuste a calles sin ganchos (desde el 06/11): el ruteo se pide tolerando
+  20 m de error del GPS, para que no siga el vaivén de los puntos hacia las
+  bocacalles o la otra calzada; si así no pasa la revisión, se pide con 10 m
+  como antes (`servidor/api/src/recorrido/ruteo.js`, `SIGMAS_AJUSTE_M`). En el
+  panel, `sinPicos` quita además los ganchos que quedan: giro de 100° o más
+  con un lado de menos de 15 m. Solo toca la línea ajustada, nunca los puntos
+  GPS. Medido del 29/10 al 05/11: de 529 ganchos a 86, con los mismos cortes.
 - Colores: línea sólida = GPS visto; punteado = GPS visto pero dudoso
   (salto imposible, salida sin pasos ni actividad, lecturas imprecisas) o
   unión corta a pie desde una parada; naranja con rayas = corte (no se vio).

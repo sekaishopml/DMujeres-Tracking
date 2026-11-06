@@ -30,7 +30,9 @@ POST /route {"from":[lon,lat],"to":[lon,lat]}
 ## Cuándo se usa
 
 - `/match` sobre ventanas de puntos reales (hasta 100 puntos o 5 min cada
-  una). El ajuste se descarta si se aparta de los puntos.
+  una). El ajuste se descarta si se aparta de los puntos. `sigma` es el
+  error del GPS que se tolera (5 a 40 m, 10 si no viene): la API pide 20 y,
+  si el ajuste no pasa la revisión, 10.
 - 3 s como máximo por recorrido; lo que no entra se dibuja con los puntos
   tal como llegaron.
 - Los resultados se guardan en memoria 7 días.

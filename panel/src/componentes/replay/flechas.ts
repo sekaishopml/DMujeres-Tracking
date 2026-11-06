@@ -34,9 +34,13 @@ const MEDIA_BASE_M = 12;
 const UNION_M = 25;
 // Pico: ida y vuelta corta en el ajuste a calles (entra a una esquina y
 // regresa). Se quita el vértice si el giro supera 150° y alguno de
-// sus dos lados mide menos de 35 m.
+// sus dos lados mide menos de 35 m. Gancho: giro de 100° o más con un lado
+// de menos de 15 m (se pasa a la otra calzada y vuelve); una esquina de
+// verdad gira menos o tiene los dos lados largos.
 const PICO_GIRO_GRADOS = 150;
 const PICO_LADO_M = 35;
+const GANCHO_GIRO_GRADOS = 100;
+const GANCHO_LADO_M = 15;
 
 function distanciaM(a: { lat: number; lon: number }, b: { lat: number; lon: number }): number {
   const dLat = (b.lat - a.lat) * 111320;
@@ -69,7 +73,8 @@ export function sinPicos(trazado: [number, number][]): [number, number][] {
       const antes = distanciaM(puntos[k - 1], puntos[k]);
       const despues = distanciaM(puntos[k], puntos[k + 1]);
       const angulo = giro(rumbo(puntos[k - 1], puntos[k]), rumbo(puntos[k], puntos[k + 1]));
-      if (angulo >= PICO_GIRO_GRADOS && Math.min(antes, despues) < PICO_LADO_M) {
+      const lado = Math.min(antes, despues);
+      if ((angulo >= PICO_GIRO_GRADOS && lado < PICO_LADO_M) || (angulo >= GANCHO_GIRO_GRADOS && lado < GANCHO_LADO_M)) {
         puntos.splice(k, 1);
         cambio = true;
         break;

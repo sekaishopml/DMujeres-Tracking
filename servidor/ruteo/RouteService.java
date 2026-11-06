@@ -37,7 +37,7 @@ import java.util.List;
  * "car") y ofrece dos operaciones:
  *   POST /route {"from":[lon,lat],"to":[lon,lat]}
  *     -> {"points":[[lon,lat],...],"distance":m,"time":ms,"mapaVersion":sha256}
- *   POST /match {"points":[[lon,lat],...],"accuracy":m}
+ *   POST /match {"points":[[lon,lat],...],"accuracy":m,"sigma":m}
  *     -> {"matched":[...],"distance":m,"raw":n,"filtered":n,"snappedRatio":x,
  *         "mapaVersion":sha256}
  *
@@ -58,17 +58,17 @@ public class RouteService {
     // MapMatching guarda estado mutable por consulta (queryGraph, statistics):
     // compartir una instancia entre los 4 hilos devolvía 500 y caminos
     // distintos para la misma entrada. Cada hilo del pool tiene la suya.
-    private static final ThreadLocal<MapMatching> MATCHER_POR_HILO = new ThreadLocal<>();
+    // Uno por cada sigma pedido (error del GPS que se tolera, en metros).
+    private static final ThreadLocal<java.util.Map<Integer, MapMatching>> MATCHER_POR_HILO =
+            ThreadLocal.withInitial(java.util.HashMap::new);
 
-    private static MapMatching matcherDeHilo(GraphHopper hopper) {
-        MapMatching mm = MATCHER_POR_HILO.get();
-        if (mm == null) {
-            mm = MapMatching.fromGraphHopper(hopper, new com.graphhopper.util.PMap().putObject("profile", "car"));
+    private static MapMatching matcherDeHilo(GraphHopper hopper, int sigma) {
+        return MATCHER_POR_HILO.get().computeIfAbsent(sigma, s -> {
+            MapMatching mm = MapMatching.fromGraphHopper(hopper, new com.graphhopper.util.PMap().putObject("profile", "car"));
             mm.setTransitionProbabilityBeta(5);
-            mm.setMeasurementErrorSigma(10);
-            MATCHER_POR_HILO.set(mm);
-        }
-        return mm;
+            mm.setMeasurementErrorSigma(s);
+            return mm;
+        });
     }
 
     private static GraphHopper buildHopper() {
@@ -177,8 +177,10 @@ public class RouteService {
                 responder(ex, 405, "{\"error\":\"POST required\"}", true);
                 return;
             }
-            MapMatching mm = matcherDeHilo(hopper);
             ObjectNode body = JSON.readValue(ex.getRequestBody(), ObjectNode.class);
+            JsonNode sigmaNode = body.get("sigma");
+            int sigma = sigmaNode == null ? 10 : Math.max(5, Math.min(40, sigmaNode.asInt(10)));
+            MapMatching mm = matcherDeHilo(hopper, sigma);
             ArrayNode points = (ArrayNode) body.get("points");
             if (points == null || points.size() < 2) {
                 responder(ex, 400, "{\"error\":\"se requieren >=2 puntos\"}", true);
