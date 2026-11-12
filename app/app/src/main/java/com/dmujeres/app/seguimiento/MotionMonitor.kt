@@ -99,7 +99,15 @@ object MotionMonitor : SensorEventListener {
         runCatching {
             val manager = context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
             sensorManager = manager
-            manager.registerListener(this, manager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER), SensorManager.SENSOR_DELAY_NORMAL)
+            // Por tandas: el chip de sensores junta 5 s de lecturas y despierta al
+            // teléfono una vez, no cinco por segundo (el ZTE marcaba la app por
+            // "consumo del sensor"). Las muestras conservan su hora real.
+            manager.registerListener(
+                this,
+                manager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER),
+                SensorManager.SENSOR_DELAY_NORMAL,
+                TANDA_ACELEROMETRO_US,
+            )
             registered = true
             updateGyroscope()
             armSignificantMotion()
@@ -194,7 +202,7 @@ object MotionMonitor : SensorEventListener {
             std <= STATIONARY_STD -> State.STATIONARY
             else -> state // zona de histéresis: se conserva el estado previo
         }
-        if (arranque.muestra(System.currentTimeMillis(), state == State.MOVING)) {
+        if (arranque.muestra(horaDeMuestra(event.timestamp), state == State.MOVING)) {
             Log.i(TAG, "movimiento sostenido del acelerómetro: arranque")
             significantMotionListener?.onSignificantMotion()
         }
@@ -214,4 +222,16 @@ object MotionMonitor : SensorEventListener {
     }
 
     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
+
+    /** Hora de reloj de una muestra (llegan en tandas de hasta 5 s de atraso). */
+    private fun horaDeMuestra(timestampNs: Long): Long =
+        horaDeMuestra(System.currentTimeMillis(), android.os.SystemClock.elapsedRealtimeNanos(), timestampNs)
+
+    private const val TANDA_ACELEROMETRO_US = 5_000_000
+
+    /** Si la hora del sensor no es creíble (otra base de tiempo), se usa la de llegada. */
+    internal fun horaDeMuestra(ahoraMs: Long, ahoraNs: Long, timestampNs: Long): Long {
+        val atrasoMs = (ahoraNs - timestampNs) / 1_000_000
+        return if (atrasoMs in 0..60_000) ahoraMs - atrasoMs else ahoraMs
+    }
 }

@@ -86,9 +86,9 @@ todos los de Ariel pasaron de 3 min.
 - Jefferson: no apagar la ubicación durante la jornada.
 - Joselyn: inicio automático y batería sin restricciones en su teléfono.
 
-## Versión 2.15 (código 409, lista el 12/11/2026)
+## Versión 2.15 (código 410, lista el 12/11/2026)
 
-Lista y firmada en `ota/DMujeres-Tracking-2.15.409.apk` (reemplaza a la 407 y la 408);
+Lista y firmada en `ota/DMujeres-Tracking-2.15.410.apk` (reemplaza a la 407, 408 y 409);
 todavía no se ofrece a ningún teléfono. Trae:
 
 - APK de 3,1 MB (antes 9,8) y sin Analytics, Crashlytics ni reseña de Play.
@@ -103,6 +103,9 @@ todavía no se ofrece a ningún teléfono. Trae:
   sesión de esa instalación (`POST /api/mobile/v1/sesion/recuperar`). Así los
   teléfonos que la 2.10 dejó sin sesión el 10 y 11/11 vuelven solos al
   actualizarse. Si la sesión se quitó desde el panel, pide entrar.
+- (410) El acelerómetro entrega sus lecturas en tandas de 5 s: el teléfono
+  despierta una vez por tanda y no cinco veces por segundo. El ZTE marcaba la
+  app por "consumo del sensor" (2231 despertares en una hora quieta).
 - Ojo: no subir la 2.15 a GitHub como release si no es para todos. La app
   consulta GitHub cada vez que el servidor no le ofrece versión, así que un
   release ahí le llega a toda la flota.
