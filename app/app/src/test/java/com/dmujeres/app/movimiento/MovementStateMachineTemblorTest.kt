@@ -64,4 +64,22 @@ class MovementStateMachineTemblorTest {
         machine.onFixWithPosition(210_000L, 0.0, 10.0, lat0 + 95.0 / gradoM, lon0, false, accuracyM = 5.0)
         assertEquals(State.ACTIVE, machine.state)
     }
+
+    @Test
+    fun `quieta, lecturas de wifi y antenas lejos del sitio no son salida`() {
+        val machine = MovementStateMachine()
+        arrancar(machine)
+        for (i in 1..40) machine.onFixWithPosition(i * 5_000L, 0.0, 0.0, lat0, lon0, false, accuracyM = 5.0)
+        // Con el GPS apagado la lectura cae a 90-300 m y se queda ahí.
+        for (i in 1..30) {
+            machine.onFixWithPosition(
+                200_000L + i * 10_000L, 0.0, 10.0, lat0 + (90.0 + i * 7) / gradoM, lon0, false, accuracyM = 100.0, gpsApagadoEnQuieta = true,
+            )
+        }
+        assertEquals(State.STATIONARY, machine.state)
+        // Dos lecturas precisas lejos del sitio sí son salida.
+        machine.onFixWithPosition(510_000L, 0.0, 0.0, lat0 + 120.0 / gradoM, lon0, false, accuracyM = 10.0, gpsApagadoEnQuieta = true)
+        machine.onFixWithPosition(520_000L, 0.0, 10.0, lat0 + 130.0 / gradoM, lon0, false, accuracyM = 10.0, gpsApagadoEnQuieta = true)
+        assertEquals(State.ACTIVE, machine.state)
+    }
 }

@@ -169,9 +169,20 @@ class MovementStateMachine {
         imuMoving: Boolean?,
         significantMotion: Boolean = false,
         accuracyM: Double = 0.0,
+        gpsApagadoEnQuieta: Boolean = false,
     ): State {
         if (state == State.STOPPED) return state
-        val walking = walkDetector.add(nowMs, latitude, longitude)
+        // Quieta con el GPS apagado, una lectura de wifi y antenas no prueba
+        // salida: cae a 100-300 m del sitio y se queda ahí varias lecturas. Esa
+        // salida la avisan el sensor de movimiento y la cerca. Con el GPS
+        // encendido no se toca: ahí la posición es la que detecta la salida.
+        val imprecisa = gpsApagadoEnQuieta && state == State.STATIONARY && accuracyM > PRECISION_QUIETA_M
+        val walking = if (imprecisa) {
+            walkDetector.evict(nowMs)
+            walkDetector.walking
+        } else {
+            walkDetector.add(nowMs, latitude, longitude)
+        }
         val alejamiento = if (centroN == 0) 0.0 else Geo.distanceM(centroLat, centroLon, latitude, longitude)
         // Lejos del centro (con velocidad basta menos distancia), en dos
         // puntos seguidos y del mismo lado: el temblor salta de un lado al
@@ -181,12 +192,14 @@ class MovementStateMachine {
                 alejamiento >= maxOf(ALEJAMIENTO_CON_VELOCIDAD_M, 2 * accuracyM)
             )
         val mismoLado = lejosAntes && Geo.distanceM(lejosLat, lejosLon, latitude, longitude) < alejamiento
-        val gpsMoving = lejos && mismoLado
+        val gpsMoving = lejos && mismoLado && !imprecisa
         lejosAntes = lejos
         lejosLat = latitude
         lejosLon = longitude
         val result = onFixInternal(nowMs, gpsMoving, imuMoving, significantMotion, walking)
-        if (stillSinceMs < 0L || centroN == 0) {
+        if (imprecisa) {
+            // No mueve el centro del sitio.
+        } else if (stillSinceMs < 0L || centroN == 0) {
             // Hubo movimiento (o es el primero): el sitio empieza aquí.
             centroLat = latitude
             centroLon = longitude
@@ -396,6 +409,9 @@ class MovementStateMachine {
 
         /** Con velocidad de 3 kn, basta esto (o el doble de la precisión). */
         const val ALEJAMIENTO_CON_VELOCIDAD_M = 30.0
+
+        /** Error (m) desde el que una lectura, estando quieta, no cuenta como salida. */
+        const val PRECISION_QUIETA_M = 50.0
 
         /** STATIONARY exige 3 min de evidencia consistente. */
         const val STATIONARY_AFTER_MS = 3 * 60_000L

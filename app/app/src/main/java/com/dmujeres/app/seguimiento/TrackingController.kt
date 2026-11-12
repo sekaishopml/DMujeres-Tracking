@@ -634,6 +634,7 @@ class TrackingController(private val context: Context) :
             position.latitude, position.longitude,
             MotionMonitor.isMoving(), significant,
             accuracyM = position.accuracy,
+            gpsApagadoEnQuieta = Ajustes.valor(Ajustes.Clave.QUIETA_BAJO_CONSUMO) == 1L,
         )
         if (machine.state != before) {
             Log.i(TAG, "movimiento: $before -> ${machine.state} " +

@@ -86,9 +86,9 @@ todos los de Ariel pasaron de 3 min.
 - Jefferson: no apagar la ubicación durante la jornada.
 - Joselyn: inicio automático y batería sin restricciones en su teléfono.
 
-## Versión 2.15 (código 412, lista el 12/11/2026)
+## Versión 2.15 (código 413, lista el 12/11/2026)
 
-Lista y firmada en `ota/DMujeres-Tracking-2.15.412.apk` (reemplaza a la 407 a 411);
+Lista y firmada en `ota/DMujeres-Tracking-2.15.413.apk` (reemplaza a la 407 a 412);
 todavía no se ofrece a ningún teléfono. Trae:
 
 - APK de 3,1 MB (antes 9,8) y sin Analytics, Crashlytics ni reseña de Play.
@@ -115,6 +115,15 @@ todavía no se ofrece a ningún teléfono. Trae:
   en el mismo minuto (la anterior queda de 0 minutos; el servidor ya acepta
   fin igual al inicio). Solo hay una pausa de 15 s entre una actividad nueva
   y otra, contra los toques seguidos.
+- (413) Con `quietaBajoConsumo` (GPS apagado estando quieta), una lectura de
+  wifi y antenas con más de 50 m de error ya no cuenta como salida: caía a
+  100-300 m del sitio y encendía el GPS unas 8 veces por hora. La salida la
+  avisan el sensor de movimiento y la cerca. Simulado con el mes de los 34
+  equipos (7 386 h, 2 929 salidas): GPS encendido el 17 % de la jornada
+  (antes 76 %), 0,25 encendidos falsos por hora de quietud (antes 7,9),
+  ninguna salida perdida, aviso a los 34 s (38 s en el 90 %). Si el sensor de
+  movimiento no avisa, solo queda la cerca: 266 salidas tardan más de 10 min.
+  Con el GPS encendido en quietud (lo de hoy) no cambia nada.
 - Ojo: no subir la 2.15 a GitHub como release si no es para todos. La app
   consulta GitHub cada vez que el servidor no le ofrece versión, así que un
   release ahí le llega a toda la flota.
