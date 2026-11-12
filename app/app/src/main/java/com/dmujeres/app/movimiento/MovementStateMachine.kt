@@ -2,6 +2,7 @@ package com.dmujeres.app.movimiento
 
 import com.dmujeres.app.captura.Geo
 import com.dmujeres.app.captura.WalkDetector
+import com.dmujeres.app.datos.Ajustes
 import com.dmujeres.app.seguimiento.MotionMonitor
 
 /**
@@ -176,7 +177,7 @@ class MovementStateMachine {
         // salida: cae a 100-300 m del sitio y se queda ahí varias lecturas. Esa
         // salida la avisan el sensor de movimiento y la cerca. Con el GPS
         // encendido no se toca: ahí la posición es la que detecta la salida.
-        val imprecisa = gpsApagadoEnQuieta && state == State.STATIONARY && accuracyM > PRECISION_QUIETA_M
+        val imprecisa = gpsApagadoEnQuieta && state == State.STATIONARY && accuracyM > Ajustes.valor(Ajustes.Clave.PRECISION_SALIDA_QUIETA_M)
         val walking = if (imprecisa) {
             walkDetector.evict(nowMs)
             walkDetector.walking
@@ -187,7 +188,7 @@ class MovementStateMachine {
         // Lejos del centro (con velocidad basta menos distancia), en dos
         // puntos seguidos y del mismo lado: el temblor salta de un lado al
         // otro del sitio y un salto suelto no es salida.
-        val lejos = alejamiento >= ALEJAMIENTO_M || (
+        val lejos = alejamiento >= Ajustes.valor(Ajustes.Clave.SALIDA_M) || (
             speedKn >= MOVING_SPEED_KN &&
                 alejamiento >= maxOf(ALEJAMIENTO_CON_VELOCIDAD_M, 2 * accuracyM)
             )
@@ -235,7 +236,7 @@ class MovementStateMachine {
             if (state == State.STARTING) {
                 state = State.ACTIVE
             } else if (state == State.ACTIVE || state == State.RECOVERING) {
-                if (nowMs - stillSinceMs >= STATIONARY_AFTER_MS) {
+                if (nowMs - stillSinceMs >= Ajustes.valor(Ajustes.Clave.QUIETA_TRAS_MS)) {
                     state = State.STATIONARY
                 }
             }
@@ -363,7 +364,7 @@ class MovementStateMachine {
             state = State.ACTIVE
             lastMotionAtMs = lastFixAtMs
             stillSinceMs = -1L
-        } else if (nowMs - oldestRecent >= STATIONARY_AFTER_MS) {
+        } else if (nowMs - oldestRecent >= Ajustes.valor(Ajustes.Clave.QUIETA_TRAS_MS)) {
             state = State.STATIONARY
             stillSinceMs = oldestRecent
         } else {
@@ -404,16 +405,10 @@ class MovementStateMachine {
         /** Desplazamiento (m) que suple una velocidad nula. */
         const val MOVING_DISTANCE_M = 150.0
 
-        /** Distancia al centro del sitio que es salida sin mirar la velocidad. */
-        const val ALEJAMIENTO_M = 80.0
-
         /** Con velocidad de 3 kn, basta esto (o el doble de la precisión). */
         const val ALEJAMIENTO_CON_VELOCIDAD_M = 30.0
 
-        /** Error (m) desde el que una lectura, estando quieta, no cuenta como salida. */
-        const val PRECISION_QUIETA_M = 50.0
-
-        /** STATIONARY exige 3 min de evidencia consistente. */
+        /** STATIONARY exige 3 min de evidencia consistente (de fábrica; llega en `quietaTrasMs`). */
         const val STATIONARY_AFTER_MS = 3 * 60_000L
 
         /** Sin fix 4 min se pide rescate (igual que el watchdog). */

@@ -42,7 +42,8 @@ blanco.
 Con jornada: GPS en alta precisión cada 1 s; quieta, cada 10 s. Lo que se
 guarda lo filtra `PositionProvider` (distancia, giro y latido): en movimiento
 un latido cada 10 s (la "Frecuencia" del panel, 10 a 60 s) más cada esquina;
-quieta, el latido es de 2 min pero el temblor no se guarda (ver abajo). Sin
+quieta, el latido es de 2 min al llegar y de 5 min después, y el temblor no
+se guarda (ver abajo). Sin
 jornada: red cada 2 min.
 
 ## ¿Se mueve? (`movimiento/MovementStateMachine.kt`)
@@ -77,8 +78,11 @@ En este orden, para cada posición:
    puntos se acepta.
 2. `CaptureGate` + `StationaryCollapse`: quieta solo guarda si avanzó más
    que el doble del error de las lecturas (15 a 100 m; bajo techo el punto
-   "camina" 25 a 80 m) o pasaron 5 min; una lectura de más de 100 m de error
-   nunca cuenta como avance. El latido de 5 min se guarda tal cual, pero si es
+   "camina" 25 a 80 m) o pasó el latido; una lectura de más de 100 m de error
+   nunca cuenta como avance. El latido es de 2 min los primeros 15 min en el
+   sitio (la persona puede irse pronto) y cuando el último punto guardado tuvo
+   más de 50 m de error y llega una lectura buena; si no, 5 min (desde la
+   2.15, tiempos en "Ajustes de captura"). Se guarda tal cual, pero si es
    peor no mueve la referencia: el avance se mide desde el mejor punto del
    lugar (desde la 2.10.9). En una esquina guarda aunque no toque
    (`TurnCapture`).
@@ -135,6 +139,13 @@ captura. Ausente o fuera de rango, vale el de fábrica.
 | `huecoGoogleMs` | 3000 | 1000–30000 | Google calla: guarda las del GPS en paralelo |
 | `supervisionMs` | 180000 | 60000–900000 | Alarma que revisa y revive el servicio |
 | `tandaAcelerometroMs` | 5000 | 0–30000 | Tandas del acelerómetro |
+| `latidoQuietaMs` | 300000 | 60000–900000 | Quieta, un punto cada este tiempo |
+| `latidoCortoMs` | 120000 | 30000–300000 | Latido al llegar y para corregir un punto malo |
+| `latidoCortoInicioMs` | 900000 | 0–3600000 | Cuánto dura el latido corto al llegar (0 = nunca) |
+| `quietaTrasMs` | 180000 | 60000–900000 | Sin movimiento este tiempo, pasa a quieta |
+| `salidaM` | 80 | 40–300 | Alejarse esto del sitio es salida |
+| `precisionSalidaQuietaM` | 50 | 20–500 | Con GPS apagado en quietud, más error no es salida |
+| `esperaActividadMs` | 15000 | 0–120000 | Pausa entre una actividad nueva y la siguiente |
 
 Ejemplo, solo para un equipo:
 `UPDATE tracking.dmt_dispositivo SET atributos = jsonb_set(atributos, '{mobile.ajustes}', '{"gpsQuietaMs":30000}') WHERE identificador = 'Santi-ZTE';`

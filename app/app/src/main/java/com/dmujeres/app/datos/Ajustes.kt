@@ -32,6 +32,20 @@ object Ajustes {
         SUPERVISION_MS("supervisionMs", 180_000, 60_000, 900_000),
         /** Tandas del acelerómetro (0 = cada lectura despierta al teléfono). */
         TANDA_ACELEROMETRO_MS("tandaAcelerometroMs", 5_000, 0, 30_000),
+        /** Quieta, un punto cada este tiempo aunque no se mueva. */
+        LATIDO_QUIETA_MS("latidoQuietaMs", 300_000, 60_000, 900_000),
+        /** Latido seguido: al llegar a un sitio y para corregir un punto malo. */
+        LATIDO_CORTO_MS("latidoCortoMs", 120_000, 30_000, 300_000),
+        /** Cuánto dura el latido seguido al llegar a un sitio (0 = nunca). */
+        LATIDO_CORTO_INICIO_MS("latidoCortoInicioMs", 900_000, 0, 3_600_000),
+        /** Sin señales de movimiento este tiempo, pasa a quieta. */
+        QUIETA_TRAS_MS("quietaTrasMs", 180_000, 60_000, 900_000),
+        /** Alejarse esto del sitio (dos lecturas seguidas) es salida. */
+        SALIDA_M("salidaM", 80, 40, 300),
+        /** Con el GPS apagado en quietud, lecturas con más error no cuentan como salida. */
+        PRECISION_SALIDA_QUIETA_M("precisionSalidaQuietaM", 50, 20, 500),
+        /** Pausa entre una actividad nueva y la siguiente. */
+        ESPERA_ACTIVIDAD_MS("esperaActividadMs", 15_000, 0, 120_000),
     }
 
     private const val KEY = "ajustesCaptura"

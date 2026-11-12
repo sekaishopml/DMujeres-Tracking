@@ -59,15 +59,32 @@ class CaptureGateTest {
     }
 
     @Test
-    fun `latido cada 5 min en parado`() {
+    fun `latido cada 2 min al llegar y cada 5 min despues`() {
         val gate = CaptureGate()
         gate.seed(t0, baseLat, baseLon, 40.0, 8.0)
         val (lat, lon) = Geo.offset(baseLat, baseLon, 2.0, 1.0)
-        val early = gate.evaluate(lat, lon, 40.0, 8.0, 0.0, t0 + 299_000L, true, t0 + 299_000L)
-        assertFalse(early.store)
-        val beat = gate.evaluate(lat, lon, 40.0, 8.0, 0.0, t0 + 300_000L, true, t0 + 300_000L)
-        assertTrue(beat.store)
-        assertEquals(CaptureGate.Reason.STORE_HEARTBEAT, beat.reason)
+        fun quieta(ms: Long) = gate.evaluate(lat, lon, 40.0, 8.0, 0.0, t0 + ms, true, t0 + ms)
+        assertFalse(quieta(10_000L).store)
+        assertFalse(quieta(119_000L).store)
+        assertEquals(CaptureGate.Reason.STORE_HEARTBEAT, quieta(120_000L).reason)
+        assertEquals(CaptureGate.Reason.STORE_HEARTBEAT, quieta(240_000L).reason)
+        // Pasados 15 min en el sitio, el latido vuelve a 5 min.
+        assertTrue(quieta(960_000L).store)
+        assertFalse(quieta(1_200_000L).store)
+        assertFalse(quieta(1_259_000L).store)
+        assertEquals(CaptureGate.Reason.STORE_HEARTBEAT, quieta(1_260_000L).reason)
+    }
+
+    @Test
+    fun `un punto malo se corrige a los 2 min con una lectura buena`() {
+        val gate = CaptureGate()
+        gate.seed(t0, baseLat, baseLon, 0.0, 8.0)
+        fun quieta(ms: Long, error: Double) = gate.evaluate(baseLat, baseLon, 0.0, error, 0.0, t0 + ms, true, t0 + ms)
+        quieta(10_000L, 8.0)
+        assertTrue(quieta(1_200_000L, 100.0).store)
+        // Otra lectura mala espera los 5 min; una buena se guarda a los 2.
+        assertFalse(quieta(1_320_000L, 100.0).store)
+        assertTrue(quieta(1_320_001L, 10.0).store)
     }
 
     @Test
@@ -143,7 +160,7 @@ class CaptureGateTest {
     fun `quieta, una lectura de 200 m de error a 320 m no es avance`() {
         val gate = CaptureGate()
         gate.seed(t0, baseLat, baseLon, 0.0, 12.0)
-        val antena = gate.evaluate(baseLat + 0.0029, baseLon, 0.0, 200.0, 0.0, t0 + 120_000L, true, t0 + 120_000L)
+        val antena = gate.evaluate(baseLat + 0.0029, baseLon, 0.0, 200.0, 0.0, t0 + 60_000L, true, t0 + 60_000L)
         assertFalse(antena.store)
     }
 }

@@ -1,12 +1,14 @@
 package com.dmujeres.app.captura
 
+import com.dmujeres.app.datos.Ajustes
+
 /**
  * Qué guardar estando quieta (sin Android, se prueba en la JVM).
  *
  * Detenido, el GPS tiembla (±25 m) y se guardaba cada punto. Estando quieta
  * solo se guarda si avanzó de verdad desde el último guardado (15 m o más) o
- * si pasaron 5 min (para saber que sigue ahí). Así el temblor no se guarda y
- * una salida real sí.
+ * si pasó el latido (para saber que sigue ahí, ver [latidoMs]). Así el
+ * temblor no se guarda y una salida real sí.
  *
  * Se aplica en STATIONARY, o con velocidad cero sostenida aunque la máquina
  * siga en ACTIVE (un semáforo de 2 min). Un 0 suelto no cuenta: la quietud
@@ -38,8 +40,26 @@ object StationaryCollapse {
     fun avanzo(distM: Double, accuracyM: Double, storedAccuracyM: Double): Boolean =
         accuracyM <= MAX_DISTANCE_M && distM >= avanceMinimo(accuracyM, storedAccuracyM)
 
-    /** Estando quieta, un punto cada 5 min aunque no se mueva. */
-    const val HEARTBEAT_MS = 5 * 60_000L
+    /** Error (m) hasta el que una lectura ubica bien el sitio. */
+    const val PRECISION_BUENA_M = 50.0
+
+    /**
+     * Cada cuánto se guarda un punto estando quieta (los tiempos llegan del
+     * servidor, ver [Ajustes]): seguido (2 min) al llegar a un sitio, porque
+     * la persona puede irse pronto y la parada tiene que verse entera, y
+     * cuando el último guardado fue malo y ahora hay una lectura buena, para
+     * que el sitio quede bien ubicado. El resto del tiempo, 5 min.
+     *
+     * @param quietaMs tiempo que lleva quieta en este sitio.
+     * @param guardadoAccuracyM error del último punto guardado.
+     */
+    fun latidoMs(quietaMs: Long, accuracyM: Double, guardadoAccuracyM: Double): Long {
+        val normal = Ajustes.valor(Ajustes.Clave.LATIDO_QUIETA_MS)
+        val corto = minOf(Ajustes.valor(Ajustes.Clave.LATIDO_CORTO_MS), normal)
+        if (quietaMs < Ajustes.valor(Ajustes.Clave.LATIDO_CORTO_INICIO_MS)) return corto
+        if (guardadoAccuracyM > PRECISION_BUENA_M && accuracyM in 0.0..PRECISION_BUENA_M) return corto
+        return normal
+    }
 
     /** Velocidad reportada que cuenta como "~0" (nudos, ≈1,85 km/h). */
     const val STILL_SPEED_KN = 1.0
@@ -66,12 +86,13 @@ object StationaryCollapse {
         hasReference: Boolean,
         accuracyM: Double = 0.0,
         storedAccuracyM: Double = 0.0,
+        latidoMs: Long = Ajustes.valor(Ajustes.Clave.LATIDO_QUIETA_MS),
     ): Boolean {
         if (!hasReference) return true
         val quiet = stationary || (stillSustained && speedKn < STILL_SPEED_KN)
         if (!quiet) return true
         if (avanzo(distFromStoredM, accuracyM, storedAccuracyM)) return true
-        if (msSinceStored >= HEARTBEAT_MS) return true
+        if (msSinceStored >= latidoMs) return true
         return false
     }
 }

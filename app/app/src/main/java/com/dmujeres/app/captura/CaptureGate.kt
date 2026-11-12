@@ -49,6 +49,8 @@ class CaptureGate {
     private var lastAccepted: TeleportGuard.Reference? = null
     private var lastTurnExtraMs: Long = Long.MIN_VALUE
     private var stillSinceMs: Long? = null
+    private var quietaDesdeMs: Long? = null
+    private var guardadoAccuracyM = 0.0
 
     /** Siembra con el último almacenado del historial (cero queries en régimen). */
     fun seed(capturedAtMs: Long, lat: Double, lon: Double, courseDeg: Double, accuracyM: Double) {
@@ -56,6 +58,8 @@ class CaptureGate {
         lastAccepted = TeleportGuard.Reference(capturedAtMs, lat, lon, accuracyM)
         stillSinceMs = null
         lastTurnExtraMs = Long.MIN_VALUE
+        quietaDesdeMs = null
+        guardadoAccuracyM = accuracyM
     }
 
     /** ¿Es un salto imposible? Solo lo juzga, no cambia nada. */
@@ -101,9 +105,12 @@ class CaptureGate {
         }
         val sustained = still && since != null &&
             capturedAtMs - since >= StationaryCollapse.STILL_SUSTAINED_MS
+        val quietaDesde = if (stationary || sustained) quietaDesdeMs ?: capturedAtMs else null
+        quietaDesdeMs = quietaDesde
         val stored = lastStored
         if (stored == null) {
             lastStored = Stored(capturedAtMs, lat, lon, courseDeg, accuracyM)
+            guardadoAccuracyM = accuracyM
             return Outcome(true, Reason.STORE_FIRST)
         }
         val distM = Geo.distanceM(stored.lat, stored.lon, lat, lon)
@@ -113,6 +120,7 @@ class CaptureGate {
         if (TurnCapture.isTurn(stored.courseDeg, courseDeg, speedKn, sinceTurn, true)) {
             lastStored = Stored(capturedAtMs, lat, lon, courseDeg, accuracyM)
             lastTurnExtraMs = nowMs
+            guardadoAccuracyM = accuracyM
             return Outcome(true, Reason.STORE_TURN)
         }
         val keep = StationaryCollapse.shouldStore(
@@ -124,8 +132,12 @@ class CaptureGate {
             hasReference = true,
             accuracyM = accuracyM,
             storedAccuracyM = stored.accuracyM,
+            latidoMs = StationaryCollapse.latidoMs(
+                capturedAtMs - (quietaDesde ?: capturedAtMs), accuracyM, guardadoAccuracyM,
+            ),
         )
         if (!keep) return Outcome(false, Reason.DROP_COLLAPSE)
+        guardadoAccuracyM = accuracyM
         val latido = (stationary || sustained) && !StationaryCollapse.avanzo(distM, accuracyM, stored.accuracyM)
         // El latido se guarda tal cual, pero una lectura peor no mueve la
         // referencia de la estancia: el siguiente avance se mide desde el

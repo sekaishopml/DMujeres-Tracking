@@ -15,6 +15,7 @@ import com.dmujeres.app.cronograma.CierreDia
 import com.dmujeres.app.cronograma.CronogramaActivity
 import com.dmujeres.app.cronograma.HoraCronograma
 import com.dmujeres.app.cronograma.TipoActividad
+import com.dmujeres.app.datos.Ajustes
 
 /**
  * Tarjeta de actividad del inicio. Visitan muchos sitios al día y el
@@ -226,7 +227,7 @@ class ActividadExpress(private val pantalla: Activity) {
         val delDia = Actividades.delDia(pantalla, fecha)
         // Sin tiempo mínimo entre actividades; solo una pausa corta contra los toques seguidos.
         val ultima = delDia.maxOfOrNull { it.registradoEn } ?: 0L
-        if (System.currentTimeMillis() - ultima in 0 until ESPERA_MS) return mostrarError(R.string.act_home_espere)
+        if (System.currentTimeMillis() - ultima in 0 until Ajustes.valor(Ajustes.Clave.ESPERA_ACTIVIDAD_MS)) return mostrarError(R.string.act_home_espere)
         // La que estaba en curso se finaliza a la hora en que empieza la nueva
         // (si es el mismo minuto, queda de 0 minutos).
         val cierre = delDia
@@ -322,9 +323,6 @@ class ActividadExpress(private val pantalla: Activity) {
     private companion object {
         /** Cuánto queda a la vista un aviso antes de irse. */
         const val AVISO_MS = 2_600L
-
-        /** Pausa entre una actividad nueva y la siguiente. */
-        const val ESPERA_MS = 15_000L
 
         val OCULTAS_AL_ANOTAR = intArrayOf(
             R.id.tarjeta_jornada, R.id.fila_jornada, R.id.resumen_dia, R.id.version_label,
