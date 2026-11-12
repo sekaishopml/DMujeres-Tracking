@@ -43,6 +43,12 @@ class HoraInterpretarTest {
     private fun curso(t: String) = HoraCronograma.enCurso(dia, t, { it.hora }, { it.fin })
 
     @Test
+    fun siguienteEnElMismoMinutoQuedaEnCurso() {
+        val seguidas = listOf(A("10:00", "10:00"), A("10:00", null))
+        assertEquals(seguidas[1], HoraCronograma.enCurso(seguidas, "10:00", { it.hora }, { it.fin }))
+    }
+
+    @Test
     fun actividadEnCursoYSiguiente() {
         assertEquals(dia[0], curso("10:15"))
         assertNull(curso("11:45"))

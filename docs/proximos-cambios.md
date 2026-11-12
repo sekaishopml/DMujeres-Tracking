@@ -86,9 +86,9 @@ todos los de Ariel pasaron de 3 min.
 - Jefferson: no apagar la ubicación durante la jornada.
 - Joselyn: inicio automático y batería sin restricciones en su teléfono.
 
-## Versión 2.15 (código 411, lista el 12/11/2026)
+## Versión 2.15 (código 412, lista el 12/11/2026)
 
-Lista y firmada en `ota/DMujeres-Tracking-2.15.411.apk` (reemplaza a la 407 a 410);
+Lista y firmada en `ota/DMujeres-Tracking-2.15.412.apk` (reemplaza a la 407 a 411);
 todavía no se ofrece a ningún teléfono. Trae:
 
 - APK de 3,1 MB (antes 9,8) y sin Analytics, Crashlytics ni reseña de Play.
@@ -111,6 +111,10 @@ todavía no se ofrece a ningún teléfono. Trae:
   adelanta a 5 s para revivir el servicio, en vez de esperar hasta 3 min.
 - (411) Tiempos de la captura desde el servidor, sin actualizar la app (ver
   "Ajustes de captura" en [Cómo captura la app](app-captura.md)).
+- (412) "Siguiente actividad" sin tiempo mínimo: se puede pasar a la siguiente
+  en el mismo minuto (la anterior queda de 0 minutos; el servidor ya acepta
+  fin igual al inicio). Solo hay una pausa de 15 s entre una actividad nueva
+  y otra, contra los toques seguidos.
 - Ojo: no subir la 2.15 a GitHub como release si no es para todos. La app
   consulta GitHub cada vez que el servidor no le ofrece versión, así que un
   release ahí le llega a toda la flota.

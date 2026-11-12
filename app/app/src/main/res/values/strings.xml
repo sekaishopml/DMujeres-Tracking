@@ -531,6 +531,7 @@ Se registrará el cierre en el panel.</string>
   <string name="act_home_iniciar_ahora">Iniciar ahora</string>
   <string name="act_home_ayuda_fmt">Empieza a las %1$s · otra hora: cronograma</string>
   <string name="act_home_ayuda_cierra_fmt">Empieza a las %1$s y cierra la que está en curso</string>
+  <string name="act_home_espere">Espere unos segundos para registrar otra actividad.</string>
   <string name="act_home_falta_lugar">Escriba el lugar de la visita</string>
   <string name="act_home_en_curso">ACTIVIDAD EN CURSO</string>
   <string name="act_home_desde_fmt">En curso · %1$s · desde las %2$s</string>

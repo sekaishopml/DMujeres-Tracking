@@ -708,10 +708,11 @@ export async function atenderActividad(req, res, ctx) {
   if (!clienteId || !FECHA_RE.test(fecha ?? '') || !HORA_RE.test(hora ?? '') || !TIPOS_ACTIVIDAD.has(tipo)) {
     return responderSinCuerpo(res, 400);
   }
-  // La hora de fin es opcional ("de 09:00 a 11:30"). Si no es válida o no
-  // queda después de la de inicio, se ignora.
+  // La hora de fin es opcional ("de 09:00 a 11:30"). Si no es válida o
+  // queda antes de la de inicio, se ignora. Puede ser la misma: la persona
+  // pasó a la siguiente actividad en el mismo minuto.
   const horaFinCruda = texto(cuerpo.horaFin);
-  const horaFin = horaFinCruda && HORA_RE.test(horaFinCruda) && horaFinCruda > hora ? horaFinCruda : null;
+  const horaFin = horaFinCruda && HORA_RE.test(horaFinCruda) && horaFinCruda >= hora ? horaFinCruda : null;
   const lugar = recortar(cuerpo.lugar, 200);
   const nota = recortar(cuerpo.nota, 500);
   if (tipo === 'novedad' && !nota) return responderSinCuerpo(res, 400);

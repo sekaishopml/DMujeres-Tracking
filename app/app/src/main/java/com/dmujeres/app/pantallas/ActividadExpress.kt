@@ -223,13 +223,15 @@ class ActividadExpress(private val pantalla: Activity) {
         val texto = escrito.takeIf { tipo == TipoActividad.VISITA }
         val nota = escrito.takeIf { tipo != TipoActividad.VISITA }
         val d = horaActual()
-        // La que estaba en curso se finaliza a la hora en que empieza la nueva.
-        val cierre = Actividades.delDia(pantalla, fecha)
+        val delDia = Actividades.delDia(pantalla, fecha)
+        // Sin tiempo mínimo entre actividades; solo una pausa corta contra los toques seguidos.
+        val ultima = delDia.maxOfOrNull { it.registradoEn } ?: 0L
+        if (System.currentTimeMillis() - ultima in 0 until ESPERA_MS) return mostrarError(R.string.act_home_espere)
+        // La que estaba en curso se finaliza a la hora en que empieza la nueva
+        // (si es el mismo minuto, queda de 0 minutos).
+        val cierre = delDia
             .let { HoraCronograma.enCurso(it, d, { a -> a.hora }, { a -> a.horaFin }) }
             ?.takeIf { it.horaFin == null && it.hora <= d }
-        if (cierre != null && HoraCronograma.aMinutos(d) <= HoraCronograma.aMinutos(cierre.hora)) {
-            return mostrarError(R.string.crono_error_en_curso)
-        }
         val nueva = Actividades.nueva(pantalla, fecha, fecha, tipo, d, null, texto, nota)
         Actividades.guardarVarias(pantalla, listOfNotNull(cierre?.copy(horaFin = d)) + nueva)
         abierto = false
@@ -320,6 +322,9 @@ class ActividadExpress(private val pantalla: Activity) {
     private companion object {
         /** Cuánto queda a la vista un aviso antes de irse. */
         const val AVISO_MS = 2_600L
+
+        /** Pausa entre una actividad nueva y la siguiente. */
+        const val ESPERA_MS = 15_000L
 
         val OCULTAS_AL_ANOTAR = intArrayOf(
             R.id.tarjeta_jornada, R.id.fila_jornada, R.id.resumen_dia, R.id.version_label,
