@@ -81,7 +81,6 @@ export function cargarConfiguracion(rutaArchivo) {
     clavesMoviles,
     otaDir: (v.DMJ_OTA_DIR || OTA_DIR_POR_DEFECTO).trim(),
     // La app no pide la clave cada día: la sesión móvil dura 30 días.
-    sesionMovilHoras: entero(v.DMJ_SESION_MOVIL_HORAS, 720),
     bd,
   };
 }

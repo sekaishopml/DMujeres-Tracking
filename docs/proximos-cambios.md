@@ -86,16 +86,19 @@ todos los de Ariel pasaron de 3 min.
 - Jefferson: no apagar la ubicación durante la jornada.
 - Joselyn: inicio automático y batería sin restricciones en su teléfono.
 
-## Versión 2.15 (código 407, lista el 05/11/2026)
+## Versión 2.15 (código 408, lista el 12/11/2026)
 
-Lista y firmada en `ota/DMujeres-Tracking-2.15.407.apk`; todavía no se ofrece
-a ningún teléfono. Trae:
+Lista y firmada en `ota/DMujeres-Tracking-2.15.408.apk` (reemplaza a la 407);
+todavía no se ofrece a ningún teléfono. Trae:
 
 - APK de 3,1 MB (antes 9,8) y sin Analytics, Crashlytics ni reseña de Play.
 - Aviso por marca cuando el sistema del teléfono cerró la app en jornada
   (`sistema/CierreDelSistema.kt`), con el ajuste exacto que hay que cambiar.
 - En marcha, si Google deja de dar posición, pasa al GPS del teléfono a los
   20 s (antes 60 a 90 s). Ver [Cómo captura la app](app-captura.md).
+- (408) Si el servidor da la sesión por terminada, lleva a entrar enseguida
+  aunque queden puntos por enviar; antes esperaba la cola vacía y el teléfono
+  quedaba trabado sin poder enviar (11/11). Lo guardado sube al volver a entrar.
 
 Cómo se saca:
 

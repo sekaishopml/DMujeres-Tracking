@@ -148,6 +148,9 @@ Esquema base en `base-de-datos/schema`, cambios en `base-de-datos/migrations`
 - `operations`: jornadas y sus tramos, actividades, clientes, geocercas y su
   historial, alertas, asignaciones equipo–persona.
 - `iam`: usuarios, grupos, roles, sesiones del panel, tokens FCM, claves.
+  La sesión del teléfono no vence: dura hasta que se quita desde el panel
+  (cerrar sesión del teléfono o deshabilitar la cuenta). (Hasta el
+  11/11 vencía a los 30 días y los teléfonos quedaban sin poder enviar.)
 - `system`: configuración y versión del esquema.
 
 Consola: `docker exec -i dmt-db psql -U dmt -d dmujeres`. Las pruebas que

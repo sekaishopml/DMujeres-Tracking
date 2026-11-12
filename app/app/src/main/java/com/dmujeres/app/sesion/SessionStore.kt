@@ -8,9 +8,9 @@ import androidx.preference.PreferenceManager
  *
  * - Sin sesión la app sigue funcionando con la clave compartida.
  * - Entrar con otro usuario reemplaza la sesión anterior.
- * - Ante un 401 con token se borra la sesión y, cuando la cola ya no tiene
- *   puntos por enviar, se lleva a entrar de nuevo ([clearOnUnauthorized]);
- *   lo capturado en el teléfono no se toca.
+ * - Ante un 401 con token se borra la sesión y se lleva a entrar de nuevo
+ *   ([clearOnUnauthorized]); lo capturado en el teléfono no se toca y sube
+ *   al volver a entrar.
  *
  * [State] es una copia de lo guardado en las preferencias que se puede
  * probar sin Android; las funciones con Context la leen y la guardan.

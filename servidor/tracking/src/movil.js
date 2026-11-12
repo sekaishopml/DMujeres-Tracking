@@ -130,7 +130,6 @@ async function validarTokenMovil(pool, token) {
          JOIN iam.dmt_usuario u ON u.id = s.usuario_id
         WHERE s.token_hash = $1
           AND s.revocada_en IS NULL
-          AND (s.expira_en IS NULL OR s.expira_en > now())
           AND u.habilitado
         LIMIT 1`,
       [hashSesion(token)],
@@ -260,19 +259,16 @@ export async function atenderSesion(req, res, ctx) {
     ctx.log.error(`movil/sesion: fallo al revisar sesiones: ${error.message}`);
     return responderSinCuerpo(res, 503);
   }
-  const horas = Number.isFinite(Number(ctx.configuracion.sesionMovilHoras))
-    ? Number(ctx.configuracion.sesionMovilHoras)
-    : 720;
+  // La sesión del teléfono no vence: solo termina si se revoca (entrar en otro
+  // teléfono) o se deshabilita la cuenta. El 11/11 vencieron a los 30 días y
+  // los teléfonos quedaron sin poder enviar.
   const token = randomBytes(32).toString('base64url');
-  let expiraEn = null;
   try {
-    const creada = await ctx.almacen.pool.query(
+    await ctx.almacen.pool.query(
       `INSERT INTO iam.dmt_sesion (usuario_id, token_hash, tipo, direccion_ip, agente, expira_en, instalacion)
-       VALUES ($1, $2, 'movil', $3, $4, now() + ($5::numeric * interval '1 hour'), $6)
-       RETURNING expira_en`,
-      [fila.id, hashSesion(token), direccionCliente(req), agenteCliente(req), horas, instalacion],
+       VALUES ($1, $2, 'movil', $3, $4, NULL, $5)`,
+      [fila.id, hashSesion(token), direccionCliente(req), agenteCliente(req), instalacion],
     );
-    expiraEn = creada.rows[0]?.expira_en ?? null;
     await ctx.almacen.pool.query('UPDATE iam.dmt_usuario SET ultimo_acceso_en = now() WHERE id = $1', [fila.id]);
   } catch (error) {
     ctx.log.error(`movil/sesion: fallo al crear sesion: ${error.message}`);
@@ -307,7 +303,7 @@ export async function atenderSesion(req, res, ctx) {
   }
   return responderJson(res, 200, {
     token,
-    expiraEn: expiraEn instanceof Date ? expiraEn.toISOString() : new Date(expiraEn).toISOString(),
+    expiraEn: null,
     usuario: { nombre: fila.nombre },
     equipo,
     configuracion,

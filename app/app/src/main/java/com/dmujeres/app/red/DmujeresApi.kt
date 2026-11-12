@@ -6,7 +6,6 @@ import androidx.preference.PreferenceManager
 import com.dmujeres.app.BuildConfig
 import com.dmujeres.app.R
 import com.dmujeres.app.actualizacion.OtaPolicy
-import com.dmujeres.app.datos.DatabaseHelper
 import com.dmujeres.app.datos.Prefs
 import com.dmujeres.app.datos.RemoteConfig
 import com.dmujeres.app.pantallas.StatusActivity
@@ -79,7 +78,7 @@ object DmujeresApi {
     /**
      * 401 con token (sesión revocada o usuario deshabilitado): se borra la
      * sesión, se termina la jornada y se sube lo que quede con la clave
-     * compartida. Cuando la cola se vacía, se lleva a entrar de nuevo
+     * compartida y se lleva a entrar de nuevo
      * ([revisarCierreTrasBaja]). Sin token el 401 es de la clave compartida.
      */
     fun noteHttpResult(context: Context, code: Int, hadToken: Boolean) {
@@ -91,14 +90,14 @@ object DmujeresApi {
         Thread { revisarCierreTrasBaja(context) }.start()
     }
 
-    /** Con el cierre pendiente y sin puntos por enviar, marca que hay que entrar. */
+    /**
+     * Con el cierre pendiente, marca que hay que entrar ya, aunque queden
+     * puntos: sin sesión no se pueden enviar y esperar a la cola vacía dejaba
+     * el teléfono trabado (11/11). Lo guardado sube al volver a entrar.
+     */
     fun revisarCierreTrasBaja(context: Context) {
         val app = context.applicationContext
-        if (!SessionStore.cierrePendiente(app)) return
-        val pendientes = runCatching { DatabaseHelper(app).countPorEnviar() }.getOrDefault(-1)
-        if (SessionAuth.puedeIrALogin(pendiente = true, puntosPorEnviar = pendientes)) {
-            SessionStore.cierreListo(app)
-        }
+        if (SessionStore.cierrePendiente(app)) SessionStore.cierreListo(app)
     }
 
     /** Dirección del servidor web (puerto 999), sacada de la de OsmAnd (5055). */
