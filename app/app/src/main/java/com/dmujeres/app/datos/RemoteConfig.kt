@@ -131,6 +131,9 @@ object RemoteConfig {
             changed = true
         }
         if (changed) editor.apply()
+        // Ajustes finos (tiempos del GPS, supervisión, sensores): si cambian se
+        // reinicia el servicio para que la captura los tome.
+        if (Ajustes.aplicar(context, json.optJSONObject("ajustes"))) changed = true
         return changed
     }
 

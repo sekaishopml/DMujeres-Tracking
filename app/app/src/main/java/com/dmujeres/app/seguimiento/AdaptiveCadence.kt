@@ -1,5 +1,7 @@
 package com.dmujeres.app.seguimiento
 
+import com.dmujeres.app.datos.Ajustes
+
 /**
  * Cada cuánto se captura (sin Android, se prueba en la JVM).
  *
@@ -14,12 +16,6 @@ package com.dmujeres.app.seguimiento
  *   120 s.
  */
 object AdaptiveCadence {
-
-    /** Petición al GPS con jornada abierta: continua, 1 Hz. */
-    const val TRACKING_GPS_INTERVAL_MS = 1_000L
-
-    /** Petición al GPS con jornada abierta y quieta: sigue en GPS, cada 10 s. */
-    const val QUIETA_GPS_INTERVAL_MS = 10_000L
 
     /** Latido de reporte en movimiento por defecto (sin distancia recorrida). */
     const val MOVING_INTERVAL_MS = 10_000L
@@ -69,11 +65,20 @@ object AdaptiveCadence {
      * audita no se captura con antenas). Sin jornada: red cada 120 s.
      */
     fun request(journeyOpen: Boolean, quieta: Boolean = false): Request = if (journeyOpen) {
+        // Los tiempos pueden llegar del servidor (ver Ajustes); sin ellos, 1 s y 10 s.
         Request(
-            intervalMs = if (quieta) QUIETA_GPS_INTERVAL_MS else TRACKING_GPS_INTERVAL_MS,
+            intervalMs = if (quieta) {
+                Ajustes.valor(Ajustes.Clave.GPS_QUIETA_MS)
+            } else {
+                Ajustes.valor(Ajustes.Clave.GPS_MARCHA_MS)
+            },
             minDistanceM = 0f,
             maxUpdateDelayMs = 0L,
-            accuracy = Accuracy.HIGH,
+            accuracy = if (quieta && Ajustes.valor(Ajustes.Clave.QUIETA_BAJO_CONSUMO) == 1L) {
+                Accuracy.BALANCED
+            } else {
+                Accuracy.HIGH
+            },
         )
     } else {
         Request(

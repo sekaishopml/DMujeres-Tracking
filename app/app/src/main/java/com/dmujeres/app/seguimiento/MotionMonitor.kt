@@ -1,5 +1,6 @@
 package com.dmujeres.app.seguimiento
 
+import com.dmujeres.app.datos.Ajustes
 import android.content.Context
 import android.hardware.Sensor
 import android.hardware.SensorEvent
@@ -106,7 +107,7 @@ object MotionMonitor : SensorEventListener {
                 this,
                 manager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER),
                 SensorManager.SENSOR_DELAY_NORMAL,
-                TANDA_ACELEROMETRO_US,
+                (Ajustes.valor(Ajustes.Clave.TANDA_ACELEROMETRO_MS) * 1_000).toInt(),
             )
             registered = true
             updateGyroscope()
@@ -226,8 +227,6 @@ object MotionMonitor : SensorEventListener {
     /** Hora de reloj de una muestra (llegan en tandas de hasta 5 s de atraso). */
     private fun horaDeMuestra(timestampNs: Long): Long =
         horaDeMuestra(System.currentTimeMillis(), android.os.SystemClock.elapsedRealtimeNanos(), timestampNs)
-
-    private const val TANDA_ACELEROMETRO_US = 5_000_000
 
     /** Si la hora del sensor no es creíble (otra base de tiempo), se usa la de llegada. */
     internal fun horaDeMuestra(ahoraMs: Long, ahoraNs: Long, timestampNs: Long): Long {

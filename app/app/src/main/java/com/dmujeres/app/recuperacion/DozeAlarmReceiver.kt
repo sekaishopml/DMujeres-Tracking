@@ -1,5 +1,6 @@
 package com.dmujeres.app.recuperacion
 
+import com.dmujeres.app.datos.Ajustes
 import android.app.AlarmManager
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
@@ -73,9 +74,6 @@ class DozeAlarmReceiver : BroadcastReceiver() {
         private val TAG = DozeAlarmReceiver::class.java.simpleName
         const val ACTION_RECOVER = "com.dmujeres.app.action.DOZE_RECOVER"
 
-        /** Cada cuánto se supervisa con la jornada abierta. */
-        const val INTERVAL_MS = 3 * 60_000L
-
         /** Wake lock del receiver: corto, solo el despertar (el envío usa el suyo). */
         private const val RECEIVER_WAKELOCK_MS = 30_000L
 
@@ -87,11 +85,11 @@ class DozeAlarmReceiver : BroadcastReceiver() {
         }
 
         /** Rearma la alarma de supervisión (servicio, boot y replace la llaman). */
-        fun schedule(context: Context) {
+        fun schedule(context: Context, enMs: Long = Ajustes.valor(Ajustes.Clave.SUPERVISION_MS)) {
             val manager = context.applicationContext
                 .getSystemService(Context.ALARM_SERVICE) as AlarmManager
             val pending = pendingIntent(context)
-            val cuando = SystemClock.elapsedRealtime() + INTERVAL_MS
+            val cuando = SystemClock.elapsedRealtime() + enMs
             runCatching {
                 if (exactas(context)) {
                     manager.setExactAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP, cuando, pending)

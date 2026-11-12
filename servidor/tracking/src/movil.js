@@ -515,7 +515,22 @@ export async function atenderConfig(req, res, ctx) {
     ctx.log.warn(`movil/config: no se pudo leer la configuración de la persona: ${error.message}`);
   }
   const base = { ...CONFIG_MOVIL_POR_DEFECTO, ...persona };
+  // Ajustes finos de la captura (tiempos del GPS, supervisión, sensores): los
+  // de toda la flota (system.dmt_configuracion 'ajustes_captura') y encima los
+  // del equipo (atributo 'mobile.ajustes'). Cambian el comportamiento sin
+  // actualizar la app; la app ignora lo que no conoce o queda fuera de rango.
+  let flota = {};
+  try {
+    const { rows } = await ctx.almacen.pool.query(
+      `SELECT valor FROM system.dmt_configuracion WHERE clave = 'ajustes_captura' LIMIT 1`,
+    );
+    flota = rows[0]?.valor ?? {};
+  } catch (error) {
+    ctx.log.warn(`movil/config: no se pudieron leer los ajustes de captura: ${error.message}`);
+  }
+  const ajustes = { ...soloNumeros(flota), ...soloNumeros(attrs?.['mobile.ajustes']) };
   return responderJson(res, 200, {
+    ajustes,
     intervalSeconds: numeroAttr(attrs, 'mobile.intervalSeconds', base.intervalSeconds),
     bufferMax: numeroAttr(attrs, 'mobile.bufferMax', base.bufferMax),
     bufferPolicy: textoAttr(attrs, 'mobile.bufferPolicy', base.bufferPolicy),
@@ -530,6 +545,13 @@ export async function atenderConfig(req, res, ctx) {
     l1_max_update_delay_ms: numeroAttr(attrs, 'mobile.l1MaxUpdateDelayMs', base.l1_max_update_delay_ms),
     min_interval_seconds: numeroAttr(attrs, 'mobile.minIntervalSeconds', base.min_interval_seconds),
   });
+}
+
+function soloNumeros(valor) {
+  if (!valor || typeof valor !== 'object' || Array.isArray(valor)) return {};
+  return Object.fromEntries(
+    Object.entries(valor).filter(([clave, dato]) => /^[A-Za-z]{1,40}$/.test(clave) && Number.isFinite(dato)),
+  );
 }
 
 // ---------------------------------------------------------------------------

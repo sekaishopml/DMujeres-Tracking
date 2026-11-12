@@ -35,6 +35,8 @@ open class MainApplication : Application() {
         super.onCreate()
         // Antes de que cualquier servicio abra la cola.
         DatabaseHelper.migrarNombreAnterior(this)
+        // Ajustes de captura que mandó el servidor la última vez.
+        com.dmujeres.app.datos.Ajustes.cargar(this)
         System.setProperty("http.keepAliveDuration", (30 * 60 * 1000).toString())
         // Los cierres inesperados de la app se ven en el panel (lastDiagnostics.crash).
         CrashReporter.install(this)

@@ -15,6 +15,7 @@
  */
 package com.dmujeres.app.seguimiento
 
+import com.dmujeres.app.datos.Ajustes
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
@@ -470,7 +471,7 @@ class TrackingController(private val context: Context) :
         // Google calla hace unos segundos y el GPS sí tiene posición: se usa ya.
         // Antes se esperaba 20 s para cambiar de proveedor y ese rato quedaba
         // sin puntos (Jeremy, 2.10.1: 26 a 117 s de silencio manejando).
-        if (escalon == Escalon.GOOGLE && now - ultimoFixPropioMs >= HUECO_GOOGLE_MS &&
+        if (escalon == Escalon.GOOGLE && now - ultimoFixPropioMs >= Ajustes.valor(Ajustes.Clave.HUECO_GOOGLE_MS) &&
             location.hasAccuracy() && location.accuracy <= TIBIO_PRECISION_M
         ) {
             desdeTibio = true
@@ -482,7 +483,7 @@ class TrackingController(private val context: Context) :
         }
         when (escalon) {
             Escalon.GPS -> return
-            Escalon.GOOGLE -> if (now - ultimoFixBuenoMs < GOOGLE_SIN_FIX_BUENO_MS) return
+            Escalon.GOOGLE -> if (now - ultimoFixBuenoMs < Ajustes.valor(Ajustes.Clave.GOOGLE_SIN_FIX_BUENO_MS)) return
             Escalon.RED -> Unit
         }
         Log.w(TAG, "$escalon sin posición buena hace ${(now - ultimoFixBuenoMs) / 1000} s: pasa al GPS")
@@ -874,11 +875,6 @@ class TrackingController(private val context: Context) :
         /** Revisión del vigilante de GPS (re-solicitud y escalera de proveedores). */
         private const val WATCHDOG_PERIOD_MS = 30_000L
         private const val WATCHDOG_MARCHA_MS = 10_000L
-
-        /** En movimiento, Google sin una posición de hasta 50 m por 20 s: se pasa al GPS. */
-        private const val GOOGLE_SIN_FIX_BUENO_MS = 20_000L
-        /** Sin posición buena de Google por esto, el GPS en paralelo llena el hueco. */
-        private const val HUECO_GOOGLE_MS = 3_000L
         /** Precisión mínima de una posición del GPS en paralelo para guardarla. */
         private const val TIBIO_PRECISION_M = 20f
         private const val GOOGLE_PRECISION_UTIL_M = 50.0

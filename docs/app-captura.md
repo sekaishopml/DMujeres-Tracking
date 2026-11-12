@@ -116,6 +116,29 @@ lleva el arranque de la app y un número de secuencia: reenviar no duplica.
 | Cambio de proveedor y GPS en paralelo | `seguimiento/TrackingController.kt` (`revisar`, `revisarTibio`), `EscaleraProveedores.kt`, `GpsTibio.kt` |
 | Subida al servidor | `envio/UploadQueue.kt`, `red/` |
 
+## Ajustes de captura desde el servidor (desde la 2.15)
+
+Los tiempos que más pesan en la batería y en los cortes llegan del servidor
+en `ajustes` de `/api/mobile/v1/config` (`datos/Ajustes.kt`). Primero los de
+toda la flota (`system.dmt_configuracion`, clave `ajustes_captura`) y encima
+los del equipo (atributo `mobile.ajustes`). Si cambian, la app reinicia la
+captura. Ausente o fuera de rango, vale el de fábrica.
+
+| Ajuste | Fábrica | Rango | Qué hace |
+|---|---|---|---|
+| `gpsMarchaMs` | 1000 | 1000–10000 | Cada cuánto se pide posición en marcha |
+| `gpsQuietaMs` | 10000 | 1000–120000 | Cada cuánto se pide posición quieta |
+| `quietaBajoConsumo` | 0 | 0–1 | 1 = quieta con wifi y antenas, sin GPS |
+| `sinFixMarchaMs` | 20000 | 5000–120000 | Sin posición en marcha: cambia de proveedor |
+| `sinFixQuietaMs` | 120000 | 30000–900000 | Sin posición quieta: vuelve a pedir |
+| `googleSinFixBuenoMs` | 20000 | 3000–120000 | Google sin posición buena: pasa al GPS |
+| `huecoGoogleMs` | 3000 | 1000–30000 | Google calla: guarda las del GPS en paralelo |
+| `supervisionMs` | 180000 | 60000–900000 | Alarma que revisa y revive el servicio |
+| `tandaAcelerometroMs` | 5000 | 0–30000 | Tandas del acelerómetro |
+
+Ejemplo, solo para un equipo:
+`UPDATE tracking.dmt_dispositivo SET atributos = jsonb_set(atributos, '{mobile.ajustes}', '{"gpsQuietaMs":30000}') WHERE identificador = 'Santi-ZTE';`
+
 ## Qué falta mejorar
 
 - Medir en la calle la 2.10.2 (GPS en paralelo a los 3 s y arranque por

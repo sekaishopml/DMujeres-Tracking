@@ -1,5 +1,7 @@
 package com.dmujeres.app.seguimiento
 
+import com.dmujeres.app.datos.Ajustes
+
 /**
  * Vigilante PURO de frescura del GPS (testeable en JVM).
  *
@@ -16,7 +18,7 @@ package com.dmujeres.app.seguimiento
  *   pasa al siguiente proveedor de la escalera y vuelve a empezar. Nunca se rinde.
  */
 class LocationWatchdog(
-    private val staleAfterMs: Long = DEFAULT_STALE_MS,
+    private val staleAfterMs: Long = Ajustes.valor(Ajustes.Clave.SIN_FIX_QUIETA_MS),
     private val maxReRequests: Int = 1,
 ) {
 
@@ -40,22 +42,14 @@ class LocationWatchdog(
 
     /**
      * En movimiento cada segundo sin posición es ruta perdida: a los
-     * [MOVING_STALE_MS] se sube de escalón sin volver a pedir al mismo proveedor.
+     * tiempo de `sinFixMarchaMs` (ver Ajustes) se sube de escalón sin volver a pedir al mismo proveedor.
      */
     fun tick(nowMs: Long, moving: Boolean = false): Action {
         if (lastFixAtMs < 0L) lastFixAtMs = nowMs
-        val limite = if (moving) minOf(staleAfterMs, MOVING_STALE_MS) else staleAfterMs
+        val limite = if (moving) minOf(staleAfterMs, Ajustes.valor(Ajustes.Clave.SIN_FIX_MARCHA_MS)) else staleAfterMs
         if (nowMs - lastFixAtMs < limite) return Action.NONE
         lastFixAtMs = nowMs
         attempts++
         return if (!moving && attempts <= maxReRequests) Action.RE_REQUEST else Action.NEXT_PROVIDER
-    }
-
-    companion object {
-        /** Sin fix durante 2 minutos se considera "colgado". */
-        const val DEFAULT_STALE_MS = 2 * 60_000L
-
-        /** En movimiento: 20 s sin fix y se pasa al siguiente proveedor. */
-        const val MOVING_STALE_MS = 20_000L
     }
 }

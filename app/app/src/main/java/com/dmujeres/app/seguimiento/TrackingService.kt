@@ -164,6 +164,19 @@ class TrackingService : Service() {
             .onFailure { Log.w(TAG, "no se pudo arrancar el controlador", it) }
     }
 
+    /**
+     * La persona quitó la app de Recientes o usó "limpiar todo" (Xiaomi
+     * OneKeyClean, REMOVE TASK en Honor y Samsung): muchos teléfonos matan el
+     * proceso con el servicio. Con jornada abierta, la supervisión se adelanta
+     * a 5 s para volver a arrancarlo, en vez de esperar hasta 3 min.
+     */
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        super.onTaskRemoved(rootIntent)
+        val abierta = PreferenceManager.getDefaultSharedPreferences(this)
+            .getBoolean(com.dmujeres.app.red.DmujeresApi.KEY_JOURNEY_OPEN, false)
+        if (abierta) com.dmujeres.app.recuperacion.DozeAlarmReceiver.schedule(this, 5_000L)
+    }
+
     override fun onDestroy() {
         isRunning = false
         powerReceiver?.let { runCatching { unregisterReceiver(it) } }
