@@ -133,15 +133,7 @@ class LoginActivity : AppCompatActivity() {
                         // ni usuario anterior. Se reinicia el servicio para que
                         // tome la sesión nueva: al arrancar revisa la jornada
                         // con el servidor y la cola envía primero lo más viejo.
-                        TrackingController.captureFrozen = false
-                        if (TrackingService.isRunning) {
-                            RemoteConfig.restartService(this)
-                        } else {
-                            androidx.core.content.ContextCompat.startForegroundService(
-                                this,
-                                Intent(this, TrackingService::class.java),
-                            )
-                        }
+                        tomarSesionNueva(this)
                         startActivity(
                             Intent(this, MainActivity::class.java)
                                 .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP),
@@ -167,6 +159,19 @@ class LoginActivity : AppCompatActivity() {
         /** Abre la pantalla de login (cierre de sesión, sesión vencida). */
         fun start(context: Context) {
             context.startActivity(Intent(context, LoginActivity::class.java))
+        }
+
+        /** Tras entrar o recuperar la sesión: reinicia el servicio para que la use. */
+        fun tomarSesionNueva(context: Context) {
+            TrackingController.captureFrozen = false
+            if (TrackingService.isRunning) {
+                RemoteConfig.restartService(context)
+            } else {
+                androidx.core.content.ContextCompat.startForegroundService(
+                    context,
+                    Intent(context, TrackingService::class.java),
+                )
+            }
         }
     }
 }

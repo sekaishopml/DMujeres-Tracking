@@ -509,24 +509,7 @@ object DmujeresApi {
                     Log.w(TAG, "sesion respondió 200 sin token")
                     return LoginResult.OFFLINE
                 }
-                val expiraEn = SessionAuth.extractExpiresInSeconds(body) ?: 0L
-                val nombre = SessionAuth.extractDisplayName(body)
-                val expiraEnMs = if (expiraEn > 0) System.currentTimeMillis() + expiraEn * 1_000 else 0L
-                SessionStore.save(context, token, user, nombre, expiraEnMs)
-                // Equipo de la persona: al entrar se adopta su identificador
-                // para que la ruta quede bajo su equipo (aparece en Replay y
-                // En vivo). Sin equipo vinculado, el móvil conserva el suyo.
-                val equipo = SessionAuth.extractEquipoIdentificador(body)
-                if (equipo.isNotBlank()) {
-                    prefs(context).edit().putString(Prefs.DEVICE, equipo).apply()
-                    Log.i(TAG, "la sesión adoptó el equipo $equipo")
-                }
-                val config = SessionAuth.extractConfigBlock(body)
-                RemoteConfig.applySessionConfig(
-                    context,
-                    config?.let(SessionAuth::parseConfigBlock),
-                )
-                Log.i(TAG, "sesión iniciada para $user")
+                guardarSesion(context, token, user, body)
                 LoginResult.AUTHORIZED
             }
             401 -> LoginResult.BAD_CREDENTIALS
@@ -547,6 +530,67 @@ object DmujeresApi {
                 legacy
             }
             else -> LoginResult.OFFLINE
+        }
+    }
+
+    /** Guarda la sesión de una respuesta 200 de /sesion o /sesion/recuperar. */
+    private fun guardarSesion(context: Context, token: String, user: String, body: String) {
+        val expiraEn = SessionAuth.extractExpiresInSeconds(body) ?: 0L
+        val nombre = SessionAuth.extractDisplayName(body)
+        val expiraEnMs = if (expiraEn > 0) System.currentTimeMillis() + expiraEn * 1_000 else 0L
+        SessionStore.save(context, token, user, nombre, expiraEnMs)
+        // Equipo de la persona: al entrar se adopta su identificador
+        // para que la ruta quede bajo su equipo (aparece en Replay y
+        // En vivo). Sin equipo vinculado, el móvil conserva el suyo.
+        val equipo = SessionAuth.extractEquipoIdentificador(body)
+        if (equipo.isNotBlank()) {
+            prefs(context).edit().putString(Prefs.DEVICE, equipo).apply()
+            Log.i(TAG, "la sesión adoptó el equipo $equipo")
+        }
+        val config = SessionAuth.extractConfigBlock(body)
+        RemoteConfig.applySessionConfig(
+            context,
+            config?.let(SessionAuth::parseConfigBlock),
+        )
+        Log.i(TAG, "sesión iniciada para $user")
+    }
+
+    enum class Recuperacion { OK, NO_HAY, SIN_RED }
+
+    /**
+     * Sin token, pide al servidor la sesión viva de esta instalación (la 2.10
+     * borraba el token cuando vencía la sesión). NO_HAY = se quitó desde el
+     * panel o nunca se entró aquí: toca entrar con usuario y clave.
+     * Bloquea: llamar desde un hilo propio.
+     */
+    fun recuperarSesion(context: Context): Recuperacion {
+        val instalacion = prefs(context).getString(Prefs.INSTALL_ID, null) ?: return Recuperacion.NO_HAY
+        val base = webBase(context)
+        if (base.isBlank()) return Recuperacion.SIN_RED
+        return try {
+            val connection = URL(base + SessionAuth.PATH_RECUPERAR).openConnection() as HttpURLConnection
+            connection.requestMethod = "POST"
+            connection.connectTimeout = 8_000
+            connection.readTimeout = 8_000
+            connection.doOutput = true
+            connection.setRequestProperty("Content-Type", "application/json")
+            connection.outputStream.use { it.write(SessionAuth.recuperarRequestJson(instalacion).toByteArray()) }
+            val code = connection.responseCode
+            val body = if (code in 200..299) connection.inputStream.bufferedReader().use { it.readText() } else ""
+            connection.disconnect()
+            val token = SessionAuth.extractToken(body)
+            val user = SessionAuth.extractNombreUsuario(body)
+            when {
+                code in 200..299 && !token.isNullOrBlank() && user.isNotBlank() -> {
+                    guardarSesion(context, token, user, body)
+                    Recuperacion.OK
+                }
+                code == 404 -> Recuperacion.NO_HAY
+                else -> Recuperacion.SIN_RED
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "No se pudo recuperar la sesión", e)
+            Recuperacion.SIN_RED
         }
     }
 

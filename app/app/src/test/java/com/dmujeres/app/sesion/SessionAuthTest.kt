@@ -170,4 +170,14 @@ class SessionAuthTest {
         assertEquals("", SessionAuth.extractEquipoIdentificador("{}"))
         assertEquals("", SessionAuth.extractEquipoIdentificador(""))
     }
+
+    @Test
+    fun `recuperar sesion manda la instalacion y lee el usuario`() {
+        assertEquals("{\"instalacion\":\"ab-12\"}", SessionAuth.recuperarRequestJson("ab-12"))
+        val cuerpo = "{\"token\":\"t\",\"expiraEn\":null,\"usuario\":{\"nombre\":\"Nadia Figueroa\",\"nombreUsuario\":\"Nadia\"}}"
+        assertEquals("Nadia", SessionAuth.extractNombreUsuario(cuerpo))
+        assertEquals("Nadia Figueroa", SessionAuth.extractDisplayName(cuerpo))
+        assertEquals(null, SessionAuth.extractExpiresInSeconds(cuerpo))
+        assertEquals("", SessionAuth.extractNombreUsuario("{\"usuario\":{\"nombre\":\"X\"}}"))
+    }
 }

@@ -149,7 +149,10 @@ Esquema base en `base-de-datos/schema`, cambios en `base-de-datos/migrations`
   historial, alertas, asignaciones equipo–persona.
 - `iam`: usuarios, grupos, roles, sesiones del panel, tokens FCM, claves.
   La sesión del teléfono no vence: dura hasta que se quita desde el panel
-  (cerrar sesión del teléfono o deshabilitar la cuenta). (Hasta el
+  (cerrar sesión del teléfono o deshabilitar la cuenta). Un teléfono que perdió
+  el token recupera la suya con `POST /api/mobile/v1/sesion/recuperar
+  {instalacion}` (solo si sigue viva). `GET /api/mobile/v1/ota` no pide sesión:
+  el APK ya es público y así le llega la versión a un teléfono sin sesión. (Hasta el
   11/11 vencía a los 30 días y los teléfonos quedaban sin poder enviar.)
 - `system`: configuración y versión del esquema.
 

@@ -21,6 +21,12 @@ object SessionAuth {
     /** Ruta del endpoint de sesión (contrato). */
     const val PATH_SESION = "/api/mobile/v1/sesion"
 
+    /** Recupera la sesión viva de esta instalación (mismo cuerpo de respuesta). */
+    const val PATH_RECUPERAR = "/api/mobile/v1/sesion/recuperar"
+
+    fun recuperarRequestJson(instalacion: String): String =
+        "{\"instalacion\":\"${escape(instalacion)}\"}"
+
     /** Normaliza el usuario: sin espacios. Distingue mayúsculas: "Santiago" y "santiago" son cuentas distintas. */
     fun normalizeUser(raw: String): String = raw.trim()
 
@@ -46,6 +52,11 @@ object SessionAuth {
     /** Nombre visible (`usuario.nombre`). Vacío si no viene. */
     fun extractDisplayName(body: String): String =
         Regex("\"usuario\"\\s*:\\s*\\{[^}]*\"nombre\"\\s*:\\s*\"([^\"]*)\"")
+            .find(body)?.groupValues?.getOrNull(1).orEmpty()
+
+    /** Usuario con que se entra (`usuario.nombreUsuario`). Vacío si no viene. */
+    fun extractNombreUsuario(body: String): String =
+        Regex("\"usuario\"\\s*:\\s*\\{[^}]*\"nombreUsuario\"\\s*:\\s*\"([^\"]*)\"")
             .find(body)?.groupValues?.getOrNull(1).orEmpty()
 
     /**

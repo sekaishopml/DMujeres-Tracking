@@ -259,9 +259,14 @@ export async function atenderSesion(req, res, ctx) {
     ctx.log.error(`movil/sesion: fallo al revisar sesiones: ${error.message}`);
     return responderSinCuerpo(res, 503);
   }
-  // La sesión del teléfono no vence: solo termina si se revoca (entrar en otro
-  // teléfono) o se deshabilita la cuenta. El 11/11 vencieron a los 30 días y
-  // los teléfonos quedaron sin poder enviar.
+  return crearSesion(req, res, ctx, fila, instalacion);
+}
+
+// Token nuevo para la cuenta y la respuesta de /sesion. La sesión del teléfono
+// no vence: dura hasta que se quita desde el panel (cerrar sesión del teléfono
+// o deshabilitar la cuenta). El 11/11 vencieron a los 30 días y los teléfonos
+// quedaron sin poder enviar.
+async function crearSesion(req, res, ctx, fila, instalacion) {
   const token = randomBytes(32).toString('base64url');
   try {
     await ctx.almacen.pool.query(
@@ -304,10 +309,50 @@ export async function atenderSesion(req, res, ctx) {
   return responderJson(res, 200, {
     token,
     expiraEn: null,
-    usuario: { nombre: fila.nombre },
+    usuario: { nombre: fila.nombre, nombreUsuario: fila.nombre_usuario },
     equipo,
     configuracion,
   });
+}
+
+// POST /api/mobile/v1/sesion/recuperar {instalacion} -> igual que /sesion.
+// Para el teléfono que perdió su token (la 2.10 lo borraba cuando vencía la
+// sesión): si esa instalación tiene una sesión viva, recibe un token nuevo y
+// la anterior se cierra. 404 si no la tiene (se quitó desde el panel o nunca
+// se entró desde ahí).
+export async function atenderSesionRecuperada(req, res, ctx) {
+  if (!ctx.configuracion.canalMovilActivo) return responderSinCuerpo(res, 503);
+  const lectura = await leerJson(req, LIMITE_JSON);
+  if (!lectura.ok) return responderSinCuerpo(res, lectura.motivo === 'grande' ? 413 : 400);
+  const datos = objeto(lectura.datos);
+  const instalacion = datos && typeof datos.instalacion === 'string' && /^[\w-]{8,64}$/.test(datos.instalacion)
+    ? datos.instalacion
+    : null;
+  if (!instalacion) return responderSinCuerpo(res, 400);
+  let fila = null;
+  try {
+    const { rows } = await ctx.almacen.pool.query(
+      `SELECT u.id, u.nombre, u.nombre_usuario, u.atributos
+         FROM iam.dmt_sesion s
+         JOIN iam.dmt_usuario u ON u.id = s.usuario_id
+        WHERE s.instalacion = $1 AND s.tipo = 'movil' AND s.revocada_en IS NULL AND u.habilitado
+        ORDER BY s.creado_en DESC
+        LIMIT 1`,
+      [instalacion],
+    );
+    fila = rows[0] ?? null;
+    if (!fila) return responderSinCuerpo(res, 404);
+    await ctx.almacen.pool.query(
+      `UPDATE iam.dmt_sesion SET revocada_en = now(), actualizado_en = now()
+        WHERE usuario_id = $1 AND tipo = 'movil' AND revocada_en IS NULL AND instalacion = $2`,
+      [fila.id, instalacion],
+    );
+  } catch (error) {
+    ctx.log.error(`movil/sesion: fallo al recuperar sesion: ${error.message}`);
+    return responderSinCuerpo(res, 503);
+  }
+  ctx.log.info(`movil/sesion: recuperada para ${fila.nombre_usuario}`);
+  return crearSesion(req, res, ctx, fila, instalacion);
 }
 
 async function leerCuerpo(req, limite) {
@@ -923,11 +968,10 @@ async function leerManifiestoPropio(directorio, identificador) {
   }
 }
 
+// Sin pedir sesión: el APK ya es público y así un teléfono que perdió la
+// sesión igual recibe la versión que la recupera.
 export async function atenderOta(req, res, ctx) {
   if (!ctx.configuracion.canalMovilActivo) return responderSinCuerpo(res, 503);
-  if (!(await autorizacionMovil(req, ctx))) {
-    return responderNoAutorizado(req, res, ctx);
-  }
   const identificador = identificadorDe(req, ctx.url);
   const versionTexto = (ctx.url.searchParams.get('versionCode') ?? '').trim();
   const versionCode = /^\d+$/.test(versionTexto) ? Number.parseInt(versionTexto, 10) : Number.NaN;

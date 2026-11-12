@@ -1072,9 +1072,46 @@ class MainActivity : AppCompatActivity() {
      */
     private fun maybeAskLogin() {
         if (isFinishing || isDestroyed) return
+        if (!SessionStore.hasSession(this)) {
+            recuperarSesion()
+            return
+        }
         if (!SessionStore.takeIrALogin(this)) return
         LoginActivity.start(this)
     }
+
+    /**
+     * Sin sesión, primero se pide al servidor la de esta instalación; solo si
+     * no la hay se lleva a entrar con usuario y clave. Sin red se reintenta
+     * cada 30 s.
+     */
+    private fun recuperarSesion() {
+        val ahora = SystemClock.elapsedRealtime()
+        if (recuperando || (ultimaRecuperacion > 0L && ahora - ultimaRecuperacion < 30_000L)) return
+        recuperando = true
+        ultimaRecuperacion = ahora
+        Thread {
+            val resultado = DmujeresApi.recuperarSesion(applicationContext)
+            runOnUiThread {
+                recuperando = false
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                when (resultado) {
+                    DmujeresApi.Recuperacion.OK -> {
+                        LoginActivity.tomarSesionNueva(this)
+                        runCatching { refreshLockedHome() }
+                    }
+                    DmujeresApi.Recuperacion.NO_HAY -> {
+                        SessionStore.takeIrALogin(this)
+                        LoginActivity.start(this)
+                    }
+                    DmujeresApi.Recuperacion.SIN_RED -> Unit
+                }
+            }
+        }.start()
+    }
+
+    private var recuperando = false
+    private var ultimaRecuperacion = 0L
 
     /** Espera la configuración del servidor, con tope. NA = no se llegó a consultar. */
     private fun requestRemoteConfig(): ConfigState {

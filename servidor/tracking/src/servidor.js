@@ -13,6 +13,7 @@
 //   POST /api/mobile/v1/reporte/correo  envía el reporte por correo
 //   POST /api/mobile/v1/diagnostics
 //   GET  /api/mobile/v1/ota
+//   POST /api/mobile/v1/sesion/recuperar
 //   POST /api/mobile/v1/fcm-token
 //   POST /api/mobile/v1/recovery-ack
 
@@ -34,6 +35,7 @@ import {
   atenderOta,
   atenderRecuperacionAck,
   atenderSesion,
+  atenderSesionRecuperada,
   atenderTokenFcm,
 } from './movil.js';
 import { atenderClienteNuevo, atenderClientesConsulta, atenderParadasDia } from './clientes.js';
@@ -68,6 +70,9 @@ async function manejar(req, res, ctx) {
 
   if (ruta === '/api/mobile/v1/sesion' && metodo === 'POST') {
     return atenderSesion(req, res, { ...ctx, url });
+  }
+  if (ruta === '/api/mobile/v1/sesion/recuperar' && metodo === 'POST') {
+    return atenderSesionRecuperada(req, res, { ...ctx, url });
   }
   if (ruta === '/api/mobile/v1/config' && metodo === 'GET') {
     return atenderConfig(req, res, { ...ctx, url });
