@@ -25,6 +25,8 @@ server {
     location = /latest.json { root /home/DMujeres-Tracking/ota; }
     location = /rollout.json { root /home/DMujeres-Tracking/ota; }
     location ~ ^/DMujeres-Tracking-[0-9.]+\.apk$ { root /home/DMujeres-Tracking/ota; }
+    # Script de depuración del teléfono de prueba (no lleva secretos).
+    location = /depuracion-qr.ps1 { root /home/DMujeres-Tracking/ota; default_type application/octet-stream; add_header Content-Disposition 'attachment; filename="depuracion-qr.ps1"'; }
 
     # Teléfonos: Overland (iPhone) y canal móvil de la app
     location = /overland {
