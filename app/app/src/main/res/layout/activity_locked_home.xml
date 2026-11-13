@@ -831,6 +831,7 @@
                         android:visibility="gone">
 
                         <TextView
+                            android:id="@+id/fin_nota_titulo_texto"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="@string/fin_nota_titulo"
@@ -839,6 +840,7 @@
                             android:textStyle="bold" />
 
                         <TextView
+                            android:id="@+id/fin_nota_ayuda_texto"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="2dp"

@@ -239,7 +239,8 @@ export async function listarCronograma(ctx) {
             to_char(j.inicio_en AT TIME ZONE 'America/Guayaquil', 'YYYY-MM-DD') AS fecha,
             j.inicio_en, j.fin_en, j.estado,
             j.atributos->>'inicio' AS como_inicio, j.atributos->>'fin' AS como_fin,
-            j.atributos->>'notaFin' AS nota_fin, j.atributos->>'reason' AS motivo,
+            j.atributos->>'notaFin' AS nota_fin, j.atributos->>'notaInicio' AS nota_inicio,
+            j.atributos->>'reason' AS motivo,
             -- La que empieza a las 00:00 es la de la noche anterior que nadie
             -- cerró: su origen es el último inicio real (no de medianoche).
             CASE WHEN to_char(j.inicio_en AT TIME ZONE 'America/Guayaquil', 'HH24:MI') = '00:00' THEN
@@ -271,6 +272,7 @@ export async function listarCronograma(ctx) {
       comoInicio: j.como_inicio ?? null,
       comoFin: j.como_fin ?? (j.motivo === 'timeout' ? 'sinDatos' : null),
       notaFin: j.nota_fin ?? null,
+      notaInicio: j.nota_inicio ?? null,
       abiertaDesde: iso(j.origen),
     })),
   });

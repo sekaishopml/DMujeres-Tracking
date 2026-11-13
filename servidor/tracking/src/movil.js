@@ -602,6 +602,8 @@ export async function atenderJornada(req, res, ctx) {
           // Cómo empezó: a mano, al iniciar una actividad, por el cronograma o
           // por el corte de medianoche (las versiones viejas no lo mandan).
           ...(COMO_INICIO.has(cuerpo.como) ? { inicio: cuerpo.como } : {}),
+          // Por qué inició tarde (la app lo pide desde las 09:00).
+          ...(texto(cuerpo.nota) ? { notaInicio: texto(cuerpo.nota).slice(0, 300) } : {}),
         },
         parcheDispositivo: parche,
         inicioEn: new Date(instante),

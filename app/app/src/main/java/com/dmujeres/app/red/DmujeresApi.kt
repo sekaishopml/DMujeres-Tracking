@@ -199,7 +199,7 @@ object DmujeresApi {
     }
 
     /** Inicio de jornada: id = epoch ms, evento mobileJourneyStarted en el panel. */
-    fun journeyStarted(context: Context, como: String = "manual") {
+    fun journeyStarted(context: Context, como: String = "manual", nota: String? = null) {
         // Doble toque o reintento: si ya hay jornada abierta no se abre otra.
         if (isJourneyOpen(context)) return
         val now = System.currentTimeMillis()
@@ -211,7 +211,7 @@ object DmujeresApi {
             .apply()
         Pasos.reiniciar(context)
         StatusActivity.addMessage(context.getString(R.string.journey_started_toast))
-        JourneyOutbox.enqueue(context, "start", journeyId, now, como = como)
+        JourneyOutbox.enqueue(context, "start", journeyId, now, como = como, nota = nota)
         flushJourneyEvents(context)
         // El GPS y el aviso de la barra siguen a la jornada sin esperar el pulso.
         TrackingService.syncJourneyNow()

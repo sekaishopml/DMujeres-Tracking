@@ -50,6 +50,8 @@ object Ajustes {
         AVISO_UBICACION_REPETIR_MS("avisoUbicacionRepetirMs", 600_000, 120_000, 3_600_000),
         /** En horario laboral, cuántas veces se repite como mucho en el día. */
         AVISO_UBICACION_MAX("avisoUbicacionMax", 30, 2, 100),
+        /** Iniciar la jornada a mano desde este minuto del día pide el motivo (0 = nunca). */
+        INICIO_CON_MOTIVO_DESDE_MIN("inicioConMotivoDesdeMin", 540, 0, 1_380),
     }
 
     private const val KEY = "ajustesCaptura"

@@ -6,6 +6,8 @@ import com.dmujeres.app.cronograma.TipoActividad
  * Reglas de la jornada que no dependen de Android (se prueban en
  * ReglasJornadaTest):
  *  - de 07:00 a 17:00 no se cierra sin escribir por qué;
+ *  - de lunes a sábado, iniciarla a mano tarde (09:00 de fábrica) hasta las
+ *    17:00 también pide por qué;
  *  - al iniciar una visita o un almuerzo sin jornada, la jornada empieza;
  *  - con una visita o un almuerzo en el cronograma, la jornada empieza sola
  *    1 h antes de la primera del día.
@@ -24,6 +26,10 @@ object ReglasJornada {
     val DE_RUTA = setOf(TipoActividad.VISITA, TipoActividad.ALMUERZO)
 
     fun pideNota(minuto: Int): Boolean = minuto in DESDE_NOTA until HASTA_NOTA
+
+    /** ¿Iniciar a mano a este minuto pide el motivo? [desde] llega del servidor (0 = nunca). */
+    fun pideNotaInicio(minuto: Int, desde: Int, diaHabil: Boolean): Boolean =
+        diaHabil && desde > 0 && minuto in desde until HASTA_NOTA
 
     fun notaValida(nota: String?): Boolean = (nota?.trim()?.length ?: 0) >= MIN_NOTA
 

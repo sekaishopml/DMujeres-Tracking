@@ -7,7 +7,7 @@ repetirlo.
 
 Ver el detalle abajo. Orden para sacarla:
 
-1. Instalar la 416 en el ZTE por adb (túnel `127.0.0.1:41473`, ver
+1. Instalada la 419 en el ZTE por adb (túnel `127.0.0.1:41473`, ver
    `scripts/depuracion-qr.ps1`).
 2. Probar caminando y en carro con `quietaBajoConsumo` en el ZTE: si la
    salida llega tarde, se quita ese ajuste (sin actualizar la app).
@@ -15,9 +15,9 @@ Ver el detalle abajo. Orden para sacarla:
    `latest.json`. Conviene Nadia y Joselyn (Honor), donde más corta.
 4. Para todos, cuando se dé la orden.
 
-### Versión 2.15 (código 416, lista el 13/11/2026)
+### Versión 2.15 (código 419, lista el 13/11/2026)
 
-Lista y firmada en `ota/DMujeres-Tracking-2.15.416.apk` (reemplaza a la 407 a 415);
+Lista y firmada en `ota/DMujeres-Tracking-2.15.419.apk` (reemplaza a la 407 a 418); se ofrece solo al ZTE (`ota/por-equipo/Santi-ZTE.json`);
 todavía no se ofrece a ningún teléfono. Trae:
 
 - APK de 3,1 MB (antes 9,8) y sin Analytics, Crashlytics ni reseña de Play.
@@ -66,6 +66,11 @@ todavía no se ofrece a ningún teléfono. Trae:
   se puede deslizar (antes, dos avisos y nada más; así pasó con Jefferson el
   10/11 y Sofía el 11/11). Los avisos de las 07:30, 08:15, 12:00 y 15:00
   llegan también el sábado (app y servidor).
+- (419) Iniciar la jornada a mano desde las 09:00 (lunes a sábado, hasta las
+  17:00) pide el motivo, igual que finalizar antes de las 17:00. Queda en la
+  jornada (`notaInicio`) y en el cronograma del panel. Ajustable desde el
+  servidor (`inicioConMotivoDesdeMin`). Desde la 2.10 hubo 17 inicios a mano
+  a las 10:00 o más tarde (Jefferson, Kevin, Mariam, Miguel), sin cronograma.
 - Ojo: no subir la 2.15 a GitHub como release si no es para todos. La app
   consulta GitHub cada vez que el servidor no le ofrece versión, así que un
   release ahí le llega a toda la flota.
@@ -103,6 +108,14 @@ todavía no se ofrece a ningún teléfono. Trae:
 
 ### App
 
+- Cortes con la app viva y sin posición (medido del 30/10 al 12/11, de 07:00
+  a 17:00): 56 cortes y 48 h, casi todos de Silvia (Huawei, además ubicación
+  simulada) y Joselyn (Honor, GPS sin respuesta con todo permitido). Es lo
+  que más ruta quita; lo demás (app detenida 19 h, teléfono apagado 5 h, GPS
+  apagado 5 h) es menor. Revisar en persona los ajustes de esos teléfonos.
+- Batería: de 1 a 10 % por hora en horario laboral (Paola 10 %, Sofía 10 %,
+  Estévez 9,5 %). Lo que más ahorra es `quietaBajoConsumo` para la flota,
+  después de probarlo en la calle con el ZTE.
 - Revisar la lectura de batería: la de Martha no cambió en todo un día.
 - El diagnóstico manda `movingMs` fijo en 10 000; mandar el que se usa.
 - Consumo en vehículo (GPS cada segundo) por modelo. No se reduce la

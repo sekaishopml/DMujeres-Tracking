@@ -103,6 +103,10 @@ Se registrará el cierre en el panel.</string>
   <string name="fin_nota_ayuda">Entre las 07:00 y las 17:00 debe escribir el motivo. Queda en su reporte.</string>
   <string name="fin_nota_hint">Ej.: Cita médica, terminé mis visitas…</string>
   <string name="fin_nota_falta">Escriba el motivo para finalizar</string>
+  <string name="inicio_nota_titulo">¿Por qué inicia la jornada a esta hora?</string>
+  <string name="inicio_nota_ayuda">Desde las %1$s debe escribir el motivo para iniciar. Queda registrado.</string>
+  <string name="inicio_nota_hint">Ej.: Cita médica, trámite personal…</string>
+  <string name="inicio_nota_falta">Escriba el motivo para iniciar</string>
   <string name="pending_label">Pendientes por enviar</string>
   <string name="battery_label">Batería</string>
   <string name="duration_label">Duración</string>

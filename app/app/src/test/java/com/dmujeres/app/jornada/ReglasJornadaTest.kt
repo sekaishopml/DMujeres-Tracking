@@ -19,6 +19,16 @@ class ReglasJornadaTest {
     }
 
     @Test
+    fun iniciarTardePideNota() {
+        val nueve = 9 * 60
+        assertFalse(ReglasJornada.pideNotaInicio(8 * 60 + 59, nueve, true))
+        assertTrue(ReglasJornada.pideNotaInicio(10 * 60, nueve, true))
+        assertFalse(ReglasJornada.pideNotaInicio(17 * 60, nueve, true))
+        assertFalse(ReglasJornada.pideNotaInicio(10 * 60, nueve, false))
+        assertFalse(ReglasJornada.pideNotaInicio(10 * 60, 0, true))
+    }
+
+    @Test
     fun seIniciaUnaHoraAntesDeLaPrimera() {
         val horas = listOf(10 * 60, 9 * 60, 14 * 60)
         assertEquals(8 * 60, ReglasJornada.minutoDeInicio(horas))

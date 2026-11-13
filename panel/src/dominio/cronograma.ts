@@ -75,6 +75,8 @@ export interface JornadaDia {
   comoInicio: 'manual' | 'actividad' | 'cronograma' | 'medianoche' | null;
   comoFin: 'manual' | 'medianoche' | 'sesion' | 'sinDatos' | null;
   notaFin: string | null;
+  // Por qué la inició tarde (la app lo pide desde las 09:00).
+  notaInicio?: string | null;
   // Seguida de la noche anterior: cuándo se inició de verdad.
   abiertaDesde?: string | null;
 }

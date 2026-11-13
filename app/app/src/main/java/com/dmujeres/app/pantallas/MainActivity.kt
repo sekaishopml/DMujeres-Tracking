@@ -36,6 +36,8 @@ import androidx.preference.PreferenceManager
 import com.dmujeres.app.BuildConfig
 import com.dmujeres.app.R
 import com.dmujeres.app.actualizacion.OtaPolicy
+import com.dmujeres.app.avisos.AvisosHorarios
+import com.dmujeres.app.datos.Ajustes
 import com.dmujeres.app.datos.ConfigState
 import com.dmujeres.app.datos.DatabaseHelper
 import com.dmujeres.app.datos.Prefs
@@ -318,7 +320,7 @@ class MainActivity : AppCompatActivity() {
             if (DmujeresApi.isJourneyOpen(this)) {
                 // En horario laboral se finaliza solo con el motivo escrito.
                 if (ReglasJornada.pideNota(minutoDelDia())) {
-                    mostrarNotaFin(findViewById<View>(R.id.fin_nota_panel).visibility != View.VISIBLE)
+                    mostrarNota(findViewById<View>(R.id.fin_nota_panel).visibility != View.VISIBLE, inicio = false)
                     return@setOnClickListener
                 }
                 // Sin ventana de confirmación: el primer toque avisa en el
@@ -344,22 +346,31 @@ class MainActivity : AppCompatActivity() {
                     }
                     return@setOnClickListener
                 }
-                ContextCompat.startForegroundService(
-                    this, Intent(this, TrackingService::class.java),
-                )
-                DmujeresApi.journeyStarted(this)
-                refreshLockedHome()
+                // Iniciar tarde (de fábrica desde las 09:00) pide el motivo.
+                val dia = java.util.Calendar.getInstance(java.util.TimeZone.getTimeZone("America/Guayaquil"))
+                    .get(java.util.Calendar.DAY_OF_WEEK)
+                val desde = Ajustes.valor(Ajustes.Clave.INICIO_CON_MOTIVO_DESDE_MIN).toInt()
+                if (ReglasJornada.pideNotaInicio(minutoDelDia(), desde, AvisosHorarios.diaHabil(dia))) {
+                    mostrarNota(findViewById<View>(R.id.fin_nota_panel).visibility != View.VISIBLE, inicio = true)
+                    return@setOnClickListener
+                }
+                iniciarJornada(null)
             }
         }
-        findViewById<View>(R.id.fin_nota_volver).setOnClickListener { mostrarNotaFin(false) }
+        findViewById<View>(R.id.fin_nota_volver).setOnClickListener { mostrarNota(false, notaParaInicio) }
         findViewById<View>(R.id.fin_nota_finalizar).setOnClickListener {
             val nota = findViewById<EditText>(R.id.fin_nota_campo).text.toString().trim()
             if (!ReglasJornada.notaValida(nota)) {
                 findViewById<View>(R.id.fin_nota_error).visibility = View.VISIBLE
                 return@setOnClickListener
             }
+            if (notaParaInicio) {
+                mostrarNota(false, inicio = true)
+                iniciarJornada(nota)
+                return@setOnClickListener
+            }
             DmujeresApi.journeyEnded(this, "manual", nota)
-            mostrarNotaFin(false)
+            mostrarNota(false, inicio = false)
             refreshLockedHome()
         }
         findViewById<EditText>(R.id.fin_nota_campo).doAfterTextChanged {
@@ -593,8 +604,9 @@ class MainActivity : AppCompatActivity() {
     private fun refreshLockedHome() {
         if (isFinishing || isDestroyed) return
         val open = DmujeresApi.isJourneyOpen(this)
-        // Si la jornada se cerró por otro lado, el recuadro del motivo ya no sirve.
-        if (!open && findViewById<View>(R.id.fin_nota_panel)?.visibility == View.VISIBLE) {
+        // Si la jornada se cerró (o, al pedir el motivo para iniciar, se abrió)
+        // por otro lado, el recuadro del motivo ya no sirve.
+        if (open == notaParaInicio && findViewById<View>(R.id.fin_nota_panel)?.visibility == View.VISIBLE) {
             findViewById<View>(R.id.fin_nota_panel)?.visibility = View.GONE
             findViewById<View>(R.id.journey_button)?.visibility = View.VISIBLE
         }
@@ -802,9 +814,32 @@ class MainActivity : AppCompatActivity() {
             .let { it.get(java.util.Calendar.HOUR_OF_DAY) * 60 + it.get(java.util.Calendar.MINUTE) }
 
     /** Recuadro del motivo para finalizar en horario laboral, en la misma pantalla. */
-    private fun mostrarNotaFin(visible: Boolean) {
+    private fun iniciarJornada(nota: String?) {
+        ContextCompat.startForegroundService(this, Intent(this, TrackingService::class.java))
+        DmujeresApi.journeyStarted(this, "manual", nota)
+        refreshLockedHome()
+    }
+
+    // El mismo recuadro pide el motivo para finalizar en horario laboral o
+    // para iniciar tarde; cambian los textos y el botón.
+    private var notaParaInicio = false
+
+    private fun mostrarNota(visible: Boolean, inicio: Boolean) {
+        notaParaInicio = inicio
         val panel = findViewById<View>(R.id.fin_nota_panel)
         val campo = findViewById<EditText>(R.id.fin_nota_campo)
+        if (visible) {
+            val desde = Ajustes.valor(Ajustes.Clave.INICIO_CON_MOTIVO_DESDE_MIN).toInt()
+            findViewById<TextView>(R.id.fin_nota_titulo_texto).setText(if (inicio) R.string.inicio_nota_titulo else R.string.fin_nota_titulo)
+            findViewById<TextView>(R.id.fin_nota_ayuda_texto).text = if (inicio) {
+                getString(R.string.inicio_nota_ayuda, "%02d:%02d".format(desde / 60, desde % 60))
+            } else {
+                getString(R.string.fin_nota_ayuda)
+            }
+            campo.setHint(if (inicio) R.string.inicio_nota_hint else R.string.fin_nota_hint)
+            findViewById<TextView>(R.id.fin_nota_error).setText(if (inicio) R.string.inicio_nota_falta else R.string.fin_nota_falta)
+            findViewById<TextView>(R.id.fin_nota_finalizar).setText(if (inicio) R.string.journey_start_upper else R.string.journey_stop_upper)
+        }
         findViewById<ViewGroup>(R.id.cuerpo)?.let { Animaciones.fluido(it) }
         panel.visibility = if (visible) View.VISIBLE else View.GONE
         // El recuadro trae su propio "Finalizar jornada": el de arriba se oculta para no repetirlo.

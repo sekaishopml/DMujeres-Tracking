@@ -386,7 +386,7 @@ function FragmentoCol() {
 }
 
 // Primera y última fila de cada día: cuándo y cómo empezó y terminó la
-// jornada; si la cerró en horario laboral, el motivo que escribió.
+// jornada; el motivo que escribió si la inició tarde o la cerró en horario laboral.
 function FilaJornada({ color, jornadas, extremo }: { color: string; jornadas: JornadaDia[]; extremo: 'inicio' | 'fin' }) {
   const fondo = tinte(color, 12);
   return (
@@ -405,6 +405,7 @@ function FilaJornada({ color, jornadas, extremo }: { color: string; jornadas: Jo
               </span>
               {como && <span className="text-texto-2"> · {como}</span>}
               {extremo === 'fin' && j.notaFin && <span className="block break-words text-marino-900">“{j.notaFin}”</span>}
+              {extremo === 'inicio' && j.notaInicio && <span className="block break-words text-marino-900">“{j.notaInicio}”</span>}
             </div>
           );
         })}
