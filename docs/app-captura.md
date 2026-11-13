@@ -146,6 +146,8 @@ captura. Ausente o fuera de rango, vale el de fábrica.
 | `salidaM` | 80 | 40–300 | Alejarse esto del sitio es salida |
 | `precisionSalidaQuietaM` | 50 | 20–500 | Con GPS apagado en quietud, más error no es salida |
 | `esperaActividadMs` | 15000 | 0–120000 | Pausa entre una actividad nueva y la siguiente |
+| `avisoUbicacionRepetirMs` | 600000 | 120000–3600000 | Horario laboral: cada cuánto se repite el aviso de ubicación apagada |
+| `avisoUbicacionMax` | 30 | 2–100 | Horario laboral: cuántas veces como mucho |
 
 Ejemplo, solo para un equipo:
 `UPDATE tracking.dmt_dispositivo SET atributos = jsonb_set(atributos, '{mobile.ajustes}', '{"gpsQuietaMs":30000}') WHERE identificador = 'Santi-ZTE';`

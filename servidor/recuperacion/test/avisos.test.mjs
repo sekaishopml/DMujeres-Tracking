@@ -15,7 +15,8 @@ test('toca avisar de lunes a viernes a las 07:30, 08:15, 12:00 y 15:00, solo en 
   assert.equal(franjaDeAhora(a('17:00')), null);
   assert.equal(franjaDeAhora(a('08:00')), null);
   assert.equal(franjaDeAhora(a('08:20')), '2026-10-12 08:15');
-  assert.equal(franjaDeAhora(Date.parse('2026-10-17T07:30:00-05:00')), null);
+  assert.equal(franjaDeAhora(Date.parse('2026-10-17T07:30:00-05:00')), '2026-10-17 07:30');
+  assert.equal(franjaDeAhora(Date.parse('2026-10-18T07:30:00-05:00')), null);
 });
 
 test('manda una sola vez por hora y solo a los teléfonos con token', async () => {

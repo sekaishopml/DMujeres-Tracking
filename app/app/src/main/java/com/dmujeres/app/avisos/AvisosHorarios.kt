@@ -5,7 +5,7 @@ import com.dmujeres.app.cronograma.TipoActividad
 /**
  * Qué se le avisa a la persona y cuándo. Sin Android, para poder probarlo.
  *
- * Solo de lunes a viernes, a las 07:30, 08:15, 12:00 y 15:00 (nunca de noche
+ * Solo de lunes a sábado, a las 07:30, 08:15, 12:00 y 15:00 (nunca de noche
  * ni en la tarde): un aviso corto con lo que haga falta.
  *  - 07:30, 08:15 y 15:00: si todavía no inició la jornada. La de las 08:15
  *    es solo ese recordatorio (el servidor la manda únicamente a los que no
@@ -50,8 +50,8 @@ object AvisosHorarios {
         }
     }
 
-    /** Lunes a viernes, con los días de [java.util.Calendar] (domingo = 1, sábado = 7). */
-    fun diaHabil(diaSemana: Int): Boolean = diaSemana in 2..6
+    /** Lunes a sábado, con los días de [java.util.Calendar] (domingo = 1, sábado = 7). */
+    fun diaHabil(diaSemana: Int): Boolean = diaSemana in 2..7
 
     /**
      * Franja que toca atender a esta hora: la última que ya pasó, si no pasó

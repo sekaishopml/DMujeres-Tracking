@@ -12,15 +12,20 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import androidx.preference.PreferenceManager
 import com.dmujeres.app.R
+import com.dmujeres.app.datos.Ajustes
+import com.dmujeres.app.jornada.ReglasJornada
 import com.dmujeres.app.red.DmujeresApi
 import com.dmujeres.app.sistema.AjustesPermisos
+import java.util.Calendar
 
 /**
  * Con la jornada abierta, la ubicación apagada o el permiso quitado dejan de
- * registrar el recorrido: eso no espera a la hora fija. Se avisa al momento y
- * una sola vez más si a los 15 min sigue igual; nunca más que eso. Al tocar
- * se abre el ajuste que falta. Se revisa al cambiar la ubicación y con el
- * diagnóstico de cada 10 min.
+ * registrar el recorrido: eso no espera a la hora fija. Se avisa al momento.
+ * En horario laboral (lunes a sábado, 07:00 a 17:00) se repite con sonido
+ * cada 10 min mientras siga así y no se puede deslizar para quitarlo (tiempos
+ * en [Ajustes]); fuera de ese horario, una sola vez más a los 15 min. Al
+ * tocar se abre el ajuste que falta. Se revisa al cambiar la ubicación y con
+ * el diagnóstico de cada 10 min.
  */
 object AvisoInmediato {
 
@@ -40,8 +45,11 @@ object AvisoInmediato {
             val prefs = PreferenceManager.getDefaultSharedPreferences(context)
             val veces = prefs.getInt(KEY_VECES, 0)
             val ahora = System.currentTimeMillis()
-            if (veces >= MAX_AVISOS || (veces > 0 && ahora - prefs.getLong(KEY_ULTIMO, 0L) < REPETIR_MS)) return
-            mostrar(context, sinPermiso)
+            val laboral = horarioLaboral()
+            val maximo = if (laboral) Ajustes.valor(Ajustes.Clave.AVISO_UBICACION_MAX).toInt() else MAX_AVISOS
+            val repetir = if (laboral) Ajustes.valor(Ajustes.Clave.AVISO_UBICACION_REPETIR_MS) else REPETIR_MS
+            if (veces >= maximo || (veces > 0 && ahora - prefs.getLong(KEY_ULTIMO, 0L) < repetir)) return
+            mostrar(context, sinPermiso, fijo = laboral)
             prefs.edit().putInt(KEY_VECES, veces + 1).putLong(KEY_ULTIMO, ahora)
                 .putString(KEY_DIAGNOSTICO, "mostrado ${if (sinPermiso) "permiso" else "gps"} $ahora").apply()
         }.onFailure {
@@ -52,7 +60,13 @@ object AvisoInmediato {
     }
 
     /** Depuración: muestra el aviso de ubicación apagada tal cual. */
-    fun probar(context: Context) = mostrar(context, sinPermiso = false)
+    fun probar(context: Context) = mostrar(context, sinPermiso = false, fijo = false)
+
+    private fun horarioLaboral(): Boolean {
+        val ahora = Calendar.getInstance()
+        return AvisosHorarios.diaHabil(ahora.get(Calendar.DAY_OF_WEEK)) &&
+            ReglasJornada.pideNota(ahora.get(Calendar.HOUR_OF_DAY) * 60 + ahora.get(Calendar.MINUTE))
+    }
 
     /** Arreglado o sin jornada: se quita el aviso y la cuenta vuelve a cero. */
     fun limpiar(context: Context) {
@@ -66,7 +80,7 @@ object AvisoInmediato {
         (context.getSystemService(Context.LOCATION_SERVICE) as LocationManager).isProviderEnabled(LocationManager.GPS_PROVIDER)
     }.getOrDefault(true)
 
-    private fun mostrar(context: Context, sinPermiso: Boolean) {
+    private fun mostrar(context: Context, sinPermiso: Boolean, fijo: Boolean) {
         if (!AjustesPermisos.notificaciones(context)) return
         val ajuste = if (sinPermiso) {
             Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", context.packageName, null))
@@ -79,10 +93,12 @@ object AvisoInmediato {
             .setContentTitle(context.getString(if (sinPermiso) R.string.aviso_permiso_titulo else R.string.aviso_gps_titulo))
             .setContentText(context.getString(if (sinPermiso) R.string.aviso_permiso_texto else R.string.aviso_gps_texto))
             .setColor(ContextCompat.getColor(context, R.color.primary_dark))
-            .setOnlyAlertOnce(true)
+            // Suena cada vez que se repite.
+            .setOnlyAlertOnce(false)
             .setSound(SonidoAvisos.uri(context))
             .setContentIntent(abrir)
-            .setAutoCancel(true)
+            .setOngoing(fijo)
+            .setAutoCancel(!fijo)
             .build()
         NotificationManagerCompat.from(context).notify(ID, notificacion)
     }

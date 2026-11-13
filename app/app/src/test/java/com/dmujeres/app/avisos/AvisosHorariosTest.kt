@@ -60,10 +60,10 @@ class AvisosHorariosTest {
     }
 
     @Test
-    fun soloDeLunesAViernes() {
+    fun deLunesASabado() {
         assertTrue(AvisosHorarios.diaHabil(Calendar.MONDAY))
         assertTrue(AvisosHorarios.diaHabil(Calendar.FRIDAY))
-        assertFalse(AvisosHorarios.diaHabil(Calendar.SATURDAY))
+        assertTrue(AvisosHorarios.diaHabil(Calendar.SATURDAY))
         assertFalse(AvisosHorarios.diaHabil(Calendar.SUNDAY))
     }
 
@@ -80,9 +80,10 @@ class AvisosHorariosTest {
         assertEquals(150, AvisosHorarios.minutosHastaLaProxima(12 * 60 + 30, Calendar.TUESDAY))
         // Martes 17:00: miércoles a las 07:30 (nada en la tarde ni de noche).
         assertEquals(24 * 60 - 17 * 60 + sieteYMedia, AvisosHorarios.minutosHastaLaProxima(17 * 60, Calendar.TUESDAY))
-        // Viernes 16:00: el lunes a las 07:30.
-        assertEquals(3 * 24 * 60 - 16 * 60 + sieteYMedia, AvisosHorarios.minutosHastaLaProxima(16 * 60, Calendar.FRIDAY))
-        // Sábado: el lunes.
-        assertEquals(2 * 24 * 60 - 10 * 60 + sieteYMedia, AvisosHorarios.minutosHastaLaProxima(10 * 60, Calendar.SATURDAY))
+        // Viernes 16:00: el sábado a las 07:30.
+        assertEquals(24 * 60 - 16 * 60 + sieteYMedia, AvisosHorarios.minutosHastaLaProxima(16 * 60, Calendar.FRIDAY))
+        // Sábado 10:00: a las 12:00; sábado 17:00: el lunes a las 07:30.
+        assertEquals(120, AvisosHorarios.minutosHastaLaProxima(10 * 60, Calendar.SATURDAY))
+        assertEquals(2 * 24 * 60 - 17 * 60 + sieteYMedia, AvisosHorarios.minutosHastaLaProxima(17 * 60, Calendar.SATURDAY))
     }
 }

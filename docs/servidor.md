@@ -55,7 +55,7 @@ cambia la plantilla). Columnas:
   persona si fue después.
 - Inicio y fin de jornada: los de la persona. El corte de medianoche no
   cuenta: "Seguía abierta del día anterior" / "No la cerró".
-- Observación, de lunes a viernes y pasadas las 17:00: el motivo que escribió
+- Observación, de lunes a sábado y pasadas las 17:00: el motivo que escribió
   al cerrar; si terminó antes de las 17:00 sin motivo, "Finalizó la jornada a
   las … sin motivo" o la causa (lo que avisó el teléfono hasta 30 min después
   del último punto: apagado, GPS, permiso; batería crítica; "Dejó de reportar

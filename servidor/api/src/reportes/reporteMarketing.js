@@ -105,7 +105,7 @@ function causaDelApagado(ultimo, eventos, hora) {
 //    jornada que hizo la persona si fue después;
 //  - inicio y fin de jornada: los de la persona (el corte de medianoche no lo
 //    es: "Seguía abierta del día anterior" / "No la cerró");
-//  - observación, de lunes a viernes: el motivo que escribió al cerrar y, si
+//  - observación, de lunes a sábado: el motivo que escribió al cerrar y, si
 //    terminó antes de las 17:00 sin motivo, cómo terminó.
 // Los puntos simulados no cuentan. iPhone (no marca jornada): solo puntos.
 export function horasDelDia({ ios, jornadas, primerPunto, ultimoPunto, eventos = [] }, desde, hasta, zona, ahora = new Date()) {
@@ -138,7 +138,7 @@ export function horasDelDia({ ios, jornadas, primerPunto, ultimoPunto, eventos =
 
   const notas = jornadas.filter((j) => j.notaFin && j.fin).map((j) => `Motivo de cierre (${hora(j.fin)}): ${j.notaFin}`);
   const diaSemana = new Date(desde.getTime() + 12 * 3_600_000).getUTCDay();
-  const lunesAViernes = diaSemana >= 1 && diaSemana <= 5;
+  const laborable = diaSemana >= 1 && diaSemana <= 6;
   const [hh, mm] = FIN_LABORAL.split(':').map(Number);
   // Las 17:00 de ese día (las horas se comparan como texto en la zona del día).
   const antesDeLas17 = (t) => {
@@ -147,7 +147,7 @@ export function horasDelDia({ ios, jornadas, primerPunto, ultimoPunto, eventos =
   };
   const yaPasaron17 = ahora.getTime() >= hasta.getTime() || !antesDeLas17(ahora);
   const avisos = [];
-  if (lunesAViernes && yaPasaron17 && !ultima.notaFin) {
+  if (laborable && yaPasaron17 && !ultima.notaFin) {
     if (cerroLaPersona && antesDeLas17(ultima.fin)) {
       avisos.push(`Finalizó la jornada a las ${hora(ultima.fin)} sin motivo`);
     } else if (!cerroLaPersona && ultimoPunto && antesDeLas17(ultimoPunto)) {

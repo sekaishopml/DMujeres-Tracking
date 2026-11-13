@@ -46,6 +46,10 @@ object Ajustes {
         PRECISION_SALIDA_QUIETA_M("precisionSalidaQuietaM", 50, 20, 500),
         /** Pausa entre una actividad nueva y la siguiente. */
         ESPERA_ACTIVIDAD_MS("esperaActividadMs", 15_000, 0, 120_000),
+        /** En horario laboral, cada cuánto se repite el aviso de ubicación apagada. */
+        AVISO_UBICACION_REPETIR_MS("avisoUbicacionRepetirMs", 600_000, 120_000, 3_600_000),
+        /** En horario laboral, cuántas veces se repite como mucho en el día. */
+        AVISO_UBICACION_MAX("avisoUbicacionMax", 30, 2, 100),
     }
 
     private const val KEY = "ajustesCaptura"

@@ -86,9 +86,9 @@ todos los de Ariel pasaron de 3 min.
 - Jefferson: no apagar la ubicación durante la jornada.
 - Joselyn: inicio automático y batería sin restricciones en su teléfono.
 
-## Versión 2.15 (código 414, lista el 12/11/2026)
+## Versión 2.15 (código 415, lista el 13/11/2026)
 
-Lista y firmada en `ota/DMujeres-Tracking-2.15.414.apk` (reemplaza a la 407 a 413);
+Lista y firmada en `ota/DMujeres-Tracking-2.15.415.apk` (reemplaza a la 407 a 414);
 todavía no se ofrece a ningún teléfono. Trae:
 
 - APK de 3,1 MB (antes 9,8) y sin Analytics, Crashlytics ni reseña de Play.
@@ -132,6 +132,11 @@ todavía no se ofrece a ningún teléfono. Trae:
   dura), tiempo para pasar a quieta, metros de salida, precisión que cuenta
   como salida con el GPS apagado y pausa entre actividades. Ver "Ajustes de
   captura" en [Cómo captura la app](app-captura.md).
+- (415) Ubicación apagada o permiso quitado con la jornada abierta, de lunes a
+  sábado de 07:00 a 17:00: el aviso suena cada 10 min mientras siga así y no
+  se puede deslizar (antes, dos avisos y nada más; así pasó con Jefferson el
+  10/11 y Sofía el 11/11). Los avisos de las 07:30, 08:15, 12:00 y 15:00
+  llegan también el sábado (app y servidor).
 - Ojo: no subir la 2.15 a GitHub como release si no es para todos. La app
   consulta GitHub cada vez que el servidor no le ofrece versión, así que un
   release ahí le llega a toda la flota.

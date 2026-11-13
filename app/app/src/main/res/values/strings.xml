@@ -134,7 +134,7 @@ Se registrará el cierre en el panel.</string>
   <string name="permission_warning_notifications">Las notificaciones están apagadas · Toca para activarlas</string>
   <string name="permission_warning_activity">Falta el permiso de actividad física · Toca para permitirlo</string>
   <string name="canal_avisos">Avisos de la jornada</string>
-  <string name="canal_avisos_descripcion">De lunes a viernes a las 07:30, 12:00 y 15:00: jornada sin iniciar, un permiso quitado o la app por actualizar.</string>
+  <string name="canal_avisos_descripcion">De lunes a sábado a las 07:30, 12:00 y 15:00: jornada sin iniciar, un permiso quitado o la app por actualizar.</string>
   <string name="aviso_h_titulo">Revise su aplicación</string>
   <string name="aviso_h_titulo_jornada">Jornada sin iniciar</string>
   <string name="aviso_h_sin_jornada">Inicie su jornada.</string>

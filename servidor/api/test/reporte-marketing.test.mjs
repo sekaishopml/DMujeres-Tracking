@@ -107,12 +107,13 @@ test('observación: motivo o causa cuando terminó antes de las 17:00', () => {
   assert.deepEqual([pasada.finJornada, pasada.observacion], ['No la cerró', 'Dejó de reportar con la jornada abierta desde las 8:39. No finalizó la jornada']);
   // Hoy antes de las 17:00 todavía no se juzga.
   assert.equal(dia({ jornadas: [{ inicio: h('7:30'), fin: null }], ultimoPunto: h('15:00') }, h('15:05')), '');
-  // Sábado 17/10: no se pide motivo.
-  const sabado = horasDelDia(
-    { ios: false, primerPunto: h('7:30', 17), jornadas: [{ inicio: h('7:30', 17), fin: h('12:00', 17) }], ultimoPunto: h('12:00', 17) },
-    h('0:00', 17), h('0:00', 18), ZONA, h('23:00', 17),
-  );
-  assert.equal(sabado.observacion, '');
+  // Sábado 17/10 también se trabaja hasta las 17:00; el domingo 18 no.
+  const dia17 = (n) => horasDelDia(
+    { ios: false, primerPunto: h('7:30', n), jornadas: [{ inicio: h('7:30', n), fin: h('12:00', n) }], ultimoPunto: h('12:00', n) },
+    h('0:00', n), h('0:00', n + 1), ZONA, h('23:00', n),
+  ).observacion;
+  assert.equal(dia17(17), 'Finalizó la jornada a las 12:00 sin motivo');
+  assert.equal(dia17(18), '');
 });
 
 test('iPhone: primer y último punto del día', () => {

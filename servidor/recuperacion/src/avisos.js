@@ -1,4 +1,4 @@
-// Avisos de horario: de lunes a viernes a las 07:30, 08:15, 12:00 y 15:00 se le
+// Avisos de horario: de lunes a sábado a las 07:30, 08:15, 12:00 y 15:00 se le
 // manda al teléfono un mensaje para que revise su estado y, si algo falta, se
 // lo diga a la persona (nunca en la tarde ni de noche). A las 08:15 solo a los
 // que no mandaron puntos desde las 08:00: es el recordatorio de iniciar jornada.
@@ -14,7 +14,7 @@ const horaLocal = (ahoraMs, zona) =>
   new Intl.DateTimeFormat('en-CA', {
     timeZone: zona, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23', weekday: 'short',
   }).formatToParts(new Date(ahoraMs)).reduce((o, p) => ({ ...o, [p.type]: p.value }), {});
-const DIAS_HABILES = new Set(['Mon', 'Tue', 'Wed', 'Thu', 'Fri']);
+const DIAS_HABILES = new Set(['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']);
 
 // Franja que toca mandar ahora ("AAAA-MM-DD HH:MM") o null.
 export function franjaDeAhora(ahoraMs, zona = 'America/Guayaquil') {
