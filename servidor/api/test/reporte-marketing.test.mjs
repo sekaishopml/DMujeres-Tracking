@@ -38,95 +38,54 @@ test('la persona de la plantilla se encuentra aunque cambie la escritura', () =>
   assert.equal(buscarPersona('ANA CORREA', personas), null);
 });
 
-test('encendido y apagado: primer y último punto del día, dentro o fuera de jornada', () => {
+test('encendido: inicio manual de la jornada; si seguía de antes, primer contacto desde las 0:00', () => {
   const base = { ios: false, primerPunto: null, ultimoPunto: null };
-  const dia = (datos) => horasDelDia({ ...base, ...datos }, desde, hasta, ZONA, h('23:00'));
-  const c = (r) => [r.encendido, r.apagado, r.inicioJornada, r.finJornada];
-  // Sin jornada ni puntos: guion en todo.
-  assert.deepEqual(c(dia({ jornadas: [] })), ['—', '—', '—', '—']);
-  // Encendió el teléfono a las 6:40 (punto sin jornada) y empezó a las 7:52.
+  const dia = (datos) => horasDelDia({ ...base, ...datos }, desde, hasta, ZONA);
+  // Sin jornada: guion, aunque haya puntos.
+  assert.deepEqual(dia({ jornadas: [], primerPunto: h('7:00'), ultimoPunto: h('9:00') }), { encendido: '—', apagado: '—' });
+  // Inició a las 7:00 a mano: 7:00 aunque el teléfono mandara antes.
+  assert.deepEqual(dia({ jornadas: [{ inicio: h('7:00'), fin: h('17:40') }], primerPunto: h('6:10'), ultimoPunto: h('17:39') }), {
+    encendido: '7:00',
+    apagado: '17:40',
+  });
+  // Dos jornadas: el primer inicio y el último fin.
   assert.deepEqual(
-    c(dia({ jornadas: [{ inicio: h('7:52'), fin: h('12:00') }, { inicio: h('13:00'), fin: h('18:30') }], primerPunto: h('6:40'), ultimoPunto: h('18:29') })),
-    ['6:40', '18:30', '7:52', '18:30'],
+    dia({ jornadas: [{ inicio: h('7:52'), fin: h('12:00') }, { inicio: h('13:00'), fin: h('18:30') }], ultimoPunto: h('18:29') }),
+    { encendido: '7:52', apagado: '18:30' },
   );
-  // Cerró a las 18:00 y el teléfono siguió mandando hasta las 23:58.
-  assert.deepEqual(c(dia({ jornadas: [{ inicio: h('8:00'), fin: h('18:00') }], primerPunto: h('8:01'), ultimoPunto: h('23:58') })), [
-    '8:00', '23:58', '8:00', '18:00',
-  ]);
-  // Seguía abierta de la noche: el primer punto desde las 0:00 es el encendido
-  // y la jornada de la persona va aparte (Josselyn 30/10).
+  // No la finalizó ayer: sigue abierta, primer contacto del día.
+  assert.deepEqual(dia({ jornadas: [{ inicio: h('0:00'), fin: h('23:59'), continua: true, cierreAutomatico: true }], primerPunto: h('0:02'), ultimoPunto: h('23:54') }), {
+    encendido: '0:02',
+    apagado: '23:54',
+  });
+  // Seguía abierta, la cerró a las 0:24 y después inició a las 7:21: manda su inicio (Josselyn 30/10).
   assert.deepEqual(
-    c(dia({
-      jornadas: [
-        { inicio: h('0:00'), fin: h('0:24'), continua: true },
-        { inicio: h('7:21'), fin: h('22:31') },
-      ],
+    dia({
+      jornadas: [{ inicio: h('0:00'), fin: h('0:24'), continua: true }, { inicio: h('7:21'), fin: h('22:31') }],
       primerPunto: h('0:02'),
       ultimoPunto: h('22:30'),
-    })),
-    ['0:00', '22:31', '7:21', '22:31'],
+    }),
+    { encendido: '7:21', apagado: '22:31' },
   );
-  // Solo el corte de medianoche y el servidor lo cerró en su último punto.
-  assert.deepEqual(c(dia({ jornadas: [{ inicio: h('0:00'), fin: h('5:36'), continua: true, cierreAutomatico: true }], primerPunto: h('0:01'), ultimoPunto: h('5:30') })), [
-    '0:00', '5:30', 'Seguía abierta del día anterior', 'No la cerró',
-  ]);
-  // Puntos pero ninguna jornada.
-  const sinJornada = dia({ jornadas: [], primerPunto: h('7:00'), ultimoPunto: h('9:00') });
-  assert.deepEqual([...c(sinJornada), sinJornada.observacion], ['7:00', '9:00', 'Sin jornada', '—', 'No inició jornada']);
+  // Seguía abierta y sin puntos: 0:00.
+  assert.deepEqual(dia({ jornadas: [{ inicio: h('0:00'), fin: null, continua: true }] }), { encendido: '0:00', apagado: '—' });
 });
 
-test('observación: motivo o causa cuando terminó antes de las 17:00', () => {
-  const base = { ios: false, primerPunto: h('7:30') };
-  const dia = (datos, ahora = h('23:00')) => horasDelDia({ ...base, ...datos }, desde, hasta, ZONA, ahora).observacion;
-  const abierta = [{ inicio: h('7:30'), fin: h('16:28'), cierreAutomatico: true }];
-  // Cerró antes de las 17:00 con motivo: el motivo.
-  assert.equal(dia({ jornadas: [{ inicio: h('7:30'), fin: h('15:10'), notaFin: 'Cita médica' }], ultimoPunto: h('15:09') }), 'Motivo de cierre (15:10): Cita médica');
-  // Cerró antes de las 17:00 sin motivo.
-  assert.equal(dia({ jornadas: [{ inicio: h('7:30'), fin: h('15:10') }], ultimoPunto: h('15:09') }), 'Finalizó la jornada a las 15:10 sin motivo');
-  // Cerró a las 17:00 o después: nada que observar.
-  assert.equal(dia({ jornadas: [{ inicio: h('7:30'), fin: h('17:00') }], ultimoPunto: h('16:59') }), '');
-  // No cerró y el teléfono dejó de mandar a las 16:28 (Jefferson 10/11): la causa.
-  // El servidor notó el silencio 4 s antes del aviso del GPS: manda el aviso.
-  const gps = [{ tipo: 'mobileSilent', en: h('16:28') }, { tipo: 'mobileGpsDisabled', en: h('16:28'), quien: 'persona' }];
-  assert.equal(dia({ jornadas: abierta, ultimoPunto: h('16:28'), eventos: gps }), 'Apagó el GPS a mano a las 16:28. No finalizó la jornada');
-  // Solo el silencio (Joselyn 10/11).
-  assert.equal(
-    dia({ jornadas: abierta, ultimoPunto: h('15:28'), eventos: [{ tipo: 'mobileSilent', en: h('15:26') }, { tipo: 'mobilePowerOff', en: h('22:00') }] }),
-    'Dejó de reportar con la jornada abierta desde las 15:28. No finalizó la jornada',
-  );
-  const pedidos = [{ tipo: 'mobileSilent', en: h('15:45') }, { tipo: 'mobileAvisoRescate', en: h('16:05') }, { tipo: 'mobileAvisoRescate', en: h('16:40') }];
-  assert.equal(
-    dia({ jornadas: abierta, ultimoPunto: h('15:28'), eventos: pedidos }),
-    'Dejó de reportar con la jornada abierta desde las 15:28 (se le pidió abrir la app 2 veces). No finalizó la jornada',
-  );
-  const apagado = [{ tipo: 'mobileBatteryCritical', en: h('16:10') }, { tipo: 'mobilePowerOff', en: h('16:30') }];
-  assert.equal(dia({ jornadas: abierta, ultimoPunto: h('16:28'), eventos: apagado }), 'Apagó el teléfono a las 16:30. No finalizó la jornada');
-  assert.equal(dia({ jornadas: abierta, ultimoPunto: h('16:28'), eventos: [{ tipo: 'mobileBatteryCritical', en: h('16:10') }] }), 'Batería crítica a las 16:10. No finalizó la jornada');
-  // Un apagado de antes del último punto ya pasó: no es la causa.
-  assert.equal(
-    dia({ jornadas: abierta, ultimoPunto: h('16:28'), eventos: [{ tipo: 'mobileGpsDisabled', en: h('10:00') }] }),
-    'Sin ubicación desde las 16:28, sin causa registrada en el teléfono. No finalizó la jornada',
-  );
-  // Quedó abierta en un día pasado: no la cerró.
-  const pasada = horasDelDia({ ...base, jornadas: [{ inicio: h('8:00'), fin: null }], ultimoPunto: h('8:39'), eventos: [{ tipo: 'mobileSilent', en: h('8:40') }] }, desde, hasta, ZONA, h('9:00', 16));
-  assert.deepEqual([pasada.finJornada, pasada.observacion], ['No la cerró', 'Dejó de reportar con la jornada abierta desde las 8:39. No finalizó la jornada']);
-  // Hoy antes de las 17:00 todavía no se juzga.
-  assert.equal(dia({ jornadas: [{ inicio: h('7:30'), fin: null }], ultimoPunto: h('15:00') }, h('15:05')), '');
-  // Sábado 17/10 también se trabaja hasta las 17:00; el domingo 18 no.
-  const dia17 = (n) => horasDelDia(
-    { ios: false, primerPunto: h('7:30', n), jornadas: [{ inicio: h('7:30', n), fin: h('12:00', n) }], ultimoPunto: h('12:00', n) },
-    h('0:00', n), h('0:00', n + 1), ZONA, h('23:00', n),
-  ).observacion;
-  assert.equal(dia17(17), 'Finalizó la jornada a las 12:00 sin motivo');
-  assert.equal(dia17(18), '');
+test('apagado: fin manual de la jornada; si no la finalizó, el último punto del día', () => {
+  const base = { ios: false, primerPunto: h('7:00') };
+  const dia = (datos) => horasDelDia({ ...base, ...datos }, desde, hasta, ZONA).apagado;
+  // Finalizó a las 17:05 y el teléfono siguió mandando: 17:05.
+  assert.equal(dia({ jornadas: [{ inicio: h('7:00'), fin: h('17:05') }], ultimoPunto: h('23:58') }), '17:05');
+  // No la finalizó y dejó de mandar a las 16:28 (el servidor llevó el corte de medianoche al último punto).
+  assert.equal(dia({ jornadas: [{ inicio: h('10:09'), fin: h('16:28'), cierreAutomatico: true }], ultimoPunto: h('16:28') }), '16:28');
+  // Sigue abierta: el último punto.
+  assert.equal(dia({ jornadas: [{ inicio: h('8:07'), fin: null }], ultimoPunto: h('17:40') }), '17:40');
 });
 
 test('iPhone: primer y último punto del día', () => {
   const ios = { ios: true, jornadas: [] };
-  const r = horasDelDia({ ...ios, primerPunto: h('6:30'), ultimoPunto: h('16:10') }, desde, hasta, ZONA);
-  assert.deepEqual([r.encendido, r.apagado], ['6:30', '16:10']);
-  const vacio = horasDelDia({ ...ios, primerPunto: null, ultimoPunto: null }, desde, hasta, ZONA);
-  assert.deepEqual([vacio.encendido, vacio.apagado], ['—', '—']);
+  assert.deepEqual(horasDelDia({ ...ios, primerPunto: h('6:30'), ultimoPunto: h('16:10') }, desde, hasta, ZONA), { encendido: '6:30', apagado: '16:10' });
+  assert.deepEqual(horasDelDia({ ...ios, primerPunto: null, ultimoPunto: null }, desde, hasta, ZONA), { encendido: '—', apagado: '—' });
 });
 
 test('la plantilla real: filas de personas y celdas con su estilo', () => {

@@ -7,7 +7,7 @@ repetirlo.
 
 Ver el detalle abajo. Orden para sacarla:
 
-1. Instalar la 415 en el ZTE por adb (túnel `127.0.0.1:41473`, ver
+1. Instalar la 416 en el ZTE por adb (túnel `127.0.0.1:41473`, ver
    `scripts/depuracion-qr.ps1`).
 2. Probar caminando y en carro con `quietaBajoConsumo` en el ZTE: si la
    salida llega tarde, se quita ese ajuste (sin actualizar la app).
@@ -15,9 +15,9 @@ Ver el detalle abajo. Orden para sacarla:
    `latest.json`. Conviene Nadia y Joselyn (Honor), donde más corta.
 4. Para todos, cuando se dé la orden.
 
-### Versión 2.15 (código 415, lista el 13/11/2026)
+### Versión 2.15 (código 416, lista el 13/11/2026)
 
-Lista y firmada en `ota/DMujeres-Tracking-2.15.415.apk` (reemplaza a la 407 a 414);
+Lista y firmada en `ota/DMujeres-Tracking-2.15.416.apk` (reemplaza a la 407 a 415);
 todavía no se ofrece a ningún teléfono. Trae:
 
 - APK de 3,1 MB (antes 9,8) y sin Analytics, Crashlytics ni reseña de Play.
@@ -42,8 +42,8 @@ todavía no se ofrece a ningún teléfono. Trae:
   "Ajustes de captura" en [Cómo captura la app](app-captura.md)).
 - (412) "Siguiente actividad" sin tiempo mínimo: se puede pasar a la siguiente
   en el mismo minuto (la anterior queda de 0 minutos; el servidor ya acepta
-  fin igual al inicio). Solo hay una pausa de 15 s entre una actividad nueva
-  y otra, contra los toques seguidos.
+  fin igual al inicio). Solo hay una pausa de 3 s entre una actividad nueva
+  y otra, contra los toques seguidos (416; antes 15 s).
 - (413) Con `quietaBajoConsumo` (GPS apagado estando quieta), una lectura de
   wifi y antenas con más de 50 m de error ya no cuenta como salida: caía a
   100-300 m del sitio y encendía el GPS unas 8 veces por hora. La salida la
@@ -78,7 +78,7 @@ todavía no se ofrece a ningún teléfono. Trae:
   restricciones, en persona. Ninguna app vuelve a abrirse sola si el sistema
   la detiene.
 - Sofía y Jefferson apagan el GPS a mano (10 y 11/11). Desde la 2.15 el aviso
-  suena cada 10 min en horario laboral y el Excel lo anota como causa.
+  suena cada 10 min en horario laboral y queda en la bitácora.
 - Jimmy, Silvia y Estévez usan ubicación simulada.
 - Joice: nunca se conectó.
 
@@ -139,8 +139,9 @@ todavía no se ofrece a ningún teléfono. Trae:
   servidor manda uno visible con sonido ("Abra la app de seguimiento"), de
   lunes a sábado de 07:00 a 17:00, cada 3 más y hasta 6 por silencio. Lo
   muestra el sistema del teléfono, así que sirve también con la 2.10. Queda
-  en la bitácora y en el Excel.
-- Excel de Marketing con encendido, apagado, jornada y observación (13/11),
-  ver [Servidor](servidor.md).
+  en la bitácora.
+- Excel de Marketing: solo encendido (inicio manual de la jornada, o primer
+  contacto desde las 0:00 si seguía abierta) y apagado (fin manual, o último
+  punto), ver [Servidor](servidor.md).
 - Revisión de rutas del 13/10 y semanal del 17/10: lo que quedaba está arriba
   en Pendientes.

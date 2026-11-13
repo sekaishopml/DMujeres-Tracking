@@ -145,7 +145,7 @@ captura. Ausente o fuera de rango, vale el de fábrica.
 | `quietaTrasMs` | 180000 | 60000–900000 | Sin movimiento este tiempo, pasa a quieta |
 | `salidaM` | 80 | 40–300 | Alejarse esto del sitio es salida |
 | `precisionSalidaQuietaM` | 50 | 20–500 | Con GPS apagado en quietud, más error no es salida |
-| `esperaActividadMs` | 15000 | 0–120000 | Pausa entre una actividad nueva y la siguiente |
+| `esperaActividadMs` | 3000 | 0–120000 | Pausa entre una actividad nueva y la siguiente |
 | `avisoUbicacionRepetirMs` | 600000 | 120000–3600000 | Horario laboral: cada cuánto se repite el aviso de ubicación apagada |
 | `avisoUbicacionMax` | 30 | 2–100 | Horario laboral: cuántas veces como mucho |
 

@@ -50,7 +50,7 @@ const ETIQUETA_ACTIVIDAD = {
 const MAX_EVENTOS = 300;
 
 // Quién apagó la ubicación (lo anota la app desde la 2.10.11).
-export const GPS_APAGADO_POR = {
+const GPS_APAGADO_POR = {
   persona: 'Apagó el GPS a mano',
   telefono: 'El teléfono apagó el GPS (pantalla apagada)',
   ahorro: 'El ahorro de batería apagó el GPS',
