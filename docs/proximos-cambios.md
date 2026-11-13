@@ -86,8 +86,47 @@ Queda por hacer:
   la detiene.
 - Sofía y Jefferson apagan el GPS a mano (10 y 11/11). Desde la 2.15 el aviso
   suena cada 10 min en horario laboral y queda en la bitácora.
-- Jimmy, Silvia y Estévez usan ubicación simulada.
+- Jimmy, Silvia y Estévez usan ubicación simulada (análisis de Jimmy abajo).
 - Joice: nunca se conectó.
+
+### Jimmy Llanllan (análisis del 13/11, nada de esto está probado ni aplicado)
+
+Xiaomi 15 (HyperOS, Android 15). App 2.9.5 hasta el 5/11, 2.10 hasta el
+13/11 a las 10:00 y 2.15 desde entonces. Datos del 20/10 al 13/11.
+
+| Qué se ve | Dato |
+|---|---|
+| Puntos simulados | 1 376 de 33 623 (4 %), casi todos entre las 13:00 y las 17:00. El servidor los marca como no válidos y no se dibujan. |
+| Días sin ruta | 30/10: 128 puntos y todos simulados, en una coordenada fija a 12 km de su zona (precisión 1 m, velocidad 0). 23/10 y 6/11: 3 h de corte. 10/11: 7,5 h de corte. |
+| Silencios con la jornada abierta | 55 en 3 semanas, unas 60 h; 54 en horario laboral; mediana 16 min. |
+| Reinicios del teléfono | 17 en 3 semanas (hoy a las 09:15). |
+| GPS apagado | 14 avisos (5 a mano, mediana 89 min). El diagnóstico dice `gps_apagado` en 4 de cada 10 muestras: falta entender qué mide ese estado en Xiaomi, porque no cuadra con los 14 avisos. |
+
+Hoy: a las 08:36 la app (2.10) dejó de recibir ubicación durante 35 min
+(`gps_atrasado`, 871 s sin posición). A las 08:58 el servidor le mandó el
+aviso visible «Abra la app de seguimiento» y a las 09:11 volvió a reportar:
+primera vez que se ve el aviso funcionando. Desde las 10:00 con la 2.15: 0
+puntos simulados y solo huecos de 6 a 8 min, que son el latido de quietud.
+Es poco tiempo para decir que mejoró.
+
+Mejoras posibles (en orden de lo que más ruta recuperaría):
+
+1. **Ubicación simulada.** La app no puede ignorar una ubicación simulada que
+   el sistema entrega. Se puede avisar a la persona con un texto formal
+   («Su teléfono tiene la ubicación simulada activada. Desactívela para que
+   se registre su recorrido. Dudas: departamento de CCTV») con el botón al
+   ajuste de desarrollador, y marcarlo en Inicio y en el replay para que
+   CCTV lo vea el mismo día. Requiere actualizar la app. Aplica a Jimmy,
+   Silvia y Estévez.
+2. **Aviso visible antes.** Hoy sale tras 3 rescates sin respuesta (a los 22
+   min en su caso). Con 2 saldría a los 10 o 12 min. Es solo servidor, sin
+   actualizar (`RESCATES_ANTES_DEL_AVISO` en `servidor/recuperacion/src/monitor.js`).
+3. **Reinicios y silencios.** Medir con la 2.15 durante una semana: la 2.15 revive
+   el servicio a los 5 s y avisa el ajuste de la marca. Si los 55 silencios
+   siguen, revisar en persona el inicio de apps y el ahorro de batería de
+   HyperOS.
+4. **Entender `gps_apagado`.** Revisar en la app qué comprueba ese estado
+   y cambiarlo para que solo diga «apagado» cuando lo esté.
 
 ### Servidor
 
