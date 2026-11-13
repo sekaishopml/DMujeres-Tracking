@@ -19,8 +19,6 @@ Queda por hacer:
 
 ### Qué trae la 2.15
 
-Trae:
-
 - APK de 3,1 MB (antes 9,8) y sin Analytics, Crashlytics ni reseña de Play.
 - Aviso por marca cuando el sistema del teléfono cerró la app en jornada
   (`sistema/CierreDelSistema.kt`), con el ajuste exacto que hay que cambiar.
