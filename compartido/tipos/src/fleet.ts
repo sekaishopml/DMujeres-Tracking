@@ -3,6 +3,7 @@ export type EstadoDispositivo =
   | "DETENIDO"
   | "SENAL_DEBIL"
   | "SIN_SENAL"
+  | "SIN_SESION"
   | "DESHABILITADO"
   | "DESCONOCIDO";
 

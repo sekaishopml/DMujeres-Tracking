@@ -23,6 +23,8 @@ export const SELECT_DISPOSITIVO = `
                 AND (ct.contacto IS NULL OR ct.contacto < now() - interval '15 minutes') THEN 'DESHABILITADO'
            WHEN d.atributos->>'plataforma' = 'ios'
                 AND (ct.contacto < now() - interval '3 minutes' OR pa.precision_m > 50) THEN 'SENAL_DEBIL'
+           -- La app perdió la sesión: no envía hasta que se abre y se recupera.
+           WHEN d.atributos ? 'mobile.sinSesionDesde' THEN 'SIN_SESION'
            WHEN d.atributos->>'plataforma' IS DISTINCT FROM 'ios'
                 AND d.atributos ? 'mobile.journeyId' AND NOT ja.activa THEN 'DESHABILITADO'
            -- Contacto: la última vez que el teléfono respondió, con un punto o

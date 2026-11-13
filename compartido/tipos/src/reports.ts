@@ -43,6 +43,7 @@ export interface ResumenDispositivo {
   viajes: number;
   paradas: number;
   ultimaPosicionEn: string | null;
+  primeraPosicionEn?: string | null;
 }
 
 export interface ResumenReporte {

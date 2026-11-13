@@ -9,6 +9,7 @@ const CLAVE_POR_ESTADO: Record<string, string> = {
   EN_LINEA: 'enLinea',
   DETENIDO: 'detenido',
   SIN_SENAL: 'sinSenal',
+  SIN_SESION: 'sinSesion',
   SENAL_DEBIL: 'senalDebil',
   DESHABILITADO: 'deshabilitado',
   DESCONOCIDO: 'desconocido',

@@ -58,7 +58,7 @@ export function enteroONulo(valor) {
 // mismas reglas de la App: deshabilitado por jornada, sin señal >5 min,
 // GPS débil >80 m, detenido <1 nudo. Aquí solo se sanea el valor.
 const ESTADOS_VALIDOS = new Set([
-  'DESHABILITADO', 'SIN_SENAL', 'SENAL_DEBIL', 'DETENIDO', 'EN_LINEA',
+  'DESHABILITADO', 'SIN_SENAL', 'SIN_SESION', 'SENAL_DEBIL', 'DETENIDO', 'EN_LINEA',
 ]);
 
 function estadoDto(fila) {

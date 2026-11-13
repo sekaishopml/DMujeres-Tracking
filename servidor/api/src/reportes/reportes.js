@@ -246,7 +246,8 @@ export async function obtenerResumen(ctx) {
        SELECT dispositivo_id, count(*) AS paradas FROM paradas GROUP BY dispositivo_id
      ),
      posiciones AS (
-       SELECT p.dispositivo_id, count(*) AS total, max(p.registrado_en) AS ultima
+       SELECT p.dispositivo_id, count(*) AS total, max(p.registrado_en) AS ultima,
+              min(p.registrado_en) FILTER (WHERE p.valida) AS primera
        FROM tracking.dmt_posicion p
        JOIN tracking.dmt_dispositivo d ON d.id = p.dispositivo_id
        WHERE d.habilitado
@@ -260,7 +261,7 @@ export async function obtenerResumen(ctx) {
             coalesce(pd.duracion_s, 0) AS duracion_s,
             coalesce(pd.viajes, 0) AS viajes,
             coalesce(pp.paradas, 0) AS paradas,
-            pos.total AS total_posiciones, pos.ultima AS ultima_posicion
+            pos.total AS total_posiciones, pos.ultima AS ultima_posicion, pos.primera AS primera_posicion
      FROM posiciones pos
      JOIN tracking.dmt_dispositivo d ON d.id = pos.dispositivo_id
      LEFT JOIN por_dispositivo pd ON pd.dispositivo_id = pos.dispositivo_id
@@ -282,6 +283,9 @@ export async function obtenerResumen(ctx) {
     viajes: Number(fila.viajes),
     paradas: paradasPorEquipo.get(Number(fila.dispositivo_id)) ?? 0,
     ultimaPosicionEn: iso(fila.ultima_posicion),
+    // Primer punto válido del rango: la hora de entrada cuando la jornada
+    // seguía abierta del día anterior.
+    primeraPosicionEn: iso(fila.primera_posicion),
   }));
   respuestaJson(ctx.res, 200, {
     desde: rango.desde.toISOString(),

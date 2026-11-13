@@ -148,7 +148,29 @@ export async function autorizacionMovil(req, ctx) {
   const token = tokenPortador(req);
   if (!token || !ctx.almacen?.pool) return null;
   const sesion = await validarTokenMovil(ctx.almacen.pool, token);
+  if (sesion) await marcarSinSesion(ctx.almacen.pool, req, false);
   return sesion ? { modo: 'sesion', sesion } : null;
+}
+
+// "Sin sesión" en el panel: el teléfono mandó un token que ya no sirve (la
+// app 2.10 lo borra y deja de enviar hasta que se vuelve a entrar). Se
+// quita con el primer envío con una sesión válida.
+async function marcarSinSesion(pool, req, sinSesion) {
+  const equipo = String(req.headers['x-device-id'] ?? '').trim();
+  if (!equipo || equipo.length > 128) return;
+  try {
+    await pool.query(
+      sinSesion
+        ? `UPDATE tracking.dmt_dispositivo
+              SET atributos = atributos || jsonb_build_object('mobile.sinSesionDesde', $2::bigint)
+            WHERE identificador = $1 AND NOT atributos ? 'mobile.sinSesionDesde'`
+        : `UPDATE tracking.dmt_dispositivo SET atributos = atributos - 'mobile.sinSesionDesde'
+            WHERE identificador = $1 AND atributos ? 'mobile.sinSesionDesde'`,
+      sinSesion ? [equipo, Date.now()] : [equipo],
+    );
+  } catch {
+    // Solo es para el panel: si falla, el envío sigue igual.
+  }
 }
 
 // Motivo de un token que ya no sirve (sesión revocada o cuenta dada de baja).
@@ -173,6 +195,7 @@ async function motivoSesionCaducada(pool, token) {
 // revocada o de una cuenta dada de baja: la app cierra sesión y jornada.
 export async function responderNoAutorizado(req, res, ctx) {
   const token = tokenPortador(req);
+  if (token && ctx.almacen?.pool) await marcarSinSesion(ctx.almacen.pool, req, true);
   const motivo = token && ctx.almacen?.pool ? await motivoSesionCaducada(ctx.almacen.pool, token) : null;
   if (motivo) return responderJson(res, 401, { error: motivo });
   return responderSinCuerpo(res, 401);

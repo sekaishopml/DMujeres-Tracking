@@ -317,7 +317,7 @@ export default function Inicio() {
     todas: equipos.length,
     jornada: equipos.filter((e) => e.jornadaActiva).length,
     revisar: enRevision.size,
-    senal: equipos.filter((e) => ['sinSenal', 'desconocido'].includes(claveEstado(e))).length,
+    senal: equipos.filter((e) => ['sinSenal', 'sinSesion', 'desconocido'].includes(claveEstado(e))).length,
   };
   const filas = useMemo(() => {
     const texto = busqueda.trim().toLowerCase();
@@ -325,7 +325,7 @@ export default function Inicio() {
       if (texto && !e.nombre.toLowerCase().includes(texto) && !e.identificadorUnico.toLowerCase().includes(texto)) return false;
       if (filtro === 'jornada') return e.jornadaActiva;
       if (filtro === 'revisar') return enRevision.has(e.id);
-      if (filtro === 'senal') return ['sinSenal', 'desconocido'].includes(claveEstado(e));
+      if (filtro === 'senal') return ['sinSenal', 'sinSesion', 'desconocido'].includes(claveEstado(e));
       return true;
     });
   }, [ordenadas, busqueda, filtro, enRevision]);
@@ -489,7 +489,7 @@ function FilaPersona({
   // Hora de los datos de la flota: la duración de una jornada abierta se
   // mide a la misma hora que el estado.
   ahora: number;
-  recorrido: { distanciaKm: number; paradas: number } | null;
+  recorrido: { distanciaKm: number; paradas: number; primeraPosicionEn?: string | null } | null;
   actividades: number;
   ausencia: Actividad | null;
   nuevas: number;
@@ -524,7 +524,8 @@ function FilaPersona({
         {jornada ? (
           <>
             <span className="text-marino-900">
-              {jornada.continua ? 'Desde ayer' : inicioJornada(jornada.inicioEn, hoy)} –{' '}
+              {/* Seguía abierta de ayer: la entrada es el primer punto de hoy (como en el Excel). */}
+              {jornada.continua ? (recorrido?.primeraPosicionEn ? hora(recorrido.primeraPosicionEn) : hora(jornada.inicioEn)) : inicioJornada(jornada.inicioEn, hoy)} –{' '}
               {jornada.finEn ? (jornada.cierreAutomatico ? 'no la cerró' : hora(jornada.finEn)) : 'En curso'}
             </span>
             <span className="block text-[11px] text-texto-3">
@@ -690,7 +691,7 @@ function EnJornada({
       // (antes no entraba en ninguna parte de la barra).
       texto: 'sin señal o débil',
       clase: 'bg-sin-senal',
-      n: personas.filter((p) => ['sinSenal', 'senalDebil', 'desconocido'].includes(claveEstado(p))).length,
+      n: personas.filter((p) => ['sinSenal', 'sinSesion', 'senalDebil', 'desconocido'].includes(claveEstado(p))).length,
     },
   ];
   const sinIniciar = total - personas.length;

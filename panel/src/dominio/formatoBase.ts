@@ -58,6 +58,8 @@ export function grados(c?: number | null): string {
 export const ETIQUETA_ESTADO: Record<string, string> = {
   deshabilitado: 'Fuera de jornada',
   sinSenal: 'Sin señal',
+  // La app perdió la sesión: hay que abrirla para que se recupere.
+  sinSesion: 'Sin iniciar sesión',
   senalDebil: 'Señal débil',
   detenido: 'Detenido',
   enLinea: 'En línea',
@@ -79,6 +81,7 @@ export const ETIQUETA_ESTADO_IPHONE: Record<string, string> = {
 export const COLOR_ESTADO: Record<string, string> = {
   deshabilitado: '#94a3b8',
   sinSenal: '#64748b',
+  sinSesion: '#64748b',
   senalDebil: '#64748b',
   detenido: '#2563eb',
   enLinea: '#16a34a',

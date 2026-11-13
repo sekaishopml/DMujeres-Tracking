@@ -7,6 +7,7 @@ const CLASES: Record<string, string> = {
   enLinea: 'bg-movimiento-suave text-movimiento',
   detenido: 'bg-detenido-suave text-detenido',
   sinSenal: 'bg-sin-senal-suave text-sin-senal',
+  sinSesion: 'bg-sin-senal-suave text-sin-senal',
   senalDebil: 'bg-sin-senal-suave text-sin-senal',
   deshabilitado: 'bg-deshabilitado-suave text-deshabilitado',
   desconocido: 'bg-deshabilitado-suave text-deshabilitado',

@@ -3,22 +3,23 @@
 Estado al 13/11/2026. Lo hecho queda al final, en una línea, para no
 repetirlo.
 
-## En curso: versión 2.15
+## Versión 2.15 publicada para todos (13/11/2026)
 
-Ver el detalle abajo. Orden para sacarla:
+Código 422, `ota/DMujeres-Tracking-2.15.422.apk`, en `latest.json` y en todos
+los `ota/por-equipo/*.json`. Cada teléfono la recibe al abrir la app. Ya se
+puede subir a GitHub como release (`scripts/publicar-en-github.sh 2.15`).
 
-1. Instalada la 421 en el ZTE por adb (túnel `127.0.0.1:41473`, ver
-   `scripts/depuracion-qr.ps1`).
-2. Probar caminando y en carro con `quietaBajoConsumo` en el ZTE: si la
-   salida llega tarde, se quita ese ajuste (sin actualizar la app).
-3. Pilotos con `ota/por-equipo/<identificador>.json`, sin tocar
-   `latest.json`. Conviene Nadia y Joselyn (Honor), donde más corta.
-4. Para todos, cuando se dé la orden.
+Queda por hacer:
 
-### Versión 2.15 (código 421, lista el 13/11/2026)
+1. Probar caminando y en carro con `quietaBajoConsumo` en el ZTE: si la
+   salida llega a tiempo, activarlo para la flota (`ajustes_captura`).
+2. Seguir en el panel a los que dicen "Sin iniciar sesión" (perdieron la
+   sesión el 10 y 11/11 con la 2.10): al abrir la app se actualizan y la 2.15
+   recupera la sesión sola. Si no, reinstalar en persona.
 
-Lista y firmada en `ota/DMujeres-Tracking-2.15.421.apk` (reemplaza a la 407 a 420); se ofrece solo al ZTE (`ota/por-equipo/Santi-ZTE.json`);
-todavía no se ofrece a ningún teléfono. Trae:
+### Qué trae la 2.15
+
+Trae:
 
 - APK de 3,1 MB (antes 9,8) y sin Analytics, Crashlytics ni reseña de Play.
 - Aviso por marca cuando el sistema del teléfono cerró la app en jornada
@@ -74,9 +75,9 @@ todavía no se ofrece a ningún teléfono. Trae:
 - (421) Los cierres inesperados de la app llegan al servidor: se guardan y se
   envían al volver a abrirse (`lastDiagnostics.crash`). Antes se mandaba un
   texto vacío y en el momento en que el proceso moría, así que nunca llegaba.
-- Ojo: no subir la 2.15 a GitHub como release si no es para todos. La app
-  consulta GitHub cada vez que el servidor no le ofrece versión, así que un
-  release ahí le llega a toda la flota.
+- Ojo: la app consulta GitHub cada vez que el servidor no le ofrece versión,
+  así que un release ahí le llega a toda la flota. Solo subir releases de
+  versiones que son para todos.
 
 ## Pendientes
 
