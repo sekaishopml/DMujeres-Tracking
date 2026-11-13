@@ -7,7 +7,7 @@ repetirlo.
 
 Ver el detalle abajo. Orden para sacarla:
 
-1. Instalada la 419 en el ZTE por adb (túnel `127.0.0.1:41473`, ver
+1. Instalada la 421 en el ZTE por adb (túnel `127.0.0.1:41473`, ver
    `scripts/depuracion-qr.ps1`).
 2. Probar caminando y en carro con `quietaBajoConsumo` en el ZTE: si la
    salida llega tarde, se quita ese ajuste (sin actualizar la app).
@@ -15,9 +15,9 @@ Ver el detalle abajo. Orden para sacarla:
    `latest.json`. Conviene Nadia y Joselyn (Honor), donde más corta.
 4. Para todos, cuando se dé la orden.
 
-### Versión 2.15 (código 419, lista el 13/11/2026)
+### Versión 2.15 (código 421, lista el 13/11/2026)
 
-Lista y firmada en `ota/DMujeres-Tracking-2.15.419.apk` (reemplaza a la 407 a 418); se ofrece solo al ZTE (`ota/por-equipo/Santi-ZTE.json`);
+Lista y firmada en `ota/DMujeres-Tracking-2.15.421.apk` (reemplaza a la 407 a 420); se ofrece solo al ZTE (`ota/por-equipo/Santi-ZTE.json`);
 todavía no se ofrece a ningún teléfono. Trae:
 
 - APK de 3,1 MB (antes 9,8) y sin Analytics, Crashlytics ni reseña de Play.
@@ -71,6 +71,9 @@ todavía no se ofrece a ningún teléfono. Trae:
   jornada (`notaInicio`) y en el cronograma del panel. Ajustable desde el
   servidor (`inicioConMotivoDesdeMin`). Desde la 2.10 hubo 17 inicios a mano
   a las 10:00 o más tarde (Jefferson, Kevin, Mariam, Miguel), sin cronograma.
+- (421) Los cierres inesperados de la app llegan al servidor: se guardan y se
+  envían al volver a abrirse (`lastDiagnostics.crash`). Antes se mandaba un
+  texto vacío y en el momento en que el proceso moría, así que nunca llegaba.
 - Ojo: no subir la 2.15 a GitHub como release si no es para todos. La app
   consulta GitHub cada vez que el servidor no le ofrece versión, así que un
   release ahí le llega a toda la flota.

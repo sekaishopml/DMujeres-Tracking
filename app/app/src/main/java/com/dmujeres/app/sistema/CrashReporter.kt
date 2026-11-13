@@ -1,73 +1,44 @@
 package com.dmujeres.app.sistema
 
 import android.content.Context
+import android.util.Log
 import androidx.preference.PreferenceManager
 import com.dmujeres.app.BuildConfig
 import com.dmujeres.app.red.DmujeresApi
 import java.io.File
-import java.io.PrintWriter
-import java.io.StringWriter
 import org.json.JSONObject
 
 /**
  * Cierres inesperados de la app: guarda el error en un archivo y lo envía con
- * el diagnóstico (en el panel se ve en `lastDiagnostics.crash`). Así se puede
- * saber qué pasó sin conectar el teléfono.
+ * el diagnóstico al volver a abrirse (en el panel se ve en
+ * `lastDiagnostics.crash`). Así se puede saber qué pasó sin conectar el
+ * teléfono. No se envía en el momento: el proceso muere antes de terminar.
  */
 object CrashReporter {
 
-    private const val TAG = "CrashReporter"
+    private const val ARCHIVO = "last_crash.txt"
 
     fun install(context: Context) {
+        enviarPendiente(context)
         val previous = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, error ->
-            runCatching {
-                save(context, error)
-            }
-            runCatching {
-                report(context, error)
-            }
+            runCatching { File(context.filesDir, ARCHIVO).writeText(Log.getStackTraceString(error).take(8_000)) }
             previous?.uncaughtException(thread, error)
         }
     }
 
-    private fun save(context: Context, error: Throwable) {
-        runCatching {
-            File(context.filesDir, "last_crash.txt").writeText(
-                stackOf(error).take(8_000),
-            )
+    /** El error del cierre anterior, si quedó guardado; se borra solo si llegó. */
+    private fun enviarPendiente(context: Context) {
+        val archivo = File(context.filesDir, ARCHIVO)
+        val error = runCatching { archivo.takeIf { it.exists() }?.readText() }.getOrNull() ?: return
+        val prefs = PreferenceManager.getDefaultSharedPreferences(context)
+        val reporte = JSONObject()
+            .put("app", JSONObject().put("versionCode", BuildConfig.VERSION_CODE).put("versionName", BuildConfig.VERSION_NAME))
+            .put("crash", error.take(2_000))
+            .put("journeyOpen", prefs.getBoolean(DmujeresApi.KEY_JOURNEY_OPEN, false))
+        DmujeresApi.postDiagnostics(context, JSONObject().put("report", reporte)) { ok ->
+            // Si mientras tanto hubo otro cierre, ese queda para la próxima.
+            if (ok && runCatching { archivo.readText() }.getOrNull() == error) archivo.delete()
         }
-    }
-
-    /** Reporte al servidor con la misma forma del reporte de diagnósticos. */
-    private fun report(context: Context, error: Throwable) {
-        Thread {
-            runCatching {
-                val prefs = PreferenceManager.getDefaultSharedPreferences(context)
-                val open = prefs.getBoolean(DmujeresApi.KEY_JOURNEY_OPEN, false)
-                DmujeresApi.postDiagnostics(
-                    context,
-                    JSONObject()
-                        .put(
-                            "report",
-                            JSONObject()
-                                .put(
-                                    "app",
-                                    JSONObject()
-                                        .put("versionCode", BuildConfig.VERSION_CODE)
-                                        .put("versionName", BuildConfig.VERSION_NAME),
-                                )
-                                .put("crash", stackOf(error).take(2_000))
-                                .put("journeyOpen", open),
-                        ),
-                )
-            }
-        }.start()
-    }
-
-    private fun stackOf(error: Throwable): String {
-        val writer = PrintWriter(StringWriter())
-        error.printStackTrace(writer)
-        return writer.toString()
     }
 }

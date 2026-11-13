@@ -642,8 +642,8 @@ object DmujeresApi {
     }
 
     /** Reporte al canal de diagnósticos (crashes incluidos; ver panel). */
-    fun postDiagnostics(context: Context, body: JSONObject) {
-        post(context, "/api/mobile/v1/diagnostics", body)
+    fun postDiagnostics(context: Context, body: JSONObject, onDone: ((Boolean) -> Unit)? = null) {
+        post(context, "/api/mobile/v1/diagnostics", body, onDone)
     }
 
     /** Confirma al servidor que llegó el aviso de recuperación. */
