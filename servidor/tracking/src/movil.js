@@ -868,6 +868,10 @@ export async function atenderDiagnosticos(req, res, ctx) {
   }
   const crash = texto(reporte.crash);
   if (crash) parche['mobile.lastCrashAt'] = ahora;
+  // La versión instalada: el token de avisos no cambia al actualizar la app,
+  // así que el diagnóstico de cada 10 min es el que la mantiene al día.
+  const versionApp = texto(objeto(reporte.app)?.versionName);
+  if (versionApp) parche['mobile.appVersion'] = versionApp.slice(0, MAX_TEXTO);
   const dispositivoInfo = objeto(reporte.device);
   if (dispositivoInfo) {
     const conexion = texto(dispositivoInfo.net);
