@@ -74,7 +74,7 @@ const VACIO = { encendido: SIN_DATO, apagado: SIN_DATO, inicioJornada: SIN_DATO,
 // Lo que avisó el teléfono al dejar de mandar puntos (mismos textos que la
 // bitácora del panel).
 const CAUSAS_TELEFONO = ['mobilePowerOff', 'mobileShutdown', 'mobileGpsDisabled', 'mobilePermissionLost'];
-export const TIPOS_CAUSA = [...CAUSAS_TELEFONO, 'mobileBatteryCritical', 'mobileSilent'];
+export const TIPOS_CAUSA = [...CAUSAS_TELEFONO, 'mobileBatteryCritical', 'mobileSilent', 'mobileAvisoRescate'];
 const MARGEN_MS = 2 * 60_000;
 const VENTANA_MS = 30 * 60_000;
 
@@ -93,7 +93,10 @@ function causaDelApagado(ultimo, eventos, hora) {
   const bateria = eventos.find((e) => e.tipo === 'mobileBatteryCritical' && Math.abs(e.en.getTime() - t) <= VENTANA_MS);
   if (bateria) return `${TIPOS.mobileBatteryCritical.texto} a las ${hora(bateria.en)}`;
   if (eventos.some((e) => e.tipo === 'mobileSilent' && e.en.getTime() >= t - MARGEN_MS)) {
-    return `${TIPOS.mobileSilent.texto} desde las ${hora(ultimo)}`;
+    // Si el servidor le pidió abrir la app y no lo hizo, también consta.
+    const avisos = eventos.filter((e) => e.tipo === 'mobileAvisoRescate' && e.en.getTime() > t).length;
+    const pedido = avisos === 0 ? '' : ` (se le pidió abrir la app ${avisos === 1 ? 'una vez' : `${avisos} veces`})`;
+    return `${TIPOS.mobileSilent.texto} desde las ${hora(ultimo)}${pedido}`;
   }
   return `Sin ubicación desde las ${hora(ultimo)}, sin causa registrada en el teléfono`;
 }

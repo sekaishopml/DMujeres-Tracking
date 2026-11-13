@@ -94,6 +94,11 @@ test('observación: motivo o causa cuando terminó antes de las 17:00', () => {
     dia({ jornadas: abierta, ultimoPunto: h('15:28'), eventos: [{ tipo: 'mobileSilent', en: h('15:26') }, { tipo: 'mobilePowerOff', en: h('22:00') }] }),
     'Dejó de reportar con la jornada abierta desde las 15:28. No finalizó la jornada',
   );
+  const pedidos = [{ tipo: 'mobileSilent', en: h('15:45') }, { tipo: 'mobileAvisoRescate', en: h('16:05') }, { tipo: 'mobileAvisoRescate', en: h('16:40') }];
+  assert.equal(
+    dia({ jornadas: abierta, ultimoPunto: h('15:28'), eventos: pedidos }),
+    'Dejó de reportar con la jornada abierta desde las 15:28 (se le pidió abrir la app 2 veces). No finalizó la jornada',
+  );
   const apagado = [{ tipo: 'mobileBatteryCritical', en: h('16:10') }, { tipo: 'mobilePowerOff', en: h('16:30') }];
   assert.equal(dia({ jornadas: abierta, ultimoPunto: h('16:28'), eventos: apagado }), 'Apagó el teléfono a las 16:30. No finalizó la jornada');
   assert.equal(dia({ jornadas: abierta, ultimoPunto: h('16:28'), eventos: [{ tipo: 'mobileBatteryCritical', en: h('16:10') }] }), 'Batería crítica a las 16:10. No finalizó la jornada');

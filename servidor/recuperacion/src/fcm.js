@@ -151,6 +151,31 @@ export function crearEmisorFcm({ credencial, log, fetchImpl = fetch, ahora = () 
     });
   }
 
+  // Aviso que muestra el propio sistema del teléfono (no depende de que la app
+  // esté viva, sí de que no la hayan forzado a detenerse): cuando la app no
+  // responde a los rescates. Canal y sonido de los avisos de la app.
+  function enviarAvisoRescate({ token }) {
+    return enviar({
+      message: {
+        token,
+        data: { type: 'AVISO_RESCATE' },
+        android: {
+          priority: 'HIGH',
+          ttl: '900s',
+          collapse_key: 'aviso_rescate',
+          notification: {
+            title: 'Abra la app de seguimiento',
+            body: 'Su recorrido no se está registrando. Toque aquí para abrirla.',
+            channel_id: 'avisos_dmj2',
+            sound: 'dmj_aviso',
+            notification_priority: 'PRIORITY_MAX',
+            visibility: 'PUBLIC',
+          },
+        },
+      },
+    });
+  }
+
   // Aviso de horario: el teléfono revisa su estado y avisa a la persona. Si
   // llega con más de 30 min de atraso ya no sirve (su propia alarma lo cubrió).
   function enviarAvisoHorario({ token, franja }) {
@@ -196,5 +221,5 @@ export function crearEmisorFcm({ credencial, log, fetchImpl = fetch, ahora = () 
     }
   }
 
-  return { obtenerAccessToken, enviarProbe, enviarAvisoHorario, projectId: credencial.projectId };
+  return { obtenerAccessToken, enviarProbe, enviarAvisoHorario, enviarAvisoRescate, projectId: credencial.projectId };
 }

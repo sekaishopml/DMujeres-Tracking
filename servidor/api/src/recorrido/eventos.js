@@ -34,6 +34,7 @@ export const TIPOS = {
   mobileClockOff: { categoria: 'alerta', texto: 'La hora del teléfono no coincide con la real' },
   mobileClockOk: { categoria: 'recuperacion', texto: 'La hora del teléfono volvió a ser la correcta' },
   mobileSilent: { categoria: 'alerta', texto: 'Dejó de reportar con la jornada abierta' },
+  mobileAvisoRescate: { categoria: 'alerta', texto: 'Se le pidió abrir la app (no respondía)' },
   mobileResumed: { categoria: 'recuperacion', texto: 'Volvió a reportar' },
 };
 

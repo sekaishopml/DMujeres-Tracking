@@ -16,6 +16,14 @@ const horaLocal = (ahoraMs, zona) =>
   }).formatToParts(new Date(ahoraMs)).reduce((o, p) => ({ ...o, [p.type]: p.value }), {});
 const DIAS_HABILES = new Set(['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']);
 
+// Lunes a sábado de 07:00 a 17:00: el aviso visible con sonido solo se manda
+// en ese horario.
+export function enHorarioLaboral(ahoraMs, zona = 'America/Guayaquil') {
+  const p = horaLocal(ahoraMs, zona);
+  const minutos = Number(p.hour) * 60 + Number(p.minute);
+  return DIAS_HABILES.has(p.weekday) && minutos >= 7 * 60 && minutos < 17 * 60;
+}
+
 // Franja que toca mandar ahora ("AAAA-MM-DD HH:MM") o null.
 export function franjaDeAhora(ahoraMs, zona = 'America/Guayaquil') {
   const p = horaLocal(ahoraMs, zona);

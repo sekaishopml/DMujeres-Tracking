@@ -10,6 +10,7 @@
 // lo guarda el receptor) el estado pasa a RECEIVED o STARTED.
 
 import { randomUUID } from 'node:crypto';
+import { enHorarioLaboral } from './avisos.js';
 
 export const DECISION = Object.freeze({
   ALLOW: 'ALLOW',
@@ -129,7 +130,7 @@ async function registrarCambioSilencio({ almacen, equipo, cambio, ahoraMs, log }
           atributos: { clave: `regreso-${cambio.desde}`, silencioMin: Math.round((ahoraMs - cambio.desde) / 60_000) },
         });
       }
-      await almacen.fusionarAtributos(equipo.id, { 'mobile.silencioDesde': null });
+      await almacen.fusionarAtributos(equipo.id, { 'mobile.silencioDesde': null, 'mobile.rescatesSinRespuesta': null });
     }
   } catch (error) {
     log.warn(`equipo=${equipo.identificador}: no se guardó el silencio: ${error.message}`);
@@ -177,7 +178,8 @@ async function procesarAck({ equipo, intento, almacen, politica, log, dryRun }) 
   const avanza = intento.estado === 'SENT' || (intento.estado === 'RECEIVED' && etapa === 'STARTED');
   if (!avanza) return null;
   if (!dryRun) {
-    await almacen.fusionarAtributos(equipo.id, { 'mobile.recoveryState': etapa });
+    // Respondió: la app está viva y la cuenta de rescates sin respuesta vuelve a cero.
+    await almacen.fusionarAtributos(equipo.id, { 'mobile.recoveryState': etapa, 'mobile.rescatesSinRespuesta': 0 });
   }
   equipo.atributos['mobile.recoveryState'] = etapa;
   log.info(
@@ -240,6 +242,38 @@ export async function enviarIntento({ almacen, emisor, equipo, silencioMin, moti
     http: resultado.http,
     tokenInvalido: resultado.tokenInvalido,
   };
+}
+
+// Rescates seguidos sin respuesta antes de pedirle a la persona que abra la
+// app con un aviso visible; se repite cada tantos más, hasta 6 avisos por
+// silencio (no se insiste todo el día a quien está de permiso).
+export const RESCATES_ANTES_DEL_AVISO = 3;
+const MAX_AVISOS_VISIBLES = 6;
+
+// ¿Toca el aviso visible con este rescate (el n-ésimo seguido)? Los
+// anteriores ya tuvieron tiempo de responder; el actual todavía no.
+export function tocaAvisoVisible(n, enHorario) {
+  return enHorario && n > RESCATES_ANTES_DEL_AVISO && (n - 1) % RESCATES_ANTES_DEL_AVISO === 0
+    && n <= RESCATES_ANTES_DEL_AVISO * MAX_AVISOS_VISIBLES + 1;
+}
+
+async function escalar({ almacen, emisor, equipo, ahoraMs, log }) {
+  const n = (Number(equipo.atributos?.['mobile.rescatesSinRespuesta']) || 0) + 1;
+  await almacen.fusionarAtributos(equipo.id, { 'mobile.rescatesSinRespuesta': n });
+  if (!tocaAvisoVisible(n, enHorarioLaboral(ahoraMs)) || !emisor.enviarAvisoRescate) return;
+  const r = await emisor.enviarAvisoRescate({ token: equipo.token });
+  if (!r.messageId) {
+    log.warn(`aviso visible fallido equipo=${equipo.identificador} error=${r.errorCode}`);
+    return;
+  }
+  // Queda en la línea de tiempo: se le pidió a la persona abrir la app.
+  await almacen.registrarEvento({
+    dispositivoId: equipo.id,
+    tipo: 'mobileAvisoRescate',
+    ocurridoEn: new Date(ahoraMs),
+    atributos: { clave: `rescate-${ahoraMs}`, rescates: n - 1, mobileSeverity: 'warning' },
+  });
+  log.info(`aviso visible enviado equipo=${equipo.identificador} rescatesSinRespuesta=${n - 1}`);
 }
 
 export async function ejecutarCiclo({
@@ -321,6 +355,7 @@ export async function ejecutarCiclo({
       ahoraMs,
       log,
     });
+    if (resultado.messageId) await escalar({ almacen, emisor, equipo, ahoraMs, log });
     enviados.push({ identificador: equipo.identificador, ...resultado });
   }
 
