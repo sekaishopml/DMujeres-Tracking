@@ -48,9 +48,19 @@ está por tema:
 
 Excel de Marketing: llena la plantilla `plantillas/Reporte_Marketing.xlsm`
 (las personas son las filas de la plantilla; para sacar o poner a alguien se
-cambia la plantilla). Encendido = primer inicio de jornada del día; si la
-jornada venía de ayer, la hora del primer punto del día (0:02), o 0:00 si no
-hubo puntos. Apagado = último punto válido en jornada.
+cambia la plantilla). Columnas:
+- Encendido: primer punto válido del día desde las 0:00, dentro o fuera de
+  jornada, o el inicio de una jornada si fue antes.
+- Apagado: último punto válido hasta las 23:59, o el cierre que hizo la
+  persona si fue después.
+- Inicio y fin de jornada: los de la persona. El corte de medianoche no
+  cuenta: "Seguía abierta del día anterior" / "No la cerró".
+- Observación, de lunes a viernes y pasadas las 17:00: el motivo que escribió
+  al cerrar; si terminó antes de las 17:00 sin motivo, "Finalizó la jornada a
+  las … sin motivo" o la causa (lo que avisó el teléfono hasta 30 min después
+  del último punto: apagado, GPS, permiso; batería crítica; "Dejó de reportar
+  con la jornada abierta"; o "sin causa registrada"). Además "No finalizó la
+  jornada" y "No inició jornada".
 
 Las pruebas están en `servidor/api/test` (`node24 --test test/*.test.mjs`).
 

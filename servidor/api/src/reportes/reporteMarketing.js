@@ -1,7 +1,8 @@
 // Reporte de Marketing: la plantilla de Excel (plantillas/Reporte_Marketing.xlsm)
-// con la fecha elegida y, por persona, la hora de encendido (inicio de la
-// primera jornada del día) y de apagado (fin de la última, o su último punto).
-// Solo se tocan esas celdas; formato y macros quedan como en la plantilla.
+// con la fecha elegida y, por persona: encendido y apagado (primer y último
+// punto del día), inicio y fin de la jornada y la observación (motivo o causa
+// cuando terminó antes de las 17:00). Solo se tocan esas celdas; formato y
+// macros quedan como en la plantilla.
 
 import { execFile } from 'node:child_process';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
@@ -13,6 +14,7 @@ import { consultar } from '../base/db.js';
 import { datosInvalidos } from '../base/errores.js';
 import { rangoHoy } from '../base/http.js';
 import { PREDICADO_PERMISO, permisoDe } from '../equipos/flota.js';
+import { GPS_APAGADO_POR, TIPOS } from '../recorrido/eventos.js';
 import { aJornada } from '../recorrido/jornadas.js';
 
 const ejecutar = promisify(execFile);
@@ -65,24 +67,98 @@ export function buscarPersona(nombre, personas) {
   return cerca.length === 1 ? cerca[0] : null;
 }
 
-// Encendido y apagado de un equipo en el día [desde, hasta). El apagado es la
-// hora del último punto válido dentro de una jornada, igual que en el replay
-// al llegar al final de la línea (sea por GPS apagado, sin señal o fin de
-// jornada); los puntos simulados y los de fuera de jornada no cuentan. Si el
-// día no tiene puntos, la hora de fin de la última jornada. El encendido es el
-// primer inicio de la persona; si la jornada viene del día anterior (o del
-// corte de medianoche), la hora del primer punto del día (0:02), o 0:00 si
-// no hubo puntos. iPhone (no marca jornada): primer y último punto del día.
-export function horasDelDia({ ios, jornadas, primerPunto, ultimoPunto }, desde, hasta, zona) {
+// Hora desde la que terminar ya no pide motivo (la app lo pide antes).
+const FIN_LABORAL = '17:00';
+const VACIO = { encendido: SIN_DATO, apagado: SIN_DATO, inicioJornada: SIN_DATO, finJornada: SIN_DATO, observacion: '' };
+
+// Lo que avisó el teléfono al dejar de mandar puntos (mismos textos que la
+// bitácora del panel).
+const CAUSAS_TELEFONO = ['mobilePowerOff', 'mobileShutdown', 'mobileGpsDisabled', 'mobilePermissionLost'];
+export const TIPOS_CAUSA = [...CAUSAS_TELEFONO, 'mobileBatteryCritical', 'mobileSilent'];
+const MARGEN_MS = 2 * 60_000;
+const VENTANA_MS = 30 * 60_000;
+
+// Por qué no hubo puntos después del último, en este orden: lo que avisó el
+// teléfono hasta 30 min después (apagado, GPS, permiso); batería crítica
+// desde 30 min antes; el servidor notó que dejó de reportar; y si no hay
+// nada, se dice así (nunca se inventa).
+function causaDelApagado(ultimo, eventos, hora) {
+  const t = ultimo.getTime();
+  const cerca = eventos.filter((e) => e.en.getTime() >= t - MARGEN_MS && e.en.getTime() <= t + VENTANA_MS);
+  const aviso = cerca.find((e) => CAUSAS_TELEFONO.includes(e.tipo));
+  if (aviso) {
+    const texto = (aviso.tipo === 'mobileGpsDisabled' && GPS_APAGADO_POR[aviso.quien]) || TIPOS[aviso.tipo].texto;
+    return `${texto} a las ${hora(aviso.en)}`;
+  }
+  const bateria = eventos.find((e) => e.tipo === 'mobileBatteryCritical' && Math.abs(e.en.getTime() - t) <= VENTANA_MS);
+  if (bateria) return `${TIPOS.mobileBatteryCritical.texto} a las ${hora(bateria.en)}`;
+  if (eventos.some((e) => e.tipo === 'mobileSilent' && e.en.getTime() >= t - MARGEN_MS)) {
+    return `${TIPOS.mobileSilent.texto} desde las ${hora(ultimo)}`;
+  }
+  return `Sin ubicación desde las ${hora(ultimo)}, sin causa registrada en el teléfono`;
+}
+
+// Una fila del Excel para un equipo en el día [desde, hasta):
+//  - encendido: el primer punto del día desde las 0:00 (dentro o fuera de
+//    jornada) o el inicio de una jornada, lo que pase antes;
+//  - apagado: el último punto del día hasta las 23:59, o el cierre de la
+//    jornada que hizo la persona si fue después;
+//  - inicio y fin de jornada: los de la persona (el corte de medianoche no lo
+//    es: "Seguía abierta del día anterior" / "No la cerró");
+//  - observación, de lunes a viernes: el motivo que escribió al cerrar y, si
+//    terminó antes de las 17:00 sin motivo, cómo terminó.
+// Los puntos simulados no cuentan. iPhone (no marca jornada): solo puntos.
+export function horasDelDia({ ios, jornadas, primerPunto, ultimoPunto, eventos = [] }, desde, hasta, zona, ahora = new Date()) {
   const hora = (t) => horaCorta(t, zona);
   if (ios) {
-    return primerPunto ? { encendido: hora(primerPunto), apagado: hora(ultimoPunto) } : { encendido: SIN_DATO, apagado: SIN_DATO };
+    return primerPunto ? { ...VACIO, encendido: hora(primerPunto), apagado: hora(ultimoPunto) } : VACIO;
   }
-  if (jornadas.length === 0) return { encendido: SIN_DATO, apagado: SIN_DATO };
+  if (jornadas.length === 0 && !primerPunto) return VACIO;
+  const delDia = jornadas.filter((j) => j.inicio >= desde && j.inicio < hasta);
+  const inicios = [primerPunto, ...delDia.map((j) => j.inicio)].filter(Boolean);
+  const cierres = jornadas.filter((j) => j.fin && !j.cierreAutomatico && j.fin >= desde && j.fin < hasta).map((j) => j.fin);
+  const finales = [ultimoPunto, ...cierres].filter(Boolean);
+  const min = (lista) => new Date(Math.min(...lista.map((t) => t.getTime())));
+  const max = (lista) => new Date(Math.max(...lista.map((t) => t.getTime())));
+  const fila = {
+    encendido: inicios.length ? hora(min(inicios)) : SIN_DATO,
+    apagado: finales.length ? hora(max(finales)) : SIN_DATO,
+    inicioJornada: SIN_DATO,
+    finJornada: SIN_DATO,
+    observacion: '',
+  };
+  if (jornadas.length === 0) return { ...fila, inicioJornada: 'Sin jornada', observacion: 'No inició jornada' };
   const propia = jornadas.find((j) => j.inicio >= desde && !j.continua);
+  fila.inicioJornada = propia ? hora(propia.inicio) : 'Seguía abierta del día anterior';
   const ultima = jornadas[jornadas.length - 1];
-  const apagado = ultimoPunto ? hora(ultimoPunto) : ultima.fin ? hora(ultima.fin) : SIN_DATO;
-  return { encendido: hora(propia ? propia.inicio : primerPunto ?? desde), apagado };
+  const cerroLaPersona = ultima.fin && !ultima.cierreAutomatico && ultima.fin < hasta;
+  // Abierta en un día que ya pasó: no la cerró ese día.
+  const enCurso = !ultima.fin && ahora.getTime() < hasta.getTime();
+  fila.finJornada = enCurso ? 'En curso' : cerroLaPersona ? hora(ultima.fin) : 'No la cerró';
+
+  const notas = jornadas.filter((j) => j.notaFin && j.fin).map((j) => `Motivo de cierre (${hora(j.fin)}): ${j.notaFin}`);
+  const diaSemana = new Date(desde.getTime() + 12 * 3_600_000).getUTCDay();
+  const lunesAViernes = diaSemana >= 1 && diaSemana <= 5;
+  const [hh, mm] = FIN_LABORAL.split(':').map(Number);
+  // Las 17:00 de ese día (las horas se comparan como texto en la zona del día).
+  const antesDeLas17 = (t) => {
+    const [h, m] = hora(t).split(':').map(Number);
+    return h * 60 + m < hh * 60 + mm;
+  };
+  const yaPasaron17 = ahora.getTime() >= hasta.getTime() || !antesDeLas17(ahora);
+  const avisos = [];
+  if (lunesAViernes && yaPasaron17 && !ultima.notaFin) {
+    if (cerroLaPersona && antesDeLas17(ultima.fin)) {
+      avisos.push(`Finalizó la jornada a las ${hora(ultima.fin)} sin motivo`);
+    } else if (!cerroLaPersona && ultimoPunto && antesDeLas17(ultimoPunto)) {
+      avisos.push(causaDelApagado(ultimoPunto, eventos, hora));
+    } else if (!cerroLaPersona && !ultimoPunto) {
+      avisos.push('Sin ubicación en el día');
+    }
+  }
+  if (!cerroLaPersona && !enCurso) avisos.push('No finalizó la jornada');
+  fila.observacion = [...notas, ...avisos].join('. ');
+  return fila;
 }
 
 const escapar = (texto) => texto.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -140,20 +216,23 @@ async function leerEquipos(ctx, desde, hasta, zona) {
     [ids, desde, hasta],
     { signal: ctx.signal },
   );
-  // Primer y último punto válido del día (sin simulados) y, en Android,
-  // dentro de una jornada: el replay usa los mismos.
-  const ios = personas.filter((p) => p.ios === true).map((p) => Number(p.dispositivo_id));
+  // Primer y último punto válido del día (sin simulados), dentro o fuera de
+  // jornada: cualquier punto prueba que el teléfono estaba encendido.
   const { rows: puntos } = await consultar(
     ctx.pool,
     `SELECT p.dispositivo_id, min(p.registrado_en) AS primero, max(p.registrado_en) AS ultimo
      FROM tracking.dmt_posicion p
      WHERE p.dispositivo_id = ANY($1) AND p.registrado_en >= $2 AND p.registrado_en < $3 AND p.valida
-       AND (p.dispositivo_id = ANY($4) OR EXISTS (
-         SELECT 1 FROM operations.dmt_jornada j
-         WHERE j.dispositivo_id = p.dispositivo_id AND p.registrado_en >= j.inicio_en
-           AND p.registrado_en <= coalesce(j.fin_en, now())))
      GROUP BY p.dispositivo_id`,
-    [ids, desde, hasta, ios],
+    [ids, desde, hasta],
+    { signal: ctx.signal },
+  );
+  const { rows: eventos } = await consultar(
+    ctx.pool,
+    `SELECT dispositivo_id, tipo, ocurrido_en, atributos->>'quien' AS quien FROM tracking.dmt_evento
+     WHERE dispositivo_id = ANY($1) AND ocurrido_en >= $2 AND ocurrido_en < $3 AND tipo = ANY($4)
+     ORDER BY ocurrido_en`,
+    [ids, desde, hasta, TIPOS_CAUSA],
     { signal: ctx.signal },
   );
   return personas.map((p) => {
@@ -164,9 +243,15 @@ async function leerEquipos(ctx, desde, hasta, zona) {
       ios: p.ios === true,
       jornadas: jornadas
         .filter((j) => Number(j.dispositivo_id) === id)
-        .map((j) => ({ inicio: j.inicio_en, fin: j.fin_en, continua: aJornada(j, zona).continua === true })),
+        .map((j) => {
+          const a = aJornada(j, zona);
+          // Una jornada que empezó otro día también sigue de antes.
+          const continua = a.continua === true || j.inicio_en < desde;
+          return { inicio: j.inicio_en, fin: j.fin_en, continua, cierreAutomatico: a.cierreAutomatico === true, notaFin: a.notaFin ?? null };
+        }),
       primerPunto: punto?.primero ?? null,
       ultimoPunto: punto?.ultimo ?? null,
+      eventos: eventos.filter((e) => Number(e.dispositivo_id) === id).map((e) => ({ tipo: e.tipo, en: e.ocurrido_en, quien: e.quien })),
     };
   });
 }
@@ -186,9 +271,12 @@ async function armarLibro(titulo, valorDe) {
     let hoja = await readFile(archivoHoja, 'utf8');
     hoja = ponerTexto(hoja, 'B2', titulo);
     for (const { fila, nombre } of filasDePersonas(hoja, compartidos)) {
-      const { encendido, apagado } = valorDe(nombre);
-      hoja = ponerTexto(hoja, `C${fila}`, encendido);
-      hoja = ponerTexto(hoja, `D${fila}`, apagado);
+      const valor = valorDe(nombre);
+      hoja = ponerTexto(hoja, `C${fila}`, valor.encendido);
+      hoja = ponerTexto(hoja, `D${fila}`, valor.apagado);
+      hoja = ponerTexto(hoja, `E${fila}`, valor.inicioJornada);
+      hoja = ponerTexto(hoja, `F${fila}`, valor.finJornada);
+      if (valor.observacion) hoja = ponerTexto(hoja, `G${fila}`, valor.observacion);
     }
     await writeFile(archivoHoja, hoja);
     // [Content_Types].xml primero, como lo deja Excel.
@@ -213,7 +301,7 @@ export async function descargarReporteMarketing(ctx) {
   const equipos = await leerEquipos(ctx, desde, hasta, zona);
   const libro = await armarLibro(fechaTitulo(fecha), (nombre) => {
     const persona = buscarPersona(nombre, equipos);
-    return persona ? horasDelDia(persona, desde, hasta, zona) : { encendido: SIN_DATO, apagado: SIN_DATO };
+    return persona ? horasDelDia(persona, desde, hasta, zona) : VACIO;
   });
   const nombre = `Reporte_Marketing_${String(dia).padStart(2, '0')}-${String(mes).padStart(2, '0')}-${String(anio).slice(2)}.xlsm`;
   ctx.res.writeHead(200, {
