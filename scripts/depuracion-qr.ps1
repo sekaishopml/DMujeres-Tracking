@@ -22,7 +22,9 @@ param(
     [int]$PuertoVinculo = 41474
 )
 
-$ErrorActionPreference = 'Stop'
+# Continue: Windows PowerShell 5.1 toma como error lo que adb y ssh escriben
+# en la salida de errores aunque sea un aviso normal.
+$ErrorActionPreference = 'Continue'
 $base = Join-Path $env:LOCALAPPDATA 'DMujeresDepuracion'
 $adb = Join-Path $base 'platform-tools\adb.exe'
 $llave = Join-Path $env:USERPROFILE '.ssh\dmj_depuracion'
@@ -37,7 +39,7 @@ $opciones = @('-i', $llave, '-o', 'IdentitiesOnly=yes', '-o', 'BatchMode=yes',
     '-o', 'ServerAliveCountMax=3', '-o', 'ExitOnForwardFailure=yes')
 
 function Remoto([string]$orden) {
-    (& ssh @opciones "root@$Servidor" $orden 2>&1 | Out-String).Trim()
+    ((& ssh @opciones "root@$Servidor" $orden 2>&1 | ForEach-Object { "$_" }) -join "`n").Trim()
 }
 
 function Tunel([int]$puerto, [string]$destino) {
@@ -52,7 +54,7 @@ function Cerrar($proceso) {
 
 # Servicios que anuncia el teléfono en la red: conexión o vinculación.
 function Buscar([string]$tipo, [string]$nombre = '') {
-    $lineas = & $adb mdns services 2>$null
+    $lineas = & $adb mdns services 2>&1 | ForEach-Object { "$_" }
     foreach ($linea in $lineas) {
         if ($linea -match "^(\S+)\s+_adb-tls-$tipo\._tcp\.?\s+([\d\.]+):(\d+)") {
             if (-not $nombre -or $Matches[1] -eq $nombre) { return "$($Matches[2]):$($Matches[3])" }
@@ -71,12 +73,12 @@ function Mostrar-QR([string]$texto) {
         if (-not (Get-Module -ListAvailable QRCodeGenerator)) {
             Aviso 'Instalando el generador de QR (una sola vez)...'
             if (-not (Get-PackageProvider -ListAvailable NuGet -ErrorAction SilentlyContinue)) {
-                Install-PackageProvider NuGet -Scope CurrentUser -Force | Out-Null
+                Install-PackageProvider NuGet -Scope CurrentUser -Force -ErrorAction Stop | Out-Null
             }
-            Install-Module QRCodeGenerator -Scope CurrentUser -Force -AllowClobber
+            Install-Module QRCodeGenerator -Scope CurrentUser -Force -AllowClobber -ErrorAction Stop
         }
-        Import-Module QRCodeGenerator
-        New-PSOneQRCodeText -Text $texto -Width 12 -Show
+        Import-Module QRCodeGenerator -ErrorAction Stop
+        New-PSOneQRCodeText -Text $texto -Width 12 -Show -ErrorAction Stop
         return $true
     } catch {
         Aviso "No se pudo mostrar el QR ($($_.Exception.Message))." 'Yellow'
@@ -111,13 +113,13 @@ function Vincular {
 # 1. Herramientas de Android.
 if (-not (Test-Path $adb)) {
     Aviso 'Bajando las herramientas de Android (una sola vez)...'
-    New-Item -ItemType Directory -Force -Path $base | Out-Null
+    New-Item -ItemType Directory -Force -Path $base -ErrorAction Stop | Out-Null
     $zip = Join-Path $base 'platform-tools.zip'
-    Invoke-WebRequest 'https://dl.google.com/android/repository/platform-tools-latest-windows.zip' -OutFile $zip -UseBasicParsing
-    Expand-Archive $zip -DestinationPath $base -Force
+    Invoke-WebRequest 'https://dl.google.com/android/repository/platform-tools-latest-windows.zip' -OutFile $zip -UseBasicParsing -ErrorAction Stop
+    Expand-Archive $zip -DestinationPath $base -Force -ErrorAction Stop
     Remove-Item $zip
 }
-& $adb start-server 2>$null | Out-Null
+& $adb start-server 2>&1 | Out-Null
 
 # 2. Llave para el servidor.
 if (-not (Get-Command ssh -ErrorAction SilentlyContinue)) {
