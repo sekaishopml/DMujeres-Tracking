@@ -128,6 +128,41 @@ Mejoras posibles (en orden de lo que más ruta recuperaría):
 4. **Entender `gps_apagado`.** Revisar en la app qué comprueba ese estado
    y cambiarlo para que solo diga «apagado» cuando lo esté.
 
+### Jefferson y Silvia (análisis del 13/11, sin cambios aplicados)
+
+**Jefferson, «Por qué la cerré por error».** Venía con la jornada abierta del
+12/11 (sin finalizar). El 13/11 a las 15:41:15 tocó «Finalizar jornada» y en el
+recuadro del motivo escribió «Ingreso a mall del sur» (una visita, no un
+motivo: quería registrar su llegada, que es «Siguiente actividad»). A los 35 s
+inició otra jornada y la 2.15, que desde las 09:00 pide el motivo para
+iniciar, preguntó por qué: respondió que la había cerrado por error. No se
+perdieron puntos (hay puntos seguidos de 15:00 a 18:30); la jornada quedó
+partida en 00:00 a 15:41 y 15:41 a 18:33.
+- Excel: le sale Encendido 15:41, pero el teléfono reportaba desde las 08:04.
+  Regla propuesta: si una jornada que venía de ayer se cierra a mano y se
+  vuelve a iniciar en menos de 30 min, es la misma jornada y el encendido es
+  el primer contacto del día. No afecta el caso de Josselyn (reinicio 7 h
+  después).
+- Texto del recuadro al finalizar: aclarar «Escriba por qué finaliza la
+  jornada. Para pasar a la siguiente visita use Siguiente actividad». Requiere
+  actualizar la app.
+- Ese día tuvo el ahorro de batería activo y el permiso de ubicación quitado
+  de 07:21 a 08:04 y de 15:01 a 15:40.
+
+**Silvia, ruta amarilla.** En el replay la línea naranja con rayas negras no
+es un salto del GPS: es un tramo sin puntos unido en línea recta. El 13/11
+tuvo 6 huecos en horario laboral (unas 3 h) y el 12/11 9 huecos (6,2 h).
+Causas, según el diagnóstico de su teléfono (Huawei MRD-LX3):
+- Ubicación en silencio con la app viva (`gps_atrasado`): 07:11 a 08:01
+  (hasta 40 min sin una posición), 14:14 a 14:27, 15:36 a 16:27.
+- Ubicación simulada activa (13:19 a 14:04, 14:35 a 15:29, desde 16:37): el
+  teléfono entrega posiciones simuladas, el servidor las marca no válidas y no
+  se dibujan, así que queda un hueco.
+- Batería: de 100 % a 3 % en 10 h; crítica a las 17:20 y apagado a las 17:28.
+Mejoras: las mismas de Jimmy (aviso de ubicación simulada y Google más GPS a
+la vez en marcha); en persona, quitar la app de ubicación simulada y revisar
+el consumo de batería de su teléfono.
+
 ### Servidor
 
 - No usar la velocidad que reporta el teléfono si no se movió (quita los
