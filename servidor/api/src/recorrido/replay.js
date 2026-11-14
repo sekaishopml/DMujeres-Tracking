@@ -89,16 +89,11 @@ export async function listarReplayDisponible(ctx) {
   });
 }
 
-export async function obtenerReplay(ctx) {
-  const dispositivo = await buscarDispositivo(ctx.pool, ctx.usuario, ctx.params.deviceId, ctx.signal, {
-    incluirDeshabilitado: true,
-  });
-  if (!dispositivo) throw noEncontrado('El dispositivo no existe o no está visible para la cuenta.');
-  const rango = leerRango(ctx.url, {
-    porDefecto: 'hoy',
-    maxDias: 31,
-    zonaHoraria: ctx.entorno.zonaHoraria,
-  });
+// El trazo del día: lo que el replay dibuja, antes de reconstruir tramos. Lo
+// usan el replay y el Excel de Marketing (su encendido es el primer punto de
+// este trazo y su apagado el último), para que las horas del reporte sean
+// siempre las que se ven en el mapa. Lanza ErrorApi 404 si no hay trazo.
+export async function trazoDelRango(ctx, dispositivo, rango) {
   const { preDesde, preHasta } = preFiltro(rango);
   const { rows } = await consultar(
     ctx.pool,
@@ -151,6 +146,20 @@ export async function obtenerReplay(ctx) {
   if (posiciones.length === 0) {
     throw noEncontrado('No hay recorrido válido del dispositivo en la ventana pedida.');
   }
+  return { posiciones, calidad, imprecisos, jornadaDe, ios };
+}
+
+export async function obtenerReplay(ctx) {
+  const dispositivo = await buscarDispositivo(ctx.pool, ctx.usuario, ctx.params.deviceId, ctx.signal, {
+    incluirDeshabilitado: true,
+  });
+  if (!dispositivo) throw noEncontrado('El dispositivo no existe o no está visible para la cuenta.');
+  const rango = leerRango(ctx.url, {
+    porDefecto: 'hoy',
+    maxDias: 31,
+    zonaHoraria: ctx.entorno.zonaHoraria,
+  });
+  const { posiciones, calidad, imprecisos, jornadaDe, ios } = await trazoDelRango(ctx, dispositivo, rango);
   // Cada jornada se reconstruye por separado: entre dos jornadas no se inventa
   // un trayecto; ese tramo va como hueco FUERA_DE_JORNADA y el panel no lo dibuja.
   const grupos = [];

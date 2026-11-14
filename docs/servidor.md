@@ -49,25 +49,22 @@ está por tema:
 Excel de Marketing: llena la plantilla `plantillas/Reporte_Marketing.xlsm`
 (las personas son las filas de la plantilla; para sacar o poner a alguien se
 cambia la plantilla). **Regla permanente**: no se cambia sin orden expresa
-del usuario; las pruebas de `test/reporte-marketing.test.mjs` son los casos
-reales que la fijan (Jefferson 13/11, Paola 11/11, Silvia 11/11, Josselyn
-30/10). Solo se llenan encendido y apagado; las demás columnas quedan como en
-la plantilla y son de referencia (la ruta se revisa en el replay).
-- Solo Android con jornada ese día. Sin jornada: guion. iPhone: primer y último
-  punto del día.
-- Contacto = cualquier punto recibido de las 0:00 a las 23:59, también el de la
-  ubicación simulada o el del encendido del teléfono o del GPS.
-- Turno: una jornada cerrada a mano y vuelta a iniciar en menos de 30 min es el
-  mismo turno (cerró por error o cambió de actividad). Una jornada que cerró la
-  app (sesión perdida) o el servidor (sin datos) no la finalizó la persona: el
-  turno sigue sin importar cuánto pase hasta el nuevo inicio.
-- Encendido: la hora en que la persona inició el turno. Si el turno venía del
-  día anterior (no lo finalizó; la jornada no tiene límite y la app solo la
-  parte a medianoche), el primer contacto del día, o 0:00 si no hubo puntos.
-- Apagado: la hora en que la persona finalizó el último turno. Si no lo
-  finalizó, el último contacto del día.
-- Si cerró a mano a las 15:41 y reinició a las 18:00 (más de 30 min), manda el
-  inicio nuevo (Josselyn 30/10: cerró a las 0:24 e inició a las 7:21).
+del usuario.
+- Encendido = hora del primer punto del trazo que se ve en el replay ese día;
+  apagado = hora del último. Se calculan con la misma función que el replay
+  (`trazoDelRango` en `recorrido/replay.js`), así que el Excel siempre
+  coincide con el mapa. Lo que cambie el replay (filtros de saltos, jornadas)
+  cambia también el Excel, a propósito.
+- Sin trazo ese día (sin jornada o sin puntos): guion. iPhone: igual, su replay
+  traza todo lo que mandó.
+- Solo se llenan encendido y apagado; las demás columnas quedan como en la
+  plantilla y son de referencia (la ruta se revisa en el replay).
+- Lo que el replay no traza no cuenta: los puntos fuera de jornada (el teléfono
+  encendido antes de iniciar) y los que el replay descarta por imprecisos o por
+  salto. Del 14/10 al 13/11 el primer y el último punto del replay estaban a
+  menos de 10 min de los puntos recibidos en 562 de 565 días-equipo; los 3
+  restantes eran 1 o 2 puntos sueltos fuera de jornada (Estévez 14/10, Kevin
+  25/10, Silvia 20/10).
 
 Las pruebas están en `servidor/api/test` (`node24 --test test/*.test.mjs`).
 

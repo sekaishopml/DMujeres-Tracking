@@ -10,10 +10,10 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { consultar } from '../base/db.js';
-import { datosInvalidos } from '../base/errores.js';
+import { datosInvalidos, ErrorApi } from '../base/errores.js';
 import { rangoHoy } from '../base/http.js';
 import { PREDICADO_PERMISO, permisoDe } from '../equipos/flota.js';
-import { aJornada } from '../recorrido/jornadas.js';
+import { trazoDelRango } from '../recorrido/replay.js';
 
 const ejecutar = promisify(execFile);
 const PLANTILLA = fileURLToPath(new URL('../../plantillas/Reporte_Marketing.xlsm', import.meta.url));
@@ -68,50 +68,13 @@ export function buscarPersona(nombre, personas) {
 const VACIO = { encendido: SIN_DATO, apagado: SIN_DATO };
 
 // REGLA PERMANENTE del Excel de Marketing (ver docs/servidor.md; no cambiarla
-// sin orden expresa del usuario). Encendido y apagado de un equipo en el día
-// [desde, hasta), solo Android con jornada ese día; sin jornada: guion.
-//  - Turno: una jornada que la persona cerró a mano y volvió a iniciar en
-//    menos de 30 min es el mismo turno (cerró por error o cambió de actividad).
-//    Si la cerró la app o el servidor (sesión perdida o sin datos) la persona
-//    no la finalizó: el turno sigue hasta que ella lo finalice, sin importar
-//    cuánto pase hasta el nuevo inicio (Paola 11/11).
-//  - Encendido: la hora en que la persona inició el turno. Si el turno venía
-//    del día anterior (no lo finalizó: la jornada sigue sin límite y la app
-//    solo la parte a medianoche), el primer contacto del día desde las 0:00
-//    (cualquier punto, también el del encendido del teléfono o del GPS), o
-//    0:00 si no hubo puntos.
-//  - Apagado: la hora en que la persona finalizó el último turno. Si no lo
-//    finalizó, el último contacto del día hasta las 23:59 (cualquier punto).
-// Contacto = cualquier punto recibido, aunque sea de ubicación simulada: el
-// teléfono estaba encendido. iPhone (no marca jornada): primer y último punto.
-export const TURNO_MISMO_MAX_MS = 30 * 60_000;
-
-export function unirTurnos(jornadas) {
-  const turnos = [];
-  for (const j of jornadas) {
-    const previo = turnos[turnos.length - 1];
-    const seguido = previo && previo.fin && (previo.cierreForzado || (!previo.cierreAutomatico && j.inicio - previo.fin <= TURNO_MISMO_MAX_MS));
-    if (seguido) {
-      previo.fin = j.fin;
-      previo.cierreAutomatico = j.cierreAutomatico;
-      previo.cierreForzado = j.cierreForzado;
-    } else {
-      turnos.push({ ...j });
-    }
-  }
-  return turnos;
-}
-
-export function horasDelDia({ ios, jornadas, primerPunto, ultimoPunto }, desde, hasta, zona) {
-  const hora = (t) => horaCorta(t, zona);
-  if (ios) return primerPunto ? { encendido: hora(primerPunto), apagado: hora(ultimoPunto) } : VACIO;
-  if (jornadas.length === 0) return VACIO;
-  const turnos = unirTurnos(jornadas);
-  const propio = turnos.find((j) => j.inicio >= desde && !j.continua);
-  const ultimo = turnos[turnos.length - 1];
-  const laFinalizo = ultimo.fin && !ultimo.cierreAutomatico && !ultimo.cierreForzado && ultimo.fin < hasta;
-  const apagado = laFinalizo ? hora(ultimo.fin) : ultimoPunto ? hora(ultimoPunto) : ultimo.fin ? hora(ultimo.fin) : SIN_DATO;
-  return { encendido: hora(propio ? propio.inicio : primerPunto ?? desde), apagado };
+// sin orden expresa del usuario): el encendido es la hora del primer punto del
+// trazo que se ve en el replay ese día y el apagado la del último. Se calculan
+// con la misma función que el replay (`trazoDelRango`), así que siempre
+// coinciden con el mapa. Sin trazo ese día: guion.
+export function horasDelDia({ primerPunto, ultimoPunto }, zona) {
+  if (!primerPunto || !ultimoPunto) return VACIO;
+  return { encendido: horaCorta(new Date(primerPunto), zona), apagado: horaCorta(new Date(ultimoPunto), zona) };
 }
 
 const escapar = (texto) => texto.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -148,10 +111,14 @@ export function filasDePersonas(hoja, compartidos) {
   return filas;
 }
 
-async function leerEquipos(ctx, desde, hasta, zona) {
+// El primer y el último punto del trazo del replay de cada persona. Se piden
+// de a pocas para no saturar la base.
+const SIMULTANEAS = 4;
+
+async function leerEquipos(ctx, desde, hasta) {
   const { rows: personas } = await consultar(
     ctx.pool,
-    `SELECT DISTINCT ON (u.id) u.nombre, d.id AS dispositivo_id, d.atributos->>'plataforma' = 'ios' AS ios
+    `SELECT DISTINCT ON (u.id) u.nombre, d.id AS dispositivo_id, d.atributos->>'plataforma' AS plataforma
      FROM iam.dmt_usuario u
      JOIN operations.dmt_asignacion a ON a.usuario_id = u.id AND a.activa
      JOIN tracking.dmt_dispositivo d ON d.id = a.dispositivo_id
@@ -160,47 +127,32 @@ async function leerEquipos(ctx, desde, hasta, zona) {
     [permisoDe(ctx.usuario)],
     { signal: ctx.signal },
   );
-  const ids = personas.map((p) => Number(p.dispositivo_id));
-  const { rows: jornadas } = await consultar(
-    ctx.pool,
-    `SELECT id, dispositivo_id, inicio_en, fin_en, atributos, 0 AS duracion_min FROM operations.dmt_jornada
-     WHERE dispositivo_id = ANY($1) AND inicio_en < $3 AND (fin_en IS NULL OR fin_en >= $2)
-     ORDER BY inicio_en`,
-    [ids, desde, hasta],
-    { signal: ctx.signal },
-  );
-  // Primer y último punto del día, de cualquier tipo (también los simulados:
-  // el teléfono estaba encendido): el primer contacto cuando el turno seguía
-  // de antes y el último cuando no lo finalizó.
-  const { rows: puntos } = await consultar(
-    ctx.pool,
-    `SELECT p.dispositivo_id, min(p.registrado_en) AS primero, max(p.registrado_en) AS ultimo
-     FROM tracking.dmt_posicion p
-     WHERE p.dispositivo_id = ANY($1) AND p.registrado_en >= $2 AND p.registrado_en < $3
-     GROUP BY p.dispositivo_id`,
-    [ids, desde, hasta],
-    { signal: ctx.signal },
-  );
-  return personas.map((p) => {
-    const id = Number(p.dispositivo_id);
-    const punto = puntos.find((x) => Number(x.dispositivo_id) === id);
-    return {
-      nombre: p.nombre,
-      ios: p.ios === true,
-      jornadas: jornadas
-        .filter((j) => Number(j.dispositivo_id) === id)
-        .map((j) => {
-          const a = aJornada(j, zona);
-          // Una jornada que empezó otro día también sigue de antes.
-          const continua = a.continua === true || j.inicio_en < desde;
-          // La app cerró la jornada por sesión perdida, o el servidor por falta de datos.
-          const cierreForzado = j.fin_en !== null && (j.atributos?.fin === 'sesion' || j.atributos?.reason === 'timeout');
-          return { inicio: j.inicio_en, fin: j.fin_en, continua, cierreAutomatico: a.cierreAutomatico === true, cierreForzado };
-        }),
-      primerPunto: punto?.primero ?? null,
-      ultimoPunto: punto?.ultimo ?? null,
-    };
-  });
+  const resultado = new Array(personas.length);
+  let siguiente = 0;
+  async function trabajar() {
+    while (siguiente < personas.length) {
+      const i = siguiente;
+      siguiente += 1;
+      const p = personas[i];
+      let primerPunto = null;
+      let ultimoPunto = null;
+      try {
+        const { posiciones } = await trazoDelRango(
+          ctx,
+          { id: p.dispositivo_id, atributos: { plataforma: p.plataforma } },
+          { desde, hasta },
+        );
+        primerPunto = posiciones[0].registradoEn;
+        ultimoPunto = posiciones[posiciones.length - 1].registradoEn;
+      } catch (error) {
+        // Sin trazo ese día (404) o demasiados puntos (400): guion. Otro error sigue.
+        if (!(error instanceof ErrorApi) || ![400, 404].includes(error.estado)) throw error;
+      }
+      resultado[i] = { nombre: p.nombre, primerPunto, ultimoPunto };
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(SIMULTANEAS, personas.length) }, trabajar));
+  return resultado;
 }
 
 // Arma el libro: copia de la plantilla con la hoja RESUMEN llena.
@@ -242,10 +194,10 @@ export async function descargarReporteMarketing(ctx) {
   const zona = ctx.entorno.zonaHoraria;
   // Día local de la fecha: el mediodía UTC cae en ese día en cualquier zona de América.
   const { desde, hasta } = rangoHoy(zona, new Date(`${fecha}T12:00:00Z`));
-  const equipos = await leerEquipos(ctx, desde, hasta, zona);
+  const equipos = await leerEquipos(ctx, desde, hasta);
   const libro = await armarLibro(fechaTitulo(fecha), (nombre) => {
     const persona = buscarPersona(nombre, equipos);
-    return persona ? horasDelDia(persona, desde, hasta, zona) : VACIO;
+    return persona ? horasDelDia(persona, zona) : VACIO;
   });
   const nombre = `Reporte_Marketing_${String(dia).padStart(2, '0')}-${String(mes).padStart(2, '0')}-${String(anio).slice(2)}.xlsm`;
   ctx.res.writeHead(200, {
