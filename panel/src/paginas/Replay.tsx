@@ -102,7 +102,7 @@ function IntegridadRecorrido({
       {simuladas > 0 && (
         <p className="replay-alerta">
           {simuladas} {simuladas === 1 ? 'punto fue marcado' : 'puntos fueron marcados'} por el teléfono como ubicación
-          simulada (GPS falso).
+          simulada (GPS falso): no forman parte del recorrido.
         </p>
       )}
       {calidad?.posibleOrigenMultiple && (
@@ -496,7 +496,9 @@ export default function Replay() {
   // haya llegado nada, y recalcular la ruta entera traba la pantalla.
   const puntosRecibidos = replay.data?.posiciones;
   const { posiciones, estancias } = useMemo(() => {
-    const lista = [...(puntosRecibidos ?? [])];
+    // La ubicación simulada (GPS falso) no es recorrido: no forma la línea ni
+    // las paradas. Sigue en `puntosRecibidos` (CSV, bitácora) y se avisa abajo.
+    const lista = (puntosRecibidos ?? []).filter((punto) => !punto.simulada);
     // La API ya ordena por hora del fix; se reordena como defensa para que la
     // línea y la reproducción nunca retrocedan si el orden cambia.
     lista.sort((a, b) => milisegundos(a.registradoEn) - milisegundos(b.registradoEn));
@@ -1080,7 +1082,16 @@ export default function Replay() {
       if (esNoEncontrado(replay.error)) return <p className="vacio">Sin recorrido en el rango seleccionado.</p>;
       return <p className="vacio">{mensajeError(replay.error)}</p>;
     }
-    if (!replay.data || posiciones.length === 0) return <p className="vacio">Sin recorrido en el rango seleccionado.</p>;
+    if (!replay.data || posiciones.length === 0) {
+      const simulados = (puntosRecibidos ?? []).filter((punto) => punto.simulada);
+      return (
+        <p className="vacio">
+          Sin recorrido en el rango seleccionado.
+          {simulados.length > 0 &&
+            ` Solo hay ${simulados.length} ${simulados.length === 1 ? 'punto' : 'puntos'} de ubicación simulada (GPS falso), de ${horaCorta(simulados[0].registradoEn)} a ${horaCorta(simulados[simulados.length - 1].registradoEn)}.`}
+        </p>
+      );
+    }
     return (
       <>
         <PanelPuntoSeleccionado />
@@ -1121,7 +1132,7 @@ export default function Replay() {
         {hayRecorrido && replay.data && (
           <InfoRecorrido
             totalFixes={posiciones.length}
-            simuladas={posiciones.filter((posicion) => posicion.simulada).length}
+            simuladas={(puntosRecibidos ?? []).filter((punto) => punto.simulada).length}
             huecos={huecos}
             reconstruidos={reconstruidos}
             calidad={replay.data.calidad}

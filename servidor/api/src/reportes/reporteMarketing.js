@@ -142,8 +142,11 @@ async function leerEquipos(ctx, desde, hasta) {
           { id: p.dispositivo_id, atributos: { plataforma: p.plataforma } },
           { desde, hasta },
         );
-        primerPunto = posiciones[0].registradoEn;
-        ultimoPunto = posiciones[posiciones.length - 1].registradoEn;
+        // Solo ubicación simulada: no hay trazo (posiciones vacías).
+        if (posiciones.length > 0) {
+          primerPunto = posiciones[0].registradoEn;
+          ultimoPunto = posiciones[posiciones.length - 1].registradoEn;
+        }
       } catch (error) {
         // Sin trazo ese día (404) o demasiados puntos (400): guion. Otro error sigue.
         if (!(error instanceof ErrorApi) || ![400, 404].includes(error.estado)) throw error;

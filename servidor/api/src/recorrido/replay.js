@@ -142,12 +142,34 @@ export async function trazoDelRango(ctx, dispositivo, rango) {
   if (enJornada.length === 0) {
     throw noEncontrado('No hubo jornada en la ventana pedida: sin jornada no se traza recorrido.');
   }
-  const { conservadas: posiciones, calidad, imprecisos } = depurarPosiciones(enJornada.map(aPosicion));
-  if (posiciones.length === 0) {
+  // La ubicación simulada (GPS falso) no es recorrido: no forma la línea, ni
+  // las paradas, ni las distancias, ni el primer y último punto del Excel. Se
+  // devuelve aparte y queda marcada; ningún punto se borra de la base.
+  const mapeadas = enJornada.map(aPosicion);
+  const simuladas = mapeadas.filter((p) => p.simulada);
+  const { conservadas, calidad, imprecisos } = depurarPosiciones(mapeadas.filter((p) => !p.simulada));
+  let posiciones = conservadas;
+  if (posiciones.length === 0 && simuladas.length === 0) {
     throw noEncontrado('No hay recorrido válido del dispositivo en la ventana pedida.');
   }
-  return { posiciones, calidad, imprecisos, jornadaDe, ios };
+  // El teléfono encendido antes de iniciar la jornada: su primer punto del día
+  // (uno solo, no una ruta) es el primer punto del trazo, como en el Excel.
+  if (!ios && posiciones.length > 0) {
+    const primera = new Date(posiciones[0].registradoEn).getTime();
+    const previa = rows.find(
+      (fila) => fila.jornada_id == null && !fila.simulada && fila.valida === true && fila.registrado_en.getTime() < primera,
+    );
+    if (previa) {
+      jornadaDe.set(Number(previa.id), 'previo');
+      posiciones = [aPosicion(previa), ...posiciones];
+    }
+  }
+  return { posiciones, simuladas, calidad, imprecisos, jornadaDe, ios };
 }
+
+// Clave de jornada de un punto: un número (id de jornada), el día (iPhone) o
+// "previo" (primer punto del día antes de iniciar la jornada).
+const esJornadaReal = (clave) => Number.isFinite(Number(clave));
 
 export async function obtenerReplay(ctx) {
   const dispositivo = await buscarDispositivo(ctx.pool, ctx.usuario, ctx.params.deviceId, ctx.signal, {
@@ -159,7 +181,37 @@ export async function obtenerReplay(ctx) {
     maxDias: 31,
     zonaHoraria: ctx.entorno.zonaHoraria,
   });
-  const { posiciones, calidad, imprecisos, jornadaDe, ios } = await trazoDelRango(ctx, dispositivo, rango);
+  const { posiciones, simuladas, calidad, imprecisos, jornadaDe, ios } = await trazoDelRango(ctx, dispositivo, rango);
+  if (posiciones.length === 0) {
+    // Solo hubo ubicación simulada: no hay recorrido que trazar, pero se
+    // devuelve lo recibido para que el panel lo avise.
+    return respuestaJson(ctx.res, 200, {
+      dispositivo: aDispositivo(dispositivo, ctx.usuario),
+      desde: rango.desde.toISOString(),
+      hasta: rango.hasta.toISOString(),
+      posiciones: simuladas,
+      huecos: [],
+      imprecisos: [],
+      avisos: [],
+      reconstruidos: [],
+      resumen: {
+        inicio: simuladas[0].registradoEn,
+        fin: simuladas.at(-1).registradoEn,
+        totalPosiciones: 0,
+        totalHuecos: 0,
+        distanciaKm: 0,
+        duracionMin: 0,
+        velocidadPromedioKmh: null,
+        velocidadMaximaKmh: null,
+        bateriaInicialPct: null,
+        bateriaFinalPct: null,
+        pasos: null,
+      },
+      calidad,
+      cierres: [],
+      generadoEn: new Date().toISOString(),
+    });
+  }
   // Cada jornada se reconstruye por separado: entre dos jornadas no se inventa
   // un trayecto; ese tramo va como hueco FUERA_DE_JORNADA y el panel no lo dibuja.
   const grupos = [];
@@ -200,7 +252,7 @@ export async function obtenerReplay(ctx) {
   await explicarHuecos(ctx, dispositivo.id, huecos);
   const sinSenal = huecos.filter((h) => h.motivo !== 'FUERA_DE_JORNADA').length;
   const resumen = resumirRecorrido(posiciones, sinSenal);
-  resumen.pasos = ios ? null : await pasosDeJornadas(ctx, [...new Set(jornadaDe.values())]);
+  resumen.pasos = ios ? null : await pasosDeJornadas(ctx, [...new Set(jornadaDe.values())].filter(esJornadaReal));
   if (grupos.length > 1) {
     // Distancia y tiempo solo dentro de las jornadas, sin el salto entre ellas.
     const km = grupos.reduce((t, g) => t + sumarDistanciasKm(g.posiciones, { omitirImposibles: true }), 0);
@@ -213,7 +265,9 @@ export async function obtenerReplay(ctx) {
     dispositivo: aDispositivo(dispositivo, ctx.usuario),
     desde: rango.desde.toISOString(),
     hasta: rango.hasta.toISOString(),
-    posiciones,
+    // El trazo y, aparte pero en la misma lista, la ubicación simulada (marcada
+    // `simulada`): el panel la quita de la línea y la avisa.
+    posiciones: [...posiciones, ...simuladas].sort((a, b) => new Date(a.registradoEn) - new Date(b.registradoEn)),
     huecos,
     // Tramos con ubicación imprecisa pero seguida: se vio, no es corte.
     imprecisos,
@@ -275,6 +329,7 @@ async function finesDeJornada(ctx, dispositivoId, grupos, rango) {
     const cortes = [];
     const cierres = [];
     for (const grupo of grupos) {
+      if (!esJornadaReal(grupo.jornada)) continue;
       // Del inicio de la jornada al primer punto también es ruta perdida
       // (Israel 21/10: inició 07:58, primer punto 12:02 con el GPS apagado).
       const inicio = Math.max(inicioDe.get(String(grupo.jornada)) ?? Infinity, rango.desde.getTime());

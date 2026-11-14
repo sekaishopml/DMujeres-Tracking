@@ -59,12 +59,18 @@ del usuario.
   traza todo lo que mandó.
 - Solo se llenan encendido y apagado; las demás columnas quedan como en la
   plantilla y son de referencia (la ruta se revisa en el replay).
-- Lo que el replay no traza no cuenta: los puntos fuera de jornada (el teléfono
-  encendido antes de iniciar) y los que el replay descarta por imprecisos o por
-  salto. Del 14/10 al 13/11 el primer y el último punto del replay estaban a
-  menos de 10 min de los puntos recibidos en 562 de 565 días-equipo; los 3
-  restantes eran 1 o 2 puntos sueltos fuera de jornada (Estévez 14/10, Kevin
-  25/10, Silvia 20/10).
+- Qué entra al trazo (`trazoDelRango`): los puntos dentro de una jornada, sin
+  los que el replay descarta por imprecisos o por salto, más **un** punto: el
+  primero del día si llegó antes de iniciar la jornada (el teléfono encendido,
+  Kevin 25/10, Silvia 20/10 y 13/11), sin ruta antes de la jornada.
+- **La ubicación simulada (GPS falso) no es trazo**: no forma la línea, las
+  paradas ni las distancias, y tampoco es primer ni último punto del Excel. Se
+  devuelve en la misma lista del replay marcada `simulada` y el panel la quita
+  de la línea y la avisa; no se borra de la base. Un día solo con ubicación
+  simulada no tiene trazo: guion en el Excel y el replay lo dice.
+- La hora debe ser exacta: del 14/10 al 13/11 el primer y el último punto que
+  muestra el panel (tras su depuración) coinciden al minuto con los del Excel
+  en los 588 días-equipo.
 
 Las pruebas están en `servidor/api/test` (`node24 --test test/*.test.mjs`).
 
