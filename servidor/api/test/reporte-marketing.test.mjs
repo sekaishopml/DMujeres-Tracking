@@ -10,6 +10,7 @@ import {
   horasDelDia,
   normalizar,
   ponerTexto,
+  unirTurnos,
 } from '../src/reportes/reporteMarketing.js';
 
 const ZONA = 'America/Guayaquil';
@@ -69,6 +70,65 @@ test('encendido: inicio manual de la jornada; si seguía de antes, primer contac
   );
   // Seguía abierta y sin puntos: 0:00.
   assert.deepEqual(dia({ jornadas: [{ inicio: h('0:00'), fin: null, continua: true }] }), { encendido: '0:00', apagado: '—' });
+});
+
+test('turno: cerrar a mano y reiniciar en menos de 30 min es la misma jornada', () => {
+  const base = { ios: false };
+  const dia = (datos) => horasDelDia({ ...base, ...datos }, desde, hasta, ZONA);
+  // Jefferson 13/11: venía de ayer, cerró 15:41:15 y reinició 15:41:50. El teléfono reportaba desde las 8:04.
+  assert.deepEqual(
+    dia({
+      jornadas: [
+        { inicio: h('0:00'), fin: h('15:41'), continua: true },
+        { inicio: new Date(h('15:41').getTime() + 35_000), fin: h('18:33') },
+      ],
+      primerPunto: h('8:04'),
+      ultimoPunto: h('18:33'),
+    }),
+    { encendido: '8:04', apagado: '18:33' },
+  );
+  // Silvia 11/11: la jornada de ayer cerrada y reiniciada a las 6:54 en el mismo instante.
+  assert.deepEqual(
+    dia({
+      jornadas: [{ inicio: h('0:00'), fin: h('6:54'), continua: true }, { inicio: h('6:54'), fin: h('19:42') }],
+      primerPunto: h('0:03'),
+      ultimoPunto: h('19:42'),
+    }),
+    { encendido: '0:03', apagado: '19:42' },
+  );
+  // Si pasó más de 30 min (Josselyn 30/10: 7 h) manda el inicio nuevo de la persona.
+  assert.deepEqual(
+    dia({
+      jornadas: [{ inicio: h('0:00'), fin: h('0:24'), continua: true }, { inicio: h('7:21'), fin: h('22:31') }],
+      primerPunto: h('0:02'),
+      ultimoPunto: h('22:30'),
+    }),
+    { encendido: '7:21', apagado: '22:31' },
+  );
+  // Dos jornadas propias con una pausa corta: encendido de la primera, apagado de la última.
+  assert.deepEqual(
+    dia({ jornadas: [{ inicio: h('7:30'), fin: h('12:00') }, { inicio: h('12:20'), fin: h('18:00') }], ultimoPunto: h('17:59') }),
+    { encendido: '7:30', apagado: '18:00' },
+  );
+  // Paola 11/11: la app cerró la jornada de ayer por sesión perdida (9:19) y ella inició a las 16:01. No finalizó: encendido = primer contacto.
+  assert.deepEqual(
+    dia({
+      jornadas: [
+        { inicio: h('0:00'), fin: h('9:19'), continua: true, cierreForzado: true },
+        { inicio: h('16:01'), fin: h('23:59'), cierreAutomatico: true },
+      ],
+      primerPunto: h('0:04'),
+      ultimoPunto: h('23:56'),
+    }),
+    { encendido: '0:04', apagado: '23:56' },
+  );
+  // Sesión perdida a las 10:00 de una jornada que ella inició a las 8:00 y reinicio a las 10:30: encendido 8:00.
+  assert.deepEqual(
+    dia({ jornadas: [{ inicio: h('8:00'), fin: h('10:00'), cierreForzado: true }, { inicio: h('10:30'), fin: h('17:30') }], ultimoPunto: h('17:29') }),
+    { encendido: '8:00', apagado: '17:30' },
+  );
+  // Un cierre automático (el servidor lo llevó al último punto) no se une.
+  assert.equal(unirTurnos([{ inicio: h('8:00'), fin: h('12:00'), cierreAutomatico: true }, { inicio: h('12:05'), fin: null }]).length, 2);
 });
 
 test('apagado: fin manual de la jornada; si no la finalizó, el último punto del día', () => {

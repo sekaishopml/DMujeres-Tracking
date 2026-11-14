@@ -48,12 +48,26 @@ está por tema:
 
 Excel de Marketing: llena la plantilla `plantillas/Reporte_Marketing.xlsm`
 (las personas son las filas de la plantilla; para sacar o poner a alguien se
-cambia la plantilla). Solo se llenan encendido y apagado; las demás columnas
-quedan como en la plantilla. Son de referencia: la ruta se revisa en el replay.
-- Encendido: la hora en que la persona inició la jornada. Si seguía abierta de
-  antes (no la finalizó; la jornada sigue sin límite y la app solo la parte a
-  medianoche), el primer punto del día desde las 0:00, o 0:00 sin puntos.
-- Apagado: la hora en que la finalizó; si no, el último punto del día.
+cambia la plantilla). **Regla permanente**: no se cambia sin orden expresa
+del usuario; las pruebas de `test/reporte-marketing.test.mjs` son los casos
+reales que la fijan (Jefferson 13/11, Paola 11/11, Silvia 11/11, Josselyn
+30/10). Solo se llenan encendido y apagado; las demás columnas quedan como en
+la plantilla y son de referencia (la ruta se revisa en el replay).
+- Solo Android con jornada ese día. Sin jornada: guion. iPhone: primer y último
+  punto del día.
+- Contacto = cualquier punto recibido de las 0:00 a las 23:59, también el de la
+  ubicación simulada o el del encendido del teléfono o del GPS.
+- Turno: una jornada cerrada a mano y vuelta a iniciar en menos de 30 min es el
+  mismo turno (cerró por error o cambió de actividad). Una jornada que cerró la
+  app (sesión perdida) o el servidor (sin datos) no la finalizó la persona: el
+  turno sigue sin importar cuánto pase hasta el nuevo inicio.
+- Encendido: la hora en que la persona inició el turno. Si el turno venía del
+  día anterior (no lo finalizó; la jornada no tiene límite y la app solo la
+  parte a medianoche), el primer contacto del día, o 0:00 si no hubo puntos.
+- Apagado: la hora en que la persona finalizó el último turno. Si no lo
+  finalizó, el último contacto del día.
+- Si cerró a mano a las 15:41 y reinició a las 18:00 (más de 30 min), manda el
+  inicio nuevo (Josselyn 30/10: cerró a las 0:24 e inició a las 7:21).
 
 Las pruebas están en `servidor/api/test` (`node24 --test test/*.test.mjs`).
 

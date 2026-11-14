@@ -67,25 +67,51 @@ export function buscarPersona(nombre, personas) {
 
 const VACIO = { encendido: SIN_DATO, apagado: SIN_DATO };
 
-// Encendido y apagado de un equipo en el día [desde, hasta):
-//  - encendido: la hora en que la persona inició la jornada ese día. Si no la
-//    inició porque seguía abierta de antes (no la finalizó: la jornada sigue
-//    sin límite y la app solo la parte a medianoche), la hora del primer
-//    contacto con el servidor desde las 0:00 (primer punto), o 0:00 si no
-//    hubo puntos.
-//  - apagado: la hora en que la persona finalizó la jornada. Si no la
-//    finalizó, la del último punto del día (hasta las 23:59).
-// Sin jornada ese día: guion. Los puntos simulados no cuentan. iPhone (no
-// marca jornada): primer y último punto del día.
+// REGLA PERMANENTE del Excel de Marketing (ver docs/servidor.md; no cambiarla
+// sin orden expresa del usuario). Encendido y apagado de un equipo en el día
+// [desde, hasta), solo Android con jornada ese día; sin jornada: guion.
+//  - Turno: una jornada que la persona cerró a mano y volvió a iniciar en
+//    menos de 30 min es el mismo turno (cerró por error o cambió de actividad).
+//    Si la cerró la app o el servidor (sesión perdida o sin datos) la persona
+//    no la finalizó: el turno sigue hasta que ella lo finalice, sin importar
+//    cuánto pase hasta el nuevo inicio (Paola 11/11).
+//  - Encendido: la hora en que la persona inició el turno. Si el turno venía
+//    del día anterior (no lo finalizó: la jornada sigue sin límite y la app
+//    solo la parte a medianoche), el primer contacto del día desde las 0:00
+//    (cualquier punto, también el del encendido del teléfono o del GPS), o
+//    0:00 si no hubo puntos.
+//  - Apagado: la hora en que la persona finalizó el último turno. Si no lo
+//    finalizó, el último contacto del día hasta las 23:59 (cualquier punto).
+// Contacto = cualquier punto recibido, aunque sea de ubicación simulada: el
+// teléfono estaba encendido. iPhone (no marca jornada): primer y último punto.
+export const TURNO_MISMO_MAX_MS = 30 * 60_000;
+
+export function unirTurnos(jornadas) {
+  const turnos = [];
+  for (const j of jornadas) {
+    const previo = turnos[turnos.length - 1];
+    const seguido = previo && previo.fin && (previo.cierreForzado || (!previo.cierreAutomatico && j.inicio - previo.fin <= TURNO_MISMO_MAX_MS));
+    if (seguido) {
+      previo.fin = j.fin;
+      previo.cierreAutomatico = j.cierreAutomatico;
+      previo.cierreForzado = j.cierreForzado;
+    } else {
+      turnos.push({ ...j });
+    }
+  }
+  return turnos;
+}
+
 export function horasDelDia({ ios, jornadas, primerPunto, ultimoPunto }, desde, hasta, zona) {
   const hora = (t) => horaCorta(t, zona);
   if (ios) return primerPunto ? { encendido: hora(primerPunto), apagado: hora(ultimoPunto) } : VACIO;
   if (jornadas.length === 0) return VACIO;
-  const propia = jornadas.find((j) => j.inicio >= desde && !j.continua);
-  const ultima = jornadas[jornadas.length - 1];
-  const laFinalizo = ultima.fin && !ultima.cierreAutomatico && ultima.fin < hasta;
-  const apagado = laFinalizo ? hora(ultima.fin) : ultimoPunto ? hora(ultimoPunto) : ultima.fin ? hora(ultima.fin) : SIN_DATO;
-  return { encendido: hora(propia ? propia.inicio : primerPunto ?? desde), apagado };
+  const turnos = unirTurnos(jornadas);
+  const propio = turnos.find((j) => j.inicio >= desde && !j.continua);
+  const ultimo = turnos[turnos.length - 1];
+  const laFinalizo = ultimo.fin && !ultimo.cierreAutomatico && !ultimo.cierreForzado && ultimo.fin < hasta;
+  const apagado = laFinalizo ? hora(ultimo.fin) : ultimoPunto ? hora(ultimoPunto) : ultimo.fin ? hora(ultimo.fin) : SIN_DATO;
+  return { encendido: hora(propio ? propio.inicio : primerPunto ?? desde), apagado };
 }
 
 const escapar = (texto) => texto.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -143,13 +169,14 @@ async function leerEquipos(ctx, desde, hasta, zona) {
     [ids, desde, hasta],
     { signal: ctx.signal },
   );
-  // Primer y último punto válido del día (sin simulados): el primer contacto
-  // cuando la jornada seguía de antes y el último cuando no la finalizó.
+  // Primer y último punto del día, de cualquier tipo (también los simulados:
+  // el teléfono estaba encendido): el primer contacto cuando el turno seguía
+  // de antes y el último cuando no lo finalizó.
   const { rows: puntos } = await consultar(
     ctx.pool,
     `SELECT p.dispositivo_id, min(p.registrado_en) AS primero, max(p.registrado_en) AS ultimo
      FROM tracking.dmt_posicion p
-     WHERE p.dispositivo_id = ANY($1) AND p.registrado_en >= $2 AND p.registrado_en < $3 AND p.valida
+     WHERE p.dispositivo_id = ANY($1) AND p.registrado_en >= $2 AND p.registrado_en < $3
      GROUP BY p.dispositivo_id`,
     [ids, desde, hasta],
     { signal: ctx.signal },
@@ -166,7 +193,9 @@ async function leerEquipos(ctx, desde, hasta, zona) {
           const a = aJornada(j, zona);
           // Una jornada que empezó otro día también sigue de antes.
           const continua = a.continua === true || j.inicio_en < desde;
-          return { inicio: j.inicio_en, fin: j.fin_en, continua, cierreAutomatico: a.cierreAutomatico === true };
+          // La app cerró la jornada por sesión perdida, o el servidor por falta de datos.
+          const cierreForzado = j.fin_en !== null && (j.atributos?.fin === 'sesion' || j.atributos?.reason === 'timeout');
+          return { inicio: j.inicio_en, fin: j.fin_en, continua, cierreAutomatico: a.cierreAutomatico === true, cierreForzado };
         }),
       primerPunto: punto?.primero ?? null,
       ultimoPunto: punto?.ultimo ?? null,
